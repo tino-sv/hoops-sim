@@ -248,6 +248,8 @@ export class CBASimulator {
     let multiplier = 1
     multiplier += (greed - 50) * 0.005
     multiplier += (ego - 50) * 0.003
+    if (player.traits?.includes('loyal')) multiplier *= 0.94
+    if (player.traits?.includes('diva')) multiplier *= 1.06
     let demand = Math.round(baseSalary * multiplier)
 
     const agent = player.contract?.agentType || 'reasonable'

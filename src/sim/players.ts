@@ -44,10 +44,12 @@ export function createPlayer(options: {
     usageExpectation: overallRating >= 86 ? 28 : overallRating >= 78 ? 22 : overallRating >= 72 ? 16 : 12
   }
 
+  const traits = deriveTraits(attributes, position, personality)
   const demand = CBASimulator.getPlayerSalaryDemand({
     age,
     overallRating,
     personality,
+    traits,
     contract: { agentType }
   } as Player, { isContender: false })
 
@@ -78,7 +80,7 @@ export function createPlayer(options: {
     overallRating,
     potential: potentialFor(overallRating, age),
     careerStats: {},
-    traits: deriveTraits(attributes, position)
+    traits
   }
 }
 
@@ -97,20 +99,22 @@ export function playerFromProspect(prospect: DraftProspect, overallPick: number 
   const years = overallPick != null && overallPick <= 12 ? 3 : overallPick != null ? 2 : 1
   const salary = overallPick == null ? NBA_RULES.MINIMUM_SALARY : rookieFirstYear(overallPick)
 
+  const personality = {
+    ego: 30 + Math.floor(Math.random() * 40),
+    loyalty: 50 + Math.floor(Math.random() * 40),
+    greed: 20 + Math.floor(Math.random() * 40),
+    morale: 90,
+    chemistry: 80,
+    usageExpectation: 12
+  }
+
   return {
     id: 'p_' + Math.random().toString(36).slice(2, 10),
     name: prospect.name,
     age: prospect.age,
     position: prospect.position,
     attributes,
-    personality: {
-      ego: 30 + Math.floor(Math.random() * 40),
-      loyalty: 50 + Math.floor(Math.random() * 40),
-      greed: 20 + Math.floor(Math.random() * 40),
-      morale: 90,
-      chemistry: 80,
-      usageExpectation: 12
-    },
+    personality,
     contract: {
       salaries: CBASimulator.generateContractSalaries(salary, years, true),
       option: years >= 3 ? 'team' : 'none',
@@ -124,7 +128,7 @@ export function playerFromProspect(prospect: DraftProspect, overallPick: number 
     overallRating,
     potential: prospect.potentialRating,
     careerStats: {},
-    traits: deriveTraits(attributes, prospect.position)
+    traits: deriveTraits(attributes, prospect.position, personality)
   }
 }
 

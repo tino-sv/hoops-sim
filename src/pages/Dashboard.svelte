@@ -179,7 +179,7 @@
       </div>
 
       <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px; display: flex; justify-content: space-between; font-size: 0.85rem;">
-        <div><b>Point Diff:</b> <span style="color: {team.pointDiff >= 0 ? 'var(--primary)' : 'var(--danger)'}">{team.pointDiff > 0 ? '+' : ''}{team.pointDiff}</span></div>
+        <div><b>Point differential:</b> <span style="color: {team.pointDiff >= 0 ? 'var(--primary)' : 'var(--danger)'}">{team.pointDiff > 0 ? '+' : ''}{team.pointDiff}</span></div>
         <div><b>Salaries:</b> ${(team.finances.salariesTotal / 1000000).toFixed(1)}M</div>
       </div>
     </div>
@@ -187,7 +187,7 @@
     <!-- Next Match Card -->
     <div class="card" style="grid-column: span 4; display: flex; flex-direction: column; justify-content: space-between;">
       <div>
-        <h3 class="card-title">Next Fixture <span class="badge badge-primary">ROUND {currentRound}</span></h3>
+        <h3 class="card-title">Next game <span class="badge badge-primary">ROUND {currentRound}</span></h3>
         
         {#if nextOpponent}
           <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px;">
@@ -203,7 +203,7 @@
           </div>
         {:else}
           <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
-            No upcoming matches left this season.
+            No games left on the schedule.
           </div>
         {/if}
       </div>
@@ -222,11 +222,11 @@
             ⚡ Instant Sim
           </button>
           <button class="btn btn-primary" style="flex: 2;" onclick={advanceDay}>
-            🏀 Enter Match Center
+            🏀 Tip off
           </button>
         {:else}
           <button class="btn btn-secondary" style="width: 100%; cursor: not-allowed;" disabled>
-            Simulated / Done
+            Final
           </button>
         {/if}
       </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { badgeById } from '../sim/badges';
   import type { OffseasonStep, Player, Position, SeasonPhase, Team } from '../sim/types';
   import { CBASimulator, CBA_CONSTANTS, type OfferVerdict } from '../sim/cba';
 
@@ -209,7 +210,7 @@
 <div class="free-agents-container fade-in">
   <!-- Roster Slots and Financial Status Bar -->
   <div class="card" style="margin-bottom: 24px;">
-    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 1.25rem;">Market Registration & Roster Capacity</h3>
+    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 1.25rem;">Roster spots</h3>
     <p style="margin: -8px 0 16px; color: var(--text-secondary); font-size: 0.9rem;">
       {#if inSeason}
         Regular season: the only contract you can offer is a 1-year veteran minimum. Stars will usually walk.
@@ -257,7 +258,7 @@
     <!-- Free Agents List Table -->
     <div class="card" style="grid-column: span {selectedPlayer ? '8' : '12'}; transition: all 0.3s ease;">
       <div class="card-title" style="margin-bottom: 20px;">
-        <h3>Free Agent Market</h3>
+        <h3>Free agency</h3>
         <div style="display: flex; gap: 12px;">
           <!-- Search -->
           <input 
@@ -386,10 +387,13 @@
 
         {#if selectedPlayer.traits.length > 0}
           <div style="margin-bottom: 20px;">
-            <div style="font-weight: 700; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">Special Traits</div>
+            <div style="font-weight: 700; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">Badges</div>
             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
               {#each selectedPlayer.traits as trait}
-                <span class="badge badge-primary" style="font-size: 0.7rem;">⭐ {trait.replace('_', ' ')}</span>
+                {@const badge = badgeById(trait)}
+                {#if badge}
+                  <span class="badge badge-primary" style="font-size: 0.7rem;" title={badge.effect}>{badge.name}</span>
+                {/if}
               {/each}
             </div>
           </div>

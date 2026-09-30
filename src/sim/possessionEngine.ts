@@ -1,3 +1,4 @@
+import { assistBoost, contestBoost, foulBoost, leaderMakeBoost, reboundMultiplier, shootingBoost, turnoverBoost, usageMultiplier } from './badges'
 import type { Player, Position, Team, TeamTactics } from './types'
 
 export type ShotKind = 'close' | 'mid' | 'three'
@@ -126,7 +127,7 @@ export class PossessionEngine {
     const home = ctx.isHomeOffense ? 1 : 0
     const mood = (handler.morale - 75) * 0.00045
 
-    let turnoverChance = 0.155
+    let turnoverChance = 0.155 + turnoverBoost(handler)
       + (attr(primaryDef, 'technical', 'steal') - attr(handler, 'technical', 'ballHandling')) * 0.00045
       + (75 - handler.morale) * 0.00035
       - home * 0.004
@@ -157,7 +158,7 @@ export class PossessionEngine {
     }
 
     const inBonus = ctx.defenseTeamFouls >= 4
-    const nonShootingFoul = !fastBreak && !ctx.secondChance && Math.random() < (inBonus ? 0.055 : 0.07)
+    const nonShootingFoul = !fastBreak && !ctx.secondChance && Math.random() < (inBonus ? 0.055 : 0.07) + foulBoost(primaryDef)
     if (nonShootingFoul) {
       const result = emptyResult(4 + Math.round(Math.random() * 2), logs)
       result.foulPlayerId = primaryDef.id
@@ -197,7 +198,7 @@ export class PossessionEngine {
     if (defTactics.defensiveCoverage === 'zone-23' && shot.kind === 'close') contest += 0.025
     if (defTactics.defensiveCoverage === 'zone-32' && shot.kind === 'close') contest -= 0.02
     if (defTactics.defensiveCoverage === 'zone-32' && shot.kind === 'three') contest += 0.02
-    if (defender.traits?.includes('lockdown')) contest += 0.02
+    contest += contestBoost(defender)
     if (defTactics.defensiveCoverage === 'switch-everything') {
       const gap = SIZE[defender.position] - SIZE[shooter.position]
       if (gap >= 2) contest -= 0.025
@@ -208,9 +209,8 @@ export class PossessionEngine {
     const skillKey = shot.kind === 'three' ? 'threePoint' : shot.kind === 'mid' ? 'midRange' : 'closeShot'
     let make = this.baseMake(shot.kind) + (attr(shooter, 'technical', skillKey) - 68) * 0.0009 - contest + mood
     if (ctx.isHomeOffense) make += 0.008
-    if (shooter.traits?.includes('sharpshooter') && shot.kind === 'three') make += 0.03
-    if (shooter.traits?.includes('post_beast') && shot.kind === 'close') make += 0.03
-    if (shooter.traits?.includes('clutch') && ctx.quarter >= 4 && ctx.secondsRemaining < 180) make += 0.02
+    make += shootingBoost(shooter, shot.kind, ctx.quarter, ctx.secondsRemaining)
+    make += leaderMakeBoost(onCourtOff, shooter.id)
     make = clamp(make, shot.kind === 'close' ? 0.42 : 0.22, shot.kind === 'close' ? 0.78 : shot.kind === 'three' ? 0.46 : 0.52)
 
     const blockChance = shot.kind === 'close' ? 0.125 : shot.kind === 'mid' ? 0.032 : 0.006
@@ -222,7 +222,7 @@ export class PossessionEngine {
       return [missed]
     }
 
-    const foulChance = (shot.kind === 'close' ? 0.21 : shot.kind === 'mid' ? 0.095 : 0.045)
+    const foulChance = (shot.kind === 'close' ? 0.21 : shot.kind === 'mid' ? 0.095 : 0.045) + foulBoost(defender)
       + (attr(shooter, 'technical', 'finishing') - 60) * 0.0006
     if (Math.random() < foulChance) {
       const andOne = Math.random() < make * 0.85
@@ -287,7 +287,7 @@ export class PossessionEngine {
   private pickBallHandler(players: Player[], tactics: TeamTactics): Player {
     return pickWeighted(players.map(player => {
       const role = tactics.offensiveRoles[player.id]
-      let weight = 6 + player.personality.usageExpectation * 0.85
+      let weight = (6 + player.personality.usageExpectation * 0.85) * usageMultiplier(player)
       weight += (attr(player, 'technical', 'ballHandling') - 50) * 0.12
       if (role === 'initiator') weight += 16
       if (role === 'secondary-initiator') weight += 9
@@ -390,7 +390,7 @@ export class PossessionEngine {
 
     const kicked = shooter.id !== handler.id
     const assistBase = kicked ? (style === 'isolation' ? 0.5 : 0.86) : 0.1
-    const playmaker = handler.traits?.includes('playmaker') ? 0.08 : 0
+    const playmaker = assistBoost(handler)
     const assist = kicked && Math.random() < clamp(assistBase + playmaker, 0.1, 0.96)
     return {
       shooter,
@@ -473,7 +473,7 @@ export class PossessionEngine {
     else if (player.position === 'PF') weight *= 1.25
     else if (player.position === 'SF') weight *= 1.05
     else weight *= 0.78
-    if (player.traits?.includes('glass_cleaner')) weight *= 1.2
+    weight *= reboundMultiplier(player)
     return weight
   }
 

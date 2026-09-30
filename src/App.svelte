@@ -169,7 +169,7 @@
           class:active={activeTab === 'dashboard' && !activeMatchId}
           onclick={() => { activeTab = 'dashboard'; activeMatchId = null; }}
         >
-          📰 Dashboard Home
+          📰 Home
         </button>
       </li>
       <li class="menu-item">
@@ -178,7 +178,7 @@
           class:active={activeTab === 'roster' && !activeMatchId}
           onclick={() => { activeTab = 'roster'; activeMatchId = null; }}
         >
-          📊 Roster & Salary Cap
+          📊 Roster & Cap
         </button>
       </li>
       <li class="menu-item">
@@ -187,7 +187,7 @@
           class:active={activeTab === 'tactics' && !activeMatchId}
           onclick={() => { activeTab = 'tactics'; activeMatchId = null; }}
         >
-          📋 Tactics & Chalkboard
+          📋 Lineups
         </button>
       </li>
       <li class="menu-item">
@@ -196,7 +196,7 @@
           class:active={activeTab === 'standings' && !activeMatchId}
           onclick={() => { activeTab = 'standings'; activeMatchId = null; }}
         >
-          🏆 League Standings
+          🏆 Standings
         </button>
       </li>
       <li class="menu-item">
@@ -205,7 +205,7 @@
           class:active={activeTab === 'league_stats' && !activeMatchId}
           onclick={() => { activeTab = 'league_stats'; activeMatchId = null; }}
         >
-          📈 Player Statistics
+          📈 League Leaders
         </button>
       </li>
       <li class="menu-item">
@@ -214,7 +214,7 @@
           class:active={activeTab === 'scouting' && !activeMatchId}
           onclick={() => { activeTab = 'scouting'; activeMatchId = null; }}
         >
-          🧭 College Scouting
+          🧭 Draft Board
         </button>
       </li>
       <li class="menu-item">
@@ -223,7 +223,7 @@
           class:active={activeTab === 'free_agents' && !activeMatchId}
           onclick={() => { activeTab = 'free_agents'; activeMatchId = null; }}
         >
-          🤝 Free Agents Market
+          🤝 Free Agency
         </button>
       </li>
       <li class="menu-item">
@@ -232,7 +232,7 @@
           class:active={activeTab === 'directory' && !activeMatchId}
           onclick={() => { activeTab = 'directory'; activeMatchId = null; }}
         >
-          🏢 Team Directory
+          🏢 Teams
         </button>
       </li>
     </ul>
@@ -334,7 +334,7 @@
   <div class="confirm-overlay">
     <div class="confirm-modal">
       <h3>⚠️ Reset League</h3>
-      <p>Are you sure you want to reset the league? This will erase all matches, records, and stats, and start a fresh 2026 season.</p>
+      <p>Are you sure you want to reset the league? This wipes the schedule, the records, and the stats, and starts a fresh 2026 season.</p>
       <div class="confirm-actions">
         <button class="btn btn-secondary" onclick={() => showResetConfirm = false}>Cancel</button>
         <button class="btn btn-danger" onclick={executeResetLeague}>Confirm Reset</button>

@@ -1,59 +1,32 @@
 <script lang="ts">
-  import type { Team, Player, Position } from '../sim/types';
+  import { seasonLine, type SeasonLine } from '../sim/seasonStats';
+  import type { Team, Player } from '../sim/types';
 
   let { allTeams }: { allTeams: Team[] } = $props();
 
   let searchQuery = $state('');
   let filterTeam = $state('ALL');
   let filterPosition = $state('ALL');
-  let sortBy = $state<'pts' | 'ast' | 'reb' | 'stl' | 'blk' | 'min' | 'gp' | 'fgPct' | 'tpPct'>('pts');
+  type SortKey = 'gp' | 'min' | 'pts' | 'reb' | 'ast' | 'stl' | 'blk' | 'tov' | 'fgPct' | 'tpPct' | 'ftPct' | 'efgPct' | 'plusMinus';
+  let sortBy = $state<SortKey>('pts');
   let sortAscending = $state(false);
 
-  // Compile all players with team names and calculated stats
-  interface FlatPlayerStats {
+  interface FlatPlayerStats extends SeasonLine {
     player: Player;
     teamName: string;
-    gp: number;
-    min: number; // average
-    pts: number;
-    ast: number;
-    reb: number;
-    stl: number;
-    blk: number;
-    fgPct: number;
-    tpPct: number;
   }
 
   let playersData = $derived.by(() => {
     const list: FlatPlayerStats[] = [];
-    allTeams.forEach(t => {
-      t.roster.forEach(p => {
-        const stats = p.careerStats['season'];
-        const gp = stats?.games || 0;
-        const pts = gp > 0 ? stats.points / gp : 0;
-        const ast = gp > 0 ? stats.assists / gp : 0;
-        const reb = gp > 0 ? stats.rebounds / gp : 0;
-        const stl = gp > 0 ? stats.steals / gp : 0;
-        const blk = gp > 0 ? stats.blocks / gp : 0;
-        const min = gp > 0 ? stats.minutes / gp : 0;
-        const fgPct = stats && stats.fga > 0 ? (stats.fgm / stats.fga) * 100 : 0;
-        const tpPct = stats && stats.tpa > 0 ? (stats.tpm / stats.tpa) * 100 : 0;
-
+    for (const club of allTeams) {
+      for (const player of club.roster) {
         list.push({
-          player: p,
-          teamName: t.name,
-          gp,
-          min,
-          pts,
-          ast,
-          reb,
-          stl,
-          blk,
-          fgPct,
-          tpPct
+          player,
+          teamName: club.name,
+          ...seasonLine(player.careerStats['season'])
         });
-      });
-    });
+      }
+    }
     return list;
   });
 
@@ -73,7 +46,10 @@
       });
   });
 
-  const toggleSort = (field: typeof sortBy) => {
+  const one = (value: number) => value.toFixed(1);
+  const plusMinus = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}`;
+
+  const toggleSort = (field: SortKey) => {
     if (sortBy === field) {
       sortAscending = !sortAscending;
     } else {
@@ -133,15 +109,13 @@
             <th>Player</th>
             <th>Team</th>
             <th style="text-align: center;">Pos</th>
-            <th class="sortable-header" onclick={() => toggleSort('gp')} style="text-align: center;">GP {sortBy === 'gp' ? (sortAscending ? '▲' : '▼') : ''}</th>
-            <th class="sortable-header" onclick={() => toggleSort('min')} style="text-align: center;">MIN {sortBy === 'min' ? (sortAscending ? '▲' : '▼') : ''}</th>
-            <th class="sortable-header" onclick={() => toggleSort('pts')} style="text-align: center;">PTS {sortBy === 'pts' ? (sortAscending ? '▲' : '▼') : ''}</th>
-            <th class="sortable-header" onclick={() => toggleSort('ast')} style="text-align: center;">AST {sortBy === 'ast' ? (sortAscending ? '▲' : '▼') : ''}</th>
-            <th class="sortable-header" onclick={() => toggleSort('reb')} style="text-align: center;">REB {sortBy === 'reb' ? (sortAscending ? '▲' : '▼') : ''}</th>
-            <th class="sortable-header" onclick={() => toggleSort('stl')} style="text-align: center;">STL {sortBy === 'stl' ? (sortAscending ? '▲' : '▼') : ''}</th>
-            <th class="sortable-header" onclick={() => toggleSort('blk')} style="text-align: center;">BLK {sortBy === 'blk' ? (sortAscending ? '▲' : '▼') : ''}</th>
-            <th class="sortable-header" onclick={() => toggleSort('fgPct')} style="text-align: center;">FG% {sortBy === 'fgPct' ? (sortAscending ? '▲' : '▼') : ''}</th>
-            <th class="sortable-header" onclick={() => toggleSort('tpPct')} style="text-align: center;">3PT% {sortBy === 'tpPct' ? (sortAscending ? '▲' : '▼') : ''}</th>
+            {#each [
+              ['gp', 'GP'], ['min', 'MIN'], ['pts', 'PTS'], ['reb', 'REB'], ['ast', 'AST'],
+              ['stl', 'STL'], ['blk', 'BLK'], ['tov', 'TOV'],
+              ['fgPct', 'FG%'], ['tpPct', '3P%'], ['ftPct', 'FT%'], ['efgPct', 'eFG%'], ['plusMinus', '+/-']
+            ] as [key, label]}
+              <th class="sortable-header" onclick={() => toggleSort(key as SortKey)} style="text-align: center;">{label} {sortBy === key ? (sortAscending ? '▲' : '▼') : ''}</th>
+            {/each}
           </tr>
         </thead>
         <tbody>
@@ -154,18 +128,22 @@
               <td><span style="font-weight: 500;">{p.teamName}</span></td>
               <td style="text-align: center;"><span class="badge badge-secondary">{p.player.position}</span></td>
               <td style="text-align: center; font-weight: 600;">{p.gp}</td>
-              <td style="text-align: center; font-family: monospace;">{p.min.toFixed(1)}</td>
-              <td style="text-align: center; font-weight: 700; color: var(--primary);">{p.pts.toFixed(1)}</td>
-              <td style="text-align: center; font-weight: 600; color: var(--text-primary);">{p.ast.toFixed(1)}</td>
-              <td style="text-align: center; font-weight: 600; color: var(--text-secondary);">{p.reb.toFixed(1)}</td>
-              <td style="text-align: center; font-family: monospace;">{p.stl.toFixed(1)}</td>
-              <td style="text-align: center; font-family: monospace;">{p.blk.toFixed(1)}</td>
-              <td style="text-align: center; font-weight: 600; color: var(--text-secondary);">{p.fgPct.toFixed(1)}%</td>
-              <td style="text-align: center; font-weight: 600; color: var(--text-secondary);">{p.tpPct.toFixed(1)}%</td>
+              <td style="text-align: center;">{one(p.min)}</td>
+              <td style="text-align: center; font-weight: 700; color: var(--primary);">{one(p.pts)}</td>
+              <td style="text-align: center;">{one(p.reb)}</td>
+              <td style="text-align: center;">{one(p.ast)}</td>
+              <td style="text-align: center;">{one(p.stl)}</td>
+              <td style="text-align: center;">{one(p.blk)}</td>
+              <td style="text-align: center;">{one(p.tov)}</td>
+              <td style="text-align: center;">{one(p.fgPct)}</td>
+              <td style="text-align: center;">{one(p.tpPct)}</td>
+              <td style="text-align: center;">{one(p.ftPct)}</td>
+              <td style="text-align: center;">{one(p.efgPct)}</td>
+              <td style="text-align: center;">{plusMinus(p.plusMinus)}</td>
             </tr>
           {:else}
             <tr>
-              <td colspan="12" style="text-align: center; color: var(--text-muted); padding: 40px 0;">No players found matching current filters.</td>
+              <td colspan="16" style="text-align: center; color: var(--text-muted); padding: 40px 0;">No players match that search.</td>
             </tr>
           {/each}
         </tbody>

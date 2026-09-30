@@ -1,7 +1,8 @@
+import { settleTeamMorale } from './badges'
 import { birdFromYears, CBASimulator, type OfferVerdict } from './cba'
 import { MatchEngine } from './matchEngine'
 import { createPlayer, createProspect, playerFromProspect } from './players'
-import { developPlayer } from './ratings'
+import { deriveTraits, developPlayer } from './ratings'
 import { NBA_RULES } from './rules'
 import { addToDepthChart, rebuildDepthChart, waivePlayer } from './roster'
 import type { BoxScoreStats, Conference, DraftPick, DraftProspect, OfficeNote, OffseasonStep, Player, Position, SeasonPhase, Team, TeamTactics } from './types'
@@ -138,6 +139,12 @@ export class LeagueManager {
       this.draftOrder = data.draftOrder
       this.draftIndex = data.draftIndex
       this.news = data.news
+      const refreshBadges = (player: Player) => {
+        if (!player.attributes || !player.personality) return
+        player.traits = deriveTraits(player.attributes, player.position, player.personality)
+      }
+      for (const team of this.teams) for (const player of team.roster) refreshBadges(player)
+      for (const player of this.freeAgents) refreshBadges(player)
       return true
     } catch (error) {
       console.error('Error loading league data from localStorage:', error)
@@ -441,12 +448,8 @@ export class LeagueManager {
         season.fta += stats.fta
         season.plusMinus += stats.plusMinus
 
-        const win = res.winnerId === team.id
-        let moraleDelta = win ? 2 : -2
-        if (stats.minutes < 5 && player.personality.usageExpectation > 20) moraleDelta -= 3
-        else if (stats.minutes > 20 && player.personality.usageExpectation > 20) moraleDelta += 1
-        player.morale = Math.max(0, Math.min(100, player.morale + moraleDelta))
       })
+      settleTeamMorale(team.roster, player => playerStats[player.id]?.minutes ?? 0, res.winnerId === team.id)
     }
 
     updateStats(home, res.playerStatsA)

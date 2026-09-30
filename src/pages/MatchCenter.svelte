@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { badgeById, settleTeamMorale } from '../sim/badges';
   import { GameSession } from '../sim/matchEngine';
+  import { madeAttempts } from '../sim/seasonStats';
   import type { Team, Player, BoxScoreStats, TeamTactics, Position } from '../sim/types';
   import type { ScheduledMatch } from '../sim/league';
 
@@ -29,6 +31,8 @@
   let secondsRemaining = $state(720);
   let possession = $state(Math.random() < 0.5 ? 'home' : 'away');
   let isTransition = $state(false);
+  let foulsHome = $state(0);
+  let foulsAway = $state(0);
   
   // Stats
   let statsHome = $state<Record<string, BoxScoreStats>>({});
@@ -143,6 +147,8 @@
     secondsRemaining = session.secondsRemaining;
     possession = session.possession;
     isTransition = session.isTransition;
+    foulsHome = session.foulsHome;
+    foulsAway = session.foulsAway;
     onCourtHome = [...session.onCourtHome];
     onCourtAway = [...session.onCourtAway];
     statsHome = { ...session.statsHome };
@@ -237,12 +243,13 @@
               (c as any)[k] += (stats as any)[k];
             }
           }
-          p.morale = Math.max(0, Math.min(100, p.morale + (winnerId === t.id ? 2 : -2)));
         }
       });
     };
     updateStats(teamHome, statsHome);
     updateStats(teamAway, statsAway);
+    settleTeamMorale(teamHome.roster, player => statsHome[player.id]?.minutes ?? 0, winnerId === teamHome.id);
+    settleTeamMorale(teamAway.roster, player => statsAway[player.id]?.minutes ?? 0, winnerId === teamAway.id);
 
     alert(`Game Completed! Final Score: ${teamHome.name} ${scoreHome} - ${scoreAway} ${teamAway.name}`);
     onFinishedMatch(scoreHome, scoreAway, winnerId);
@@ -290,6 +297,20 @@
     }
   };
 
+  const checkedIn = (team: Team, stats: Record<string, BoxScoreStats>, onCourt: Player[]) => {
+    const onFloor = new Set(onCourt.map(player => player.id));
+    return team.roster
+      .filter(player => onFloor.has(player.id) || (stats[player.id]?.minutes ?? 0) > 0)
+      .sort((a, b) => (stats[b.id]?.minutes ?? 0) - (stats[a.id]?.minutes ?? 0));
+  };
+
+  const plusMinusText = (value: number) => `${value > 0 ? '+' : ''}${value}`;
+
+  const quarterLabel = (quarter: number) => {
+    if (quarter <= 4) return ['1st', '2nd', '3rd', '4th'][quarter - 1];
+    return quarter === 5 ? 'OT' : `OT${quarter - 4}`;
+  };
+
   const formatTimeStr = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
@@ -297,89 +318,49 @@
   };
 </script>
 
-<div class="match-center-container fade-in">
-  <!-- Live scoreboard header -->
-  <div class="card" style="margin-bottom: 24px; padding: 16px 24px;">
-    <div style="display: flex; align-items: center; justify-content: space-between;">
-      
-      <!-- Home Team -->
-      <div style="display: flex; align-items: center; gap: 24px; flex: 1;">
-        <span style="font-size: 2.25rem; font-family: var(--font-display); font-weight: 900;">{teamHome.city}</span>
-        <div style="text-align: right;">
-          <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-secondary);">{teamHome.name}</div>
-          <span class="badge badge-primary">HOME</span>
-        </div>
+<div class="game-screen fade-in">
+  <header class="card scorebug">
+    <div class="scorebug-side">
+      <span class="swatch" style="background: {teamHome.color};"></span>
+      <div class="scorebug-id">
+        <div class="scorebug-city">{teamHome.city}</div>
+        <div class="scorebug-name">{teamHome.name}</div>
+        <div class="scorebug-meta">{teamHome.wins}-{teamHome.losses} · {foulsHome} team fouls{foulsHome >= 4 ? ' · bonus' : ''}</div>
       </div>
-
-      <!-- Live Score -->
-      <div style="text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 40px; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">
-        <div style="display: flex; items: center; gap: 16px;">
-          <span style="font-size: 3rem; font-family: var(--font-display); font-weight: 900; color: var(--text-primary);">
-            {scoreHome}
-          </span>
-          <span style="font-size: 2rem; color: var(--text-muted); font-weight: 300;">-</span>
-          <span style="font-size: 3rem; font-family: var(--font-display); font-weight: 900; color: var(--secondary);">
-            {scoreAway}
-          </span>
-        </div>
-        
-        <div>
-          <span class="badge badge-secondary" style="font-size: 0.85rem; letter-spacing: 0.05em;">
-            Q{currentQuarter} • {formatTimeStr(secondsRemaining)}
-          </span>
-        </div>
-      </div>
-
-      <!-- Away Team -->
-      <div style="display: flex; align-items: center; justify-content: flex-end; gap: 24px; flex: 1; text-align: right;">
-        <div>
-          <div style="font-size: 1.1rem; font-weight: 700; color: var(--text-secondary);">{teamAway.name}</div>
-          <span class="badge badge-secondary">{teamAway.city}</span>
-        </div>
-        <span style="font-size: 2.25rem; font-family: var(--font-display); font-weight: 900; color: var(--secondary);">{teamAway.name}</span>
-      </div>
-
+      <div class="scorebug-points" class:has-ball={possession === 'home'}>{scoreHome}</div>
     </div>
-  </div>
+
+    <div class="scorebug-mid">
+      <div class="scorebug-clock">{quarterLabel(currentQuarter)} · {formatTimeStr(secondsRemaining)}</div>
+      <div class="scorebug-ball">{possession === 'home' ? teamHome.name : teamAway.name} ball{isTransition ? ' · transition' : ''}</div>
+      <div class="scorebug-controls">
+        {#if isRunning}
+          <button class="btn btn-secondary" onclick={stopGame}>Pause</button>
+        {:else}
+          <button class="btn btn-primary" onclick={startGame}>Play</button>
+        {/if}
+        <button class="btn btn-secondary" onclick={() => { stopGame(); playSpeed = 100; startGame(); }}>Sim game</button>
+        <label><input type="radio" group={playSpeed} value={1} disabled={isRunning} /> 1x</label>
+        <label><input type="radio" group={playSpeed} value={2} disabled={isRunning} /> 2x</label>
+        <label><input type="radio" group={playSpeed} value={5} disabled={isRunning} /> 5x</label>
+      </div>
+    </div>
+
+    <div class="scorebug-side away">
+      <div class="scorebug-points" class:has-ball={possession === 'away'}>{scoreAway}</div>
+      <div class="scorebug-id" style="text-align: right;">
+        <div class="scorebug-city">{teamAway.city}</div>
+        <div class="scorebug-name">{teamAway.name}</div>
+        <div class="scorebug-meta">{teamAway.wins}-{teamAway.losses} · {foulsAway} team fouls{foulsAway >= 4 ? ' · bonus' : ''}</div>
+      </div>
+      <span class="swatch" style="background: {teamAway.color};"></span>
+    </div>
+  </header>
 
   <div class="dashboard-grid">
-    <!-- Center panel: Interactive Live Court and Commentary Feed -->
-    <div style="grid-column: span 8; display: flex; flex-direction: column; gap: 24px;">
-      
-      <!-- Sim Controls -->
-      <div class="card" style="padding: 16px; display: flex; align-items: center; justify-content: space-between;">
-        <div style="display: flex; gap: 10px;">
-          {#if isRunning}
-            <button class="btn btn-secondary" onclick={stopGame}>⏸️ Pause Sim</button>
-          {:else}
-            <button class="btn btn-primary" onclick={startGame}>▶️ Start Simulation</button>
-          {/if}
-          <button class="btn btn-secondary" onclick={() => { stopGame(); playSpeed = 100; startGame(); }}>
-            ⚡ Instant Sim
-          </button>
-        </div>
-
-        <div style="display: flex; align-items: center; gap: 12px; font-size: 0.85rem;">
-          <b>Speed:</b>
-          <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
-            <input type="radio" group={playSpeed} value={1} disabled={isRunning} /> 1x
-          </label>
-          <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
-            <input type="radio" group={playSpeed} value={2} disabled={isRunning} /> 2x
-          </label>
-          <label style="display: inline-flex; align-items: center; gap: 4px; cursor: pointer;">
-            <input type="radio" group={playSpeed} value={5} disabled={isRunning} /> 5x
-          </label>
-        </div>
-      </div>
-
-      <!-- Live spacing representation -->
-      <div class="card" style="padding: 12px; display: flex; flex-direction: column; align-items: center;">
-        <h4 style="align-self: flex-start; color: var(--text-secondary); margin-bottom: 8px;">Live Broadcast View</h4>
-        
-        <div class="court-container" style="width: 100%; aspect-ratio: 1 / 1; max-width: 450px;">
-          <!-- Beautiful SVG Court Markings -->
-          <svg viewBox="0 0 100 100" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;">
+    <div class="card court-card" style="grid-column: span 7;">
+      <div class="court-container">
+        <svg viewBox="0 0 100 100" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;">
             <!-- Court floor background -->
             <rect width="100%" height="100%" fill="#0f172a" />
             
@@ -405,152 +386,495 @@
             <line x1="4" y1="50" x2="4.75" y2="50" stroke="#ffffff" stroke-width="1.5" />
             <circle cx="4.75" cy="50" r="1.5" fill="none" stroke="#f97316" stroke-width="2.5" />
           </svg>
-
-          <!-- Highlight Ball location -->
-          {#if isRunning}
-            <div class="court-ball" style="left: {liveBallLocation.x}%; top: {liveBallLocation.y}%; z-index: 10;"></div>
-          {/if}
-
-          <!-- Player Dots (Guarding Matchups) -->
-          {#each Object.entries(playerCoordinates) as [playerId, c]}
-            <div 
-              class="court-dot" 
-              class:offense={c.isOffense}
-              class:defense={!c.isOffense}
-              style="left: {c.x}%; top: {c.y}%; z-index: 5;"
-              title="{c.name} ({c.pos})"
-            >
-              {c.pos}
-              <span class="court-dot-tooltip">{c.name}</span>
-            </div>
-          {/each}
-        </div>
+        {#if isRunning}
+          <div class="court-ball" style="left: {liveBallLocation.x}%; top: {liveBallLocation.y}%; z-index: 10;"></div>
+        {/if}
+        {#each Object.entries(playerCoordinates) as [playerId, c]}
+          <div
+            class="court-dot"
+            class:offense={c.isOffense}
+            class:defense={!c.isOffense}
+            style="left: {c.x}%; top: {c.y}%; z-index: 5;"
+            title="{c.name} ({c.pos})"
+          >
+            {c.pos}
+            <span class="court-dot-tooltip">{c.name}</span>
+          </div>
+        {/each}
       </div>
-
-      <!-- Scrolling play commentary feed -->
-      <div class="card" style="flex-grow: 1; height: 300px; display: flex; flex-direction: column;">
-        <h4 class="card-title">Commentary Log</h4>
-        
-        <div style="flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; background-color: var(--bg-darker);">
-          {#each logsList as log}
-            <div 
-              style="font-size: 0.85rem; padding: 6px 10px; border-radius: 4px; border-left: 3px solid transparent;"
-              class:commentary-score={log.type === 'score'}
-              class:commentary-foul={log.type === 'foul'}
-              class:commentary-turnover={log.type === 'turnover'}
-              class:commentary-system={log.type === 'system'}
-            >
-              {log.text}
-            </div>
-          {:else}
-            <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 80px;">
-              Match commentary starts once simulation begins.
-            </div>
-          {/each}
-        </div>
-      </div>
-
     </div>
 
-    <!-- Right panel: Subs panel and Match statistics -->
-    <div style="grid-column: span 4; display: flex; flex-direction: column; gap: 24px;">
-      
-      <!-- Coach panel: Subs -->
-      <div class="card" style="display: flex; flex-direction: column; gap: 12px;">
-        <h3 class="card-title">Coaching & Subs</h3>
+    <div class="card pbp-card" style="grid-column: span 5;">
+      <h3 class="card-title">Play-by-play</h3>
+      <div class="pbp-feed">
+        {#each logsList as log}
+          <div
+            class="pbp-line"
+            class:commentary-score={log.type === 'score'}
+            class:commentary-foul={log.type === 'foul'}
+            class:commentary-turnover={log.type === 'turnover'}
+            class:commentary-system={log.type === 'system'}
+          >{log.text}</div>
+        {:else}
+          <div class="pbp-empty">Play-by-play starts at tip-off.</div>
+        {/each}
+      </div>
+    </div>
+  </div>
 
-        <!-- In-game defensive tactics settings -->
-        <div class="setting-group">
-          <label for="live-cov">Adjust Scheme</label>
-          <select id="live-cov" class="tactics-select" bind:value={tacticsHome.defensiveCoverage}>
-            <option value="drop">Drop (Protect paint)</option>
-            <option value="blitz">Blitz Handler (Trap PG)</option>
-            <option value="switch-everything">Switch (Prevent open looks)</option>
+  <div class="card floor-card">
+    <div class="floor-col">
+      <div class="floor-head">
+        <h3>{teamHome.name} on the floor</h3>
+        <label class="coverage-label">
+          Coverage
+          <select class="tactics-select" bind:value={tacticsHome.defensiveCoverage}>
+            <option value="drop">Drop</option>
+            <option value="blitz">Blitz the handler</option>
+            <option value="switch-everything">Switch everything</option>
           </select>
-        </div>
-
-        <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px;">
-          <h4 style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">On Floor (Select to Sub)</h4>
-          <div style="display: flex; flex-direction: column; gap: 6px;">
-            {#each onCourtHome as p}
-              <button 
-                class="sub-item-btn" 
-                class:active={selectedOnCourtId === p.id}
-                onclick={() => selectedOnCourtId = p.id}
-              >
-                <span><b>{p.position}</b> {p.name}</span>
-                <span class="badge badge-warning">Fatigue: {Math.round(p.fatigue)}%</span>
-              </button>
-            {/each}
-          </div>
-        </div>
-
-        {#if selectedOnCourtId}
-          <div style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 8px; animation: fadeIn 0.2s;">
-            <h4 style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px;">Choose Bench Replacement</h4>
-            <div style="display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto;">
-              {#each teamHome.roster.filter(p => !onCourtHome.includes(p)) as p}
-                <button 
-                  class="sub-item-btn" 
-                  style="border-color: var(--primary-glow);"
-                  onclick={() => makeManualSub(p)}
-                >
-                  <span><b>{p.position}</b> {p.name}</span>
-                  <span class="badge badge-primary">F: {Math.round(p.fatigue)}%</span>
-                </button>
-              {/each}
-            </div>
-          </div>
-        {/if}
+        </label>
       </div>
-
-      <!-- Live statistics snapshot -->
-      <div class="card" style="flex-grow: 1;">
-        <h3 class="card-title">Live Box Score</h3>
-        
-        <div class="table-container" style="max-height: 250px; overflow-y: auto;">
-          <table class="sim-table">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>PTS</th>
-                <th>AST</th>
-                <th>REB</th>
-                <th>PF</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style="background-color: var(--bg-dark);"><td colspan="5" style="font-weight: 800; font-size: 0.75rem;">{teamHome.name} (Home)</td></tr>
-              {#each onCourtHome as p}
-                <tr>
-                  <td style="font-weight: 700; max-width: 90px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">{p.name}</td>
-                  <td>{statsHome[p.id]?.points || 0}</td>
-                  <td>{statsHome[p.id]?.assists || 0}</td>
-                  <td>{statsHome[p.id]?.rebounds || 0}</td>
-                  <td style="color: {(statsHome[p.id]?.fouls || 0) >= 5 ? 'var(--danger)' : 'inherit'}">{statsHome[p.id]?.fouls || 0}</td>
-                </tr>
+      <div class="floor-list">
+        {#each onCourtHome as p}
+          {@const line = statsHome[p.id]}
+          <button class="floor-player" class:active={selectedOnCourtId === p.id} onclick={() => selectedOnCourtId = selectedOnCourtId === p.id ? null : p.id}>
+            <span class="floor-pos">{p.position}</span>
+            <span class="floor-name">{p.name}</span>
+            <span class="floor-stat">{line?.points || 0} pts</span>
+            <span class="floor-stat" class:foul-trouble={(line?.fouls || 0) >= 4}>{line?.fouls || 0} pf</span>
+            <span class="floor-stat">Legs {Math.round(p.fatigue)}</span>
+            <span class="floor-badges">
+              {#each p.traits as id}
+                {@const badge = badgeById(id)}
+                {#if badge}
+                  <span class="mini-badge {badge.group}" title={badge.effect}>{badge.name}</span>
+                {/if}
               {/each}
-
-              <tr style="background-color: var(--bg-dark);"><td colspan="5" style="font-weight: 800; font-size: 0.75rem; color: var(--secondary);">{teamAway.name} (Away)</td></tr>
-              {#each onCourtAway as p}
-                <tr>
-                  <td style="font-weight: 700; max-width: 90px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">{p.name}</td>
-                  <td>{statsAway[p.id]?.points || 0}</td>
-                  <td>{statsAway[p.id]?.assists || 0}</td>
-                  <td>{statsAway[p.id]?.rebounds || 0}</td>
-                  <td style="color: {(statsAway[p.id]?.fouls || 0) >= 5 ? 'var(--danger)' : 'inherit'}">{statsAway[p.id]?.fouls || 0}</td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+            </span>
+          </button>
+        {/each}
       </div>
+      {#if selectedOnCourtId}
+        <div class="bench-row">
+          <span class="bench-label">Bring in</span>
+          {#each teamHome.roster.filter(p => !onCourtHome.some(on => on.id === p.id) && (statsHome[p.id]?.fouls ?? 0) < 6) as p}
+            <button class="bench-chip" onclick={() => makeManualSub(p)}>
+              {p.position} {p.name}
+              <span>Legs {Math.round(p.fatigue)}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
 
+    <div class="floor-col">
+      <h3>{teamAway.name} on the floor</h3>
+      <div class="floor-list">
+        {#each onCourtAway as p}
+          {@const line = statsAway[p.id]}
+          <div class="floor-player away">
+            <span class="floor-pos">{p.position}</span>
+            <span class="floor-name">{p.name}</span>
+            <span class="floor-stat">{line?.points || 0} pts</span>
+            <span class="floor-stat" class:foul-trouble={(line?.fouls || 0) >= 4}>{line?.fouls || 0} pf</span>
+            <span class="floor-badges">
+              {#each p.traits as id}
+                {@const badge = badgeById(id)}
+                {#if badge}
+                  <span class="mini-badge {badge.group}" title={badge.effect}>{badge.name}</span>
+                {/if}
+              {/each}
+            </span>
+          </div>
+        {/each}
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="card-title">Box score</h3>
+    <div class="table-container">
+      <table class="sim-table box-score">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>MIN</th>
+            <th>PTS</th>
+            <th>REB</th>
+            <th>AST</th>
+            <th>FG</th>
+            <th>3P</th>
+            <th>FT</th>
+            <th>STL</th>
+            <th>BLK</th>
+            <th>TO</th>
+            <th>PF</th>
+            <th>+/-</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="box-team"><td colspan="13">{teamHome.city} {teamHome.name}</td></tr>
+          {#each checkedIn(teamHome, statsHome, onCourtHome) as p}
+            {@const line = statsHome[p.id]}
+            <tr>
+              <td class="box-name" class:on-floor={onCourtHome.some(on => on.id === p.id)}>{p.name}</td>
+              <td>{(line?.minutes || 0).toFixed(1)}</td>
+              <td>{line?.points || 0}</td>
+              <td>{line?.rebounds || 0}</td>
+              <td>{line?.assists || 0}</td>
+              <td>{madeAttempts(line?.fgm || 0, line?.fga || 0)}</td>
+              <td>{madeAttempts(line?.tpm || 0, line?.tpa || 0)}</td>
+              <td>{madeAttempts(line?.ftm || 0, line?.fta || 0)}</td>
+              <td>{line?.steals || 0}</td>
+              <td>{line?.blocks || 0}</td>
+              <td>{line?.turnovers || 0}</td>
+              <td class:foul-trouble={(line?.fouls || 0) >= 5}>{line?.fouls || 0}</td>
+              <td>{plusMinusText(line?.plusMinus || 0)}</td>
+            </tr>
+          {/each}
+          <tr class="box-team away"><td colspan="13">{teamAway.city} {teamAway.name}</td></tr>
+          {#each checkedIn(teamAway, statsAway, onCourtAway) as p}
+            {@const line = statsAway[p.id]}
+            <tr>
+              <td class="box-name" class:on-floor={onCourtAway.some(on => on.id === p.id)}>{p.name}</td>
+              <td>{(line?.minutes || 0).toFixed(1)}</td>
+              <td>{line?.points || 0}</td>
+              <td>{line?.rebounds || 0}</td>
+              <td>{line?.assists || 0}</td>
+              <td>{madeAttempts(line?.fgm || 0, line?.fga || 0)}</td>
+              <td>{madeAttempts(line?.tpm || 0, line?.tpa || 0)}</td>
+              <td>{madeAttempts(line?.ftm || 0, line?.fta || 0)}</td>
+              <td>{line?.steals || 0}</td>
+              <td>{line?.blocks || 0}</td>
+              <td>{line?.turnovers || 0}</td>
+              <td class:foul-trouble={(line?.fouls || 0) >= 5}>{line?.fouls || 0}</td>
+              <td>{plusMinusText(line?.plusMinus || 0)}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
 
 <style>
+
+  .scorebug {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 14px 18px;
+  }
+
+  .scorebug-side {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .scorebug-side.away {
+    justify-content: flex-end;
+  }
+
+  .swatch {
+    width: 8px;
+    align-self: stretch;
+    border-radius: 4px;
+    min-height: 42px;
+  }
+
+  .scorebug-city {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .scorebug-name {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.15rem;
+  }
+
+  .scorebug-meta {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .scorebug-points {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 2.6rem;
+    line-height: 1;
+    margin-left: auto;
+  }
+
+  .scorebug-side.away .scorebug-points {
+    margin-left: 0;
+    margin-right: auto;
+  }
+
+  .scorebug-points.has-ball {
+    color: var(--primary);
+  }
+
+  .scorebug-mid {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .scorebug-clock {
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+
+  .scorebug-ball {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+
+  .scorebug-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .scorebug-controls label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .court-card {
+    display: flex;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  .court-card .court-container {
+    width: 100%;
+    max-width: 460px;
+    aspect-ratio: 1 / 1;
+  }
+
+  .pbp-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 420px;
+    max-height: 520px;
+  }
+
+  .pbp-feed {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .pbp-line {
+    font-size: 0.85rem;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border-left: 3px solid transparent;
+  }
+
+  .pbp-empty {
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 40px;
+    font-size: 0.85rem;
+  }
+
+  .floor-card {
+    margin: 16px 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .floor-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .floor-head h3,
+  .floor-col > h3 {
+    margin: 0 0 8px;
+    font-size: 0.95rem;
+  }
+
+  .coverage-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+  }
+
+  .coverage-label .tactics-select {
+    width: auto;
+    padding: 6px 8px;
+  }
+
+  .floor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .floor-player {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1.4fr) repeat(3, auto) minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    text-align: left;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 6px;
+    padding: 6px 8px;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .floor-player.away {
+    cursor: default;
+    grid-template-columns: 28px minmax(0, 1.4fr) repeat(2, auto) minmax(0, 1fr);
+  }
+
+  .floor-player.active {
+    border-color: var(--primary);
+  }
+
+  .floor-pos {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: var(--text-muted);
+  }
+
+  .floor-name {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .floor-stat {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .floor-badges {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .mini-badge {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+  }
+
+  .mini-badge.skill {
+    border-color: rgba(16, 185, 129, 0.5);
+    color: #6ee7b7;
+  }
+
+  .mini-badge.personality {
+    border-color: rgba(245, 158, 11, 0.5);
+    color: #fcd34d;
+  }
+
+  .bench-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    margin-top: 8px;
+  }
+
+  .bench-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .bench-chip {
+    background: transparent;
+    border: 1px solid var(--primary);
+    color: var(--text-primary);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .bench-chip span {
+    color: var(--text-muted);
+    margin-left: 4px;
+  }
+
+  .foul-trouble {
+    color: var(--danger);
+    font-weight: 800;
+  }
+
+  .box-team td {
+    background: var(--bg-dark);
+    font-weight: 800;
+    font-size: 0.75rem;
+    text-align: left !important;
+  }
+
+  @media (max-width: 1100px) {
+    .scorebug,
+    .floor-card {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .box-score th,
+  .box-score td {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .box-score .box-name {
+    text-align: left;
+    font-weight: 600;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .box-score .on-floor {
+    font-weight: 800;
+    color: var(--primary);
+  }
+
   /* Commentary logs formatting */
   .commentary-score {
     border-left-color: var(--primary) !important;
