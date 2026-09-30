@@ -124,23 +124,6 @@
           Under the tax line. Cash is the checkbook. The cap is a different book.
         {/if}
       </p>
-      <p>Cup record {team.cupWins}-{team.cupLosses}{cupChampionId ? `. Champion: ${clubName(cupChampionId)}` : ''}</p>
-    </div>
-    <div class="card">
-      <h2 style="margin-bottom: 8px;">Honors</h2>
-      {#if awards}
-        <p>MVP {playerName(awards.mvpId)}</p>
-        <p>Defense {playerName(awards.dpoyId)}</p>
-        <p>Rookie {playerName(awards.royId)}</p>
-        <p>Sixth man {playerName(awards.sixthId)}</p>
-        <p>Most improved {playerName(awards.mipId)}</p>
-      {:else}
-        <p style="color: var(--text-secondary);">Awards land when the schedule is finished.</p>
-      {/if}
-      {#if allStar.announced}
-        <p style="margin-top: 8px;">All-Star East: {allStar.eastIds.map(id => playerName(id)).join(', ')}</p>
-        <p>All-Star West: {allStar.westIds.map(id => playerName(id)).join(', ')}</p>
-      {/if}
     </div>
   </div>
 </div>
