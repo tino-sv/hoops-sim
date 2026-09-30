@@ -74,8 +74,10 @@ export class CBASimulator {
     contractYears: number,
     phase: SeasonPhase
   ): OfferVerdict {
-    if (team.roster.length >= NBA_RULES.ROSTER_MAX) {
-      return deny(`Roster is full (${NBA_RULES.ROSTER_MAX}). Waive someone first.`)
+    const rosterCap = phase === 'offseason' ? NBA_RULES.OFFSEASON_ROSTER_MAX : NBA_RULES.ROSTER_MAX
+    if (team.roster.length >= rosterCap) {
+      const when = phase === 'offseason' ? ' before opening day' : ''
+      return deny(`Roster is full (${rosterCap}${when}). Waive someone first.`)
     }
     if (contractYears < 1 || contractYears > 4) {
       return deny('Contracts run from 1 to 4 years.')

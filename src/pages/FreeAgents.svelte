@@ -91,8 +91,9 @@
       alert('Free agency opens after the draft.');
       return;
     }
-    if (team.roster.length >= CBA_CONSTANTS.ROSTER_MAX) {
-      alert(`Roster is full (${CBA_CONSTANTS.ROSTER_MAX}). Waive someone first.`);
+    const rosterCap = phase === 'offseason' ? CBA_CONSTANTS.OFFSEASON_ROSTER_MAX : CBA_CONSTANTS.ROSTER_MAX;
+    if (team.roster.length >= rosterCap) {
+      alert(`Roster is full (${rosterCap}). Waive someone first.`);
       return;
     }
 
@@ -222,10 +223,10 @@
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
       <div class="stat-box">
         <span class="stat-lbl">Active Roster Size</span>
-        <span class="stat-val" style="color: {team.roster.length >= CBA_CONSTANTS.ROSTER_MAX ? 'var(--danger)' : 'var(--text-primary)'}">
-          {team.roster.length} / {CBA_CONSTANTS.ROSTER_MAX}
+        <span class="stat-val" style="color: {team.roster.length >= (phase === 'offseason' ? CBA_CONSTANTS.OFFSEASON_ROSTER_MAX : CBA_CONSTANTS.ROSTER_MAX) ? 'var(--danger)' : 'var(--text-primary)'}">
+          {team.roster.length} / {phase === 'offseason' ? CBA_CONSTANTS.OFFSEASON_ROSTER_MAX : CBA_CONSTANTS.ROSTER_MAX}
         </span>
-        <span class="stat-sub">{Math.max(0, CBA_CONSTANTS.ROSTER_MAX - team.roster.length)} open slots remaining</span>
+        <span class="stat-sub">{Math.max(0, (phase === 'offseason' ? CBA_CONSTANTS.OFFSEASON_ROSTER_MAX : CBA_CONSTANTS.ROSTER_MAX) - team.roster.length)} open slots remaining</span>
       </div>
 
       <div class="stat-box">
@@ -480,7 +481,7 @@
               <div style="font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">Team CBA Standing</div>
               <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div>• Current Cap Space: <span style="font-weight: 700; color: {capSpace >= 0 ? 'var(--primary)' : 'var(--danger)'}">{formatNumber(capSpace)}</span></div>
-                <div>• Active Roster Count: <span style="font-weight: 700;">{team.roster.length} / {CBA_CONSTANTS.ROSTER_MAX} Players</span></div>
+                <div>• Active Roster Count: <span style="font-weight: 700;">{team.roster.length} / {phase === 'offseason' ? CBA_CONSTANTS.OFFSEASON_ROSTER_MAX : CBA_CONSTANTS.ROSTER_MAX} Players</span></div>
                 <div>• MLE: <span style="font-weight: 700;">{team.finances.exceptions?.mle ? 'available' : 'used'}</span> · Bi-annual: <span style="font-weight: 700;">{team.finances.exceptions?.biAnnual ? 'available' : 'used'}</span></div>
                 <div style="color: var(--text-muted); margin-top: 4px;">Outside free agents do not bring Bird rights. The first year has to fit in cap room or an exception you have not used yet.</div>
               </div>

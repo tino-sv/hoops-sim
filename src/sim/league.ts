@@ -535,29 +535,40 @@ export class LeagueManager {
     this.freeAgents.push(player)
   }
 
-  private buildDraftOrder() {
-    const ranked = [...this.teams].sort((a, b) => {
-      const gamesA = a.wins + a.losses
-      const gamesB = b.wins + b.losses
-      const pctA = gamesA === 0 ? 0 : a.wins / gamesA
-      const pctB = gamesB === 0 ? 0 : b.wins / gamesB
-      if (pctA !== pctB) return pctA - pctB
-      if (a.pointDiff !== b.pointDiff) return a.pointDiff - b.pointDiff
-      return a.city.localeCompare(b.city)
-    })
+  private bestFirst(a: Team, b: Team): number {
+    const gamesA = a.wins + a.losses
+    const gamesB = b.wins + b.losses
+    const pctA = gamesA === 0 ? 0 : a.wins / gamesA
+    const pctB = gamesB === 0 ? 0 : b.wins / gamesB
+    if (pctA !== pctB) return pctB - pctA
+    if (a.pointDiff !== b.pointDiff) return b.pointDiff - a.pointDiff
+    return a.city.localeCompare(b.city)
+  }
 
-    const pool = ranked.slice(0, 4)
+  private buildDraftOrder() {
+    const missed: Team[] = []
+    const made: Team[] = []
+    for (const conference of ['East', 'West'] as const) {
+      const table = this.teams.filter(team => team.conference === conference).sort((a, b) => this.bestFirst(a, b))
+      made.push(...table.slice(0, NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE))
+      missed.push(...table.slice(NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE))
+    }
+    const worstFirst = (a: Team, b: Team) => this.bestFirst(b, a)
+    missed.sort(worstFirst)
+    made.sort(worstFirst)
+
     const weights = [40, 28, 20, 12]
-    let ticket = Math.random() * weights.reduce((sum, weight) => sum + weight, 0)
-    let winner = pool[0]
-    for (let i = 0; i < pool.length; i++) {
-      ticket -= weights[i]
+    const weightTotal = missed.reduce((sum, _team, index) => sum + (weights[index] ?? 0), 0)
+    let ticket = Math.random() * weightTotal
+    let winner = missed[0]
+    for (let i = 0; i < missed.length; i++) {
+      ticket -= weights[i] ?? 0
       if (ticket <= 0) {
-        winner = pool[i]
+        winner = missed[i]
         break
       }
     }
-    const order = [winner, ...pool.filter(team => team.id !== winner.id), ...ranked.slice(4)]
+    const order = [winner, ...missed.filter(team => team.id !== winner.id), ...made]
     this.draftOrder = []
     for (let round = 1; round <= NBA_RULES.DRAFT_ROUNDS; round++) {
       order.forEach((team, index) => {
