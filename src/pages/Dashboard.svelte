@@ -1,47 +1,54 @@
 <script lang="ts">
-  import type { Team, Player } from '../sim/types';
+  import type { OfficeNote, OffseasonStep, Player, SeasonPhase, Team } from '../sim/types';
   import type { ScheduledMatch } from '../sim/league';
+  import type { OfferVerdict } from '../sim/cba';
 
   let { 
     team, 
     allTeams, 
     schedule, 
     currentRound, 
-    totalRounds, 
+    totalRounds,
+    season,
+    phase,
+    offseasonStep,
+    seasonComplete,
+    news,
+    clockLabel,
     onAdvanceRound, 
     onInstantSim,
-    onGoToMatchCenter 
+    onGoToMatchCenter,
+    onEnterOffseason,
+    onStartSeason,
+    onOpenTab,
+    onNewsRead
   }: { 
     team: Team, 
     allTeams: Team[], 
     schedule: ScheduledMatch[], 
     currentRound: number, 
-    totalRounds: number, 
+    totalRounds: number,
+    season: number,
+    phase: SeasonPhase,
+    offseasonStep: OffseasonStep | null,
+    seasonComplete: boolean,
+    news: OfficeNote[],
+    clockLabel: string,
     onAdvanceRound: () => void, 
     onInstantSim: () => void,
-    onGoToMatchCenter: (matchId: string) => void 
+    onGoToMatchCenter: (matchId: string) => void,
+    onEnterOffseason: () => OfferVerdict,
+    onStartSeason: () => OfferVerdict,
+    onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster') => void,
+    onNewsRead: () => void
   } = $props();
 
-  // Fictional inbox messages list
-  let inboxMessages = $state([
-    {
-      id: 'm1',
-      sender: 'Owner / Board',
-      subject: 'Welcome Coach!',
-      body: 'Welcome to the franchise. We expect you to keep our finances in order under the CBA rules while putting together a competitive roster. Good luck this season!',
-      date: 'Preseason',
-      read: false
-    },
-    {
-      id: 'm2',
-      sender: 'Head Trainer',
-      subject: 'Stamina report',
-      body: ' Roster looks healthy for the season opener. Make sure to monitor physical fatigue during games, as tired players show a 25% drop in shot accuracy and increase defense errors.',
-      date: 'Preseason',
-      read: false
-    }
-  ]);
-  let selectedMessage = $state(inboxMessages[0]);
+  let selectedMessage = $state<OfficeNote | null>(null);
+  let actionError = $state('');
+
+  $effect(() => {
+    if (!selectedMessage && news.length > 0) selectedMessage = news[0];
+  });
 
   // Derived standings
   let standings = $derived(
@@ -90,18 +97,31 @@
     return allPlayers.sort((a, b) => b.avgValue - a.avgValue).slice(0, 5);
   });
 
-  const readMessage = (msg: typeof inboxMessages[0]) => {
+  const readMessage = (msg: OfficeNote) => {
     msg.read = true;
     selectedMessage = msg;
+    onNewsRead();
   };
 
   const advanceDay = () => {
-    // If it's a match day for the user, go to match center instead
+    if (phase !== 'regular' || seasonComplete) return;
     if (nextUserMatch && !nextUserMatch.simulated) {
       onGoToMatchCenter(nextUserMatch.id);
     } else {
       onAdvanceRound();
     }
+  };
+
+  const enterOffseason = () => {
+    actionError = '';
+    const result = onEnterOffseason();
+    if (!result.allowed) actionError = result.reason;
+  };
+
+  const startSeason = () => {
+    actionError = '';
+    const result = onStartSeason();
+    if (!result.allowed) actionError = result.reason;
   };
 </script>
 
@@ -110,11 +130,20 @@
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
     <div>
       <h2 style="font-size: 1.8rem; font-weight: 800;">Welcome, General Manager</h2>
-      <p style="color: var(--text-secondary);">Season {2026} • Round {currentRound} of {totalRounds}</p>
+      <p style="color: var(--text-secondary);">Season {season} • {phase === 'offseason' ? `Offseason · ${offseasonStep === 'draft' ? 'Draft' : 'Free agency'}` : `Round ${currentRound} of ${totalRounds}`}</p>
     </div>
     
     <div style="display: flex; gap: 12px;">
-      {#if nextUserMatch && !nextUserMatch.simulated}
+      {#if phase === 'offseason' && offseasonStep === 'draft'}
+        <button class="btn btn-primary" onclick={() => onOpenTab('scouting')}>
+          🧭 Draft ({clockLabel})
+        </button>
+      {:else if phase === 'offseason'}
+        <button class="btn btn-secondary" onclick={() => onOpenTab('free_agents')}>Free Agency</button>
+        <button class="btn btn-primary" onclick={startSeason}>Open {season + 1}</button>
+      {:else if seasonComplete}
+        <button class="btn btn-primary" onclick={enterOffseason}>Enter Offseason</button>
+      {:else if nextUserMatch && !nextUserMatch.simulated}
         <button class="btn btn-secondary" onclick={onInstantSim}>
           ⚡ Instant Sim
         </button>
@@ -128,6 +157,9 @@
       {/if}
     </div>
   </div>
+  {#if actionError}
+    <p style="color: var(--danger); font-weight: 700; margin-bottom: 12px;">{actionError}</p>
+  {/if}
 
   <div class="dashboard-grid">
     <!-- Team Summary Card -->
@@ -177,7 +209,15 @@
       </div>
 
       <div style="margin-top: 16px; display: flex; gap: 8px;">
-        {#if nextUserMatch && !nextUserMatch.simulated}
+        {#if phase === 'offseason'}
+          <button class="btn btn-primary" style="width: 100%;" onclick={() => onOpenTab(offseasonStep === 'draft' ? 'scouting' : 'free_agents')}>
+            {offseasonStep === 'draft' ? `On the clock: ${clockLabel}` : 'Open free agency'}
+          </button>
+        {:else if seasonComplete}
+          <button class="btn btn-primary" style="width: 100%;" onclick={enterOffseason}>
+            Season complete. Enter offseason
+          </button>
+        {:else if nextUserMatch && !nextUserMatch.simulated}
           <button class="btn btn-secondary" style="flex: 1;" onclick={onInstantSim}>
             ⚡ Instant Sim
           </button>
@@ -239,10 +279,10 @@
       <div style="display: flex; gap: 16px; height: 260px;">
         <!-- Mail List -->
         <div style="width: 35%; border-right: 1px solid var(--border-color); overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 6px;">
-          {#each inboxMessages as msg}
+          {#each news as msg}
             <button 
               class="mail-item-btn" 
-              class:active={selectedMessage.id === msg.id}
+              class:active={selectedMessage?.id === msg.id}
               class:unread={!msg.read}
               onclick={() => readMessage(msg)}
             >

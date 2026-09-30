@@ -1,15 +1,19 @@
 <script lang="ts">
-  import type { Team, Player, Position } from '../sim/types';
-  import { CBASimulator, CBA_CONSTANTS } from '../sim/cba';
+  import type { OffseasonStep, Player, Position, SeasonPhase, Team } from '../sim/types';
+  import { CBASimulator, CBA_CONSTANTS, type OfferVerdict } from '../sim/cba';
 
   let { 
-    team = $bindable(), 
-    freeAgents = $bindable(), 
-    onRosterChanged 
+    team, 
+    freeAgents, 
+    phase,
+    offseasonStep,
+    onSign
   }: { 
     team: Team, 
-    freeAgents: Player[], 
-    onRosterChanged?: () => void 
+    freeAgents: Player[],
+    phase: SeasonPhase,
+    offseasonStep: OffseasonStep | null,
+    onSign: (playerId: string, salary: number, years: number) => OfferVerdict
   } = $props();
 
   // Search & Filter state
@@ -32,8 +36,9 @@
   let offerErrorMessage = $state('');
 
   // Team finance derived values
-  let totalSalaries = $derived(CBASimulator.calculateTotalSalaries(team));
+  let totalSalaries = $derived(CBASimulator.capHit(team));
   let capSpace = $derived(CBA_CONSTANTS.SALARY_CAP - totalSalaries);
+  let inSeason = $derived(phase === 'regular');
   let apron2Margin = $derived(CBA_CONSTANTS.SECOND_APRON - totalSalaries);
 
   const formatNumber = (num: number) => {
@@ -82,8 +87,12 @@
     offerErrorMessage = '';
     
     // 15 players roster size constraint check
-    if (team.roster.length >= 15) {
-      alert(`Negotiations cannot begin because your roster is at maximum capacity (15/15 players).\nYou must release a player from your Roster tab first.`);
+    if (phase === 'offseason' && offseasonStep !== 'free-agency') {
+      alert('Free agency opens after the draft.');
+      return;
+    }
+    if (team.roster.length >= CBA_CONSTANTS.ROSTER_MAX) {
+      alert(`Roster is full (${CBA_CONSTANTS.ROSTER_MAX}). Waive someone first.`);
       return;
     }
 
@@ -91,11 +100,11 @@
     negotiationStage = 'intro';
     agentMood = 'neutral';
     negotiationRounds = 3;
-    currentYears = 2;
+    currentYears = phase === 'regular' ? 1 : 2;
 
     const isContender = team.wins > team.losses;
     const baseline = CBASimulator.getPlayerSalaryDemand(player, { isContender });
-    currentOffer = baseline;
+    currentOffer = phase === 'regular' ? CBA_CONSTANTS.MINIMUM_SALARY : baseline;
 
     const details = getAgentDetails(player);
     agentName = details.name;
@@ -109,7 +118,7 @@
     if (!negotiatingPlayer) return;
 
     const isContender = team.wins > team.losses;
-    const signCheck = CBASimulator.evaluateSignOffer(team, negotiatingPlayer, currentOffer, currentYears);
+    const signCheck = CBASimulator.evaluateFreeAgent(team, currentOffer, currentYears, phase);
 
     if (!signCheck.allowed) {
       agentText = `I appreciate the offer, but your team has a CBA compliance issue: ${signCheck.reason}. Under league rules, you cannot offer this contract. Please adjust the numbers or clear some space first.`;
@@ -182,40 +191,13 @@
 
   const applyNegotiatedContract = () => {
     if (!negotiatingPlayer) return;
-    
-    // Double check roster spots first
-    if (team.roster.length >= 15) {
-      alert("Your roster is already full! Please release a player first.");
-      negotiatingPlayer = null;
+    const result = onSign(negotiatingPlayer.id, currentOffer, currentYears);
+    if (!result.allowed) {
+      offerErrorMessage = result.reason;
+      negotiationStage = 'offering';
       return;
     }
-
-    const testSalaries = CBASimulator.generateContractSalaries(currentOffer, currentYears, false); // free agent has no bird rights
-    
-    // Create new contract object
-    const newPlayerContract = {
-      salaries: testSalaries,
-      option: 'none' as const,
-      yearsServed: 0,
-      birdRights: 'none' as const,
-      agentType: negotiatingPlayer.contract?.agentType || 'reasonable'
-    };
-
-    // Update the player contract
-    negotiatingPlayer.contract = newPlayerContract;
-    
-    // Add player to team roster
-    team.roster = [...team.roster, negotiatingPlayer];
-    team.roster.sort((a, b) => b.overallRating - a.overallRating);
-
-    // Remove from free agents list
-    freeAgents = freeAgents.filter(p => p.id !== negotiatingPlayer!.id);
-
-    // Recalculate team finances
-    CBASimulator.updateTeamFinances(team);
-
     negotiatingPlayer = null;
-    onRosterChanged?.();
   };
 
   const selectPlayer = (player: Player) => {
@@ -227,14 +209,23 @@
   <!-- Roster Slots and Financial Status Bar -->
   <div class="card" style="margin-bottom: 24px;">
     <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 1.25rem;">Market Registration & Roster Capacity</h3>
+    <p style="margin: -8px 0 16px; color: var(--text-secondary); font-size: 0.9rem;">
+      {#if inSeason}
+        Regular season: the only contract you can offer is a 1-year veteran minimum. Stars will usually walk.
+      {:else if offseasonStep !== 'free-agency'}
+        The market is closed until the draft ends.
+      {:else}
+        Offseason market. Cap room, one mid-level, and the bi-annual are live. Bird rights do not apply to outside free agents.
+      {/if}
+    </p>
     
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
       <div class="stat-box">
         <span class="stat-lbl">Active Roster Size</span>
-        <span class="stat-val" style="color: {team.roster.length >= 15 ? 'var(--danger)' : 'var(--text-primary)'}">
-          {team.roster.length} / 15
+        <span class="stat-val" style="color: {team.roster.length >= CBA_CONSTANTS.ROSTER_MAX ? 'var(--danger)' : 'var(--text-primary)'}">
+          {team.roster.length} / {CBA_CONSTANTS.ROSTER_MAX}
         </span>
-        <span class="stat-sub">{15 - team.roster.length} open slots remaining</span>
+        <span class="stat-sub">{Math.max(0, CBA_CONSTANTS.ROSTER_MAX - team.roster.length)} open slots remaining</span>
       </div>
 
       <div class="stat-box">
@@ -254,7 +245,7 @@
       <div class="stat-box">
         <span class="stat-lbl">Max Mid-Level Exception</span>
         <span class="stat-val" style="color: var(--secondary);">
-          {formatNumber(apron2Margin > 0 ? (totalSalaries > CBA_CONSTANTS.FIRST_APRON ? 5000000 : 12800000) : 0)}
+          {formatNumber(!team.finances.exceptions?.mle ? 0 : (totalSalaries > CBA_CONSTANTS.FIRST_APRON ? CBA_CONSTANTS.TAXPAYER_MLE : CBA_CONSTANTS.MLE))}
         </span>
         <span class="stat-sub">CBA tax apron exception room</span>
       </div>
@@ -462,20 +453,21 @@
                 type="range" 
                 class="salary-slider"
                 min={CBA_CONSTANTS.MINIMUM_SALARY} 
-                max={40000000} 
+                max={inSeason ? CBA_CONSTANTS.MINIMUM_SALARY : CBA_CONSTANTS.MAX_SALARY} 
                 step={50000}
-                bind:value={currentOffer} 
+                bind:value={currentOffer}
+                disabled={inSeason}
               />
               <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: -2px;">
                 <span>Min: {formatNumber(CBA_CONSTANTS.MINIMUM_SALARY)}</span>
-                <span>Max: $40.0M</span>
+                <span>Max: {inSeason ? formatNumber(CBA_CONSTANTS.MINIMUM_SALARY) : formatNumber(CBA_CONSTANTS.MAX_SALARY)}</span>
               </div>
             </div>
 
             <!-- Years Selector -->
             <div class="control-row">
               <label for="years-select">Contract Length:</label>
-              <select id="years-select" class="tactics-select" bind:value={currentYears} style="padding: 6px 12px; font-size: 0.85rem; width: 100%;">
+              <select id="years-select" class="tactics-select" bind:value={currentYears} disabled={inSeason} style="padding: 6px 12px; font-size: 0.85rem; width: 100%;">
                 <option value={1}>1 Year</option>
                 <option value={2}>2 Years</option>
                 <option value={3}>3 Years</option>
@@ -488,8 +480,9 @@
               <div style="font-weight: 700; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">Team CBA Standing</div>
               <div style="display: flex; flex-direction: column; gap: 4px;">
                 <div>• Current Cap Space: <span style="font-weight: 700; color: {capSpace >= 0 ? 'var(--primary)' : 'var(--danger)'}">{formatNumber(capSpace)}</span></div>
-                <div>• Active Roster Count: <span style="font-weight: 700;">{team.roster.length} / 15 Players</span></div>
-                <div style="color: var(--text-muted); margin-top: 4px;">• Free agents signed from the open market do not qualify for Bird Exception salary cap overrides. The contract first-year salary must fit within Cap Space or Mid-Level Exceptions (MLE).</div>
+                <div>• Active Roster Count: <span style="font-weight: 700;">{team.roster.length} / {CBA_CONSTANTS.ROSTER_MAX} Players</span></div>
+                <div>• MLE: <span style="font-weight: 700;">{team.finances.exceptions?.mle ? 'available' : 'used'}</span> · Bi-annual: <span style="font-weight: 700;">{team.finances.exceptions?.biAnnual ? 'available' : 'used'}</span></div>
+                <div style="color: var(--text-muted); margin-top: 4px;">Outside free agents do not bring Bird rights. The first year has to fit in cap room or an exception you have not used yet.</div>
               </div>
             </div>
 

@@ -1,177 +1,292 @@
-import type { Team, Player, PlayerContract, OptionType, BirdRights } from './types';
+import { NBA_RULES } from './rules'
+import type { BirdRights, Player, SeasonPhase, Team } from './types'
 
-export const CBA_CONSTANTS = {
-  SALARY_CAP: 140600000,
-  LUXURY_TAX: 170814000,
-  FIRST_APRON: 178132000,
-  SECOND_APRON: 188910000,
-  ROOKIE_SCALE_BASE: 4000000,
-  MINIMUM_SALARY: 1150000
-};
+export { CBA_CONSTANTS } from './rules'
+
+export interface OfferVerdict {
+  allowed: boolean
+  exceptionUsed: string
+  reason: string
+  consumes: 'mle' | 'biAnnual' | null
+  setsHardCap: number | null
+}
 
 export interface OfferDetails {
-  salaries: number[]; // e.g. [15000000, 15750000, 16537500] (8% raises for Bird, 5% for non-Bird)
-  option: OptionType;
+  salaries: number[]
+  option: 'none' | 'player' | 'team' | 'non-guaranteed'
+}
+
+function deny(reason: string): OfferVerdict {
+  return { allowed: false, exceptionUsed: 'None', reason, consumes: null, setsHardCap: null }
+}
+
+function allow(exceptionUsed: string, reason: string, consumes: OfferVerdict['consumes'] = null, setsHardCap: number | null = null): OfferVerdict {
+  return { allowed: true, exceptionUsed, reason, consumes, setsHardCap }
 }
 
 export class CBASimulator {
-  // Calculate total salary for a team
+  static activePayroll(team: Team): number {
+    return team.roster.reduce((sum, player) => sum + (player.contract.salaries[0] || 0), 0)
+  }
+
+  static capHit(team: Team): number {
+    return this.activePayroll(team) + (team.finances?.deadCap || 0)
+  }
+
   static calculateTotalSalaries(team: Team): number {
-    return team.roster.reduce((sum, player) => {
-      const currentSalary = player.contract.salaries[0] || 0;
-      return sum + currentSalary;
-    }, 0);
+    return this.capHit(team)
   }
 
-  // Update team financial statuses
+  static freshExceptions() {
+    return { mle: true, biAnnual: true }
+  }
+
   static updateTeamFinances(team: Team): void {
-    const total = this.calculateTotalSalaries(team);
+    const deadCap = team.finances?.deadCap || 0
+    const exceptions = team.finances?.exceptions || this.freshExceptions()
+    const hardCap = team.finances?.hardCap ?? null
     team.finances = {
-      salaryCap: CBA_CONSTANTS.SALARY_CAP,
-      salariesTotal: total,
-      luxuryTaxApron1: CBA_CONSTANTS.FIRST_APRON,
-      luxuryTaxApron2: CBA_CONSTANTS.SECOND_APRON
-    };
+      salaryCap: NBA_RULES.SALARY_CAP,
+      salariesTotal: this.activePayroll(team) + deadCap,
+      luxuryTaxApron1: NBA_RULES.FIRST_APRON,
+      luxuryTaxApron2: NBA_RULES.SECOND_APRON,
+      deadCap,
+      hardCap,
+      exceptions
+    }
   }
 
-  // Check if team can sign a player to a specific first-year salary
-  static evaluateSignOffer(
+  static commitSigning(team: Team, verdict: OfferVerdict): void {
+    if (!team.finances.exceptions) team.finances.exceptions = this.freshExceptions()
+    if (verdict.consumes === 'mle') team.finances.exceptions.mle = false
+    if (verdict.consumes === 'biAnnual') team.finances.exceptions.biAnnual = false
+    if (verdict.setsHardCap != null) {
+      team.finances.hardCap = team.finances.hardCap == null
+        ? verdict.setsHardCap
+        : Math.min(team.finances.hardCap, verdict.setsHardCap)
+    }
+    this.updateTeamFinances(team)
+  }
+
+  static evaluateFreeAgent(
     team: Team,
-    player: Player,
     firstYearSalary: number,
-    contractYears: number
-  ): { allowed: boolean; exceptionUsed: string; reason: string } {
-    this.updateTeamFinances(team);
-    const totalSalaries = team.finances.salariesTotal;
-    const projectedTotal = totalSalaries + firstYearSalary;
-
-    // Minimum Contract is always allowed
-    if (firstYearSalary <= CBA_CONSTANTS.MINIMUM_SALARY) {
-      return { allowed: true, exceptionUsed: 'Minimum Contract Exception', reason: 'Minimum contracts can always be signed.' };
+    contractYears: number,
+    phase: SeasonPhase
+  ): OfferVerdict {
+    if (team.roster.length >= NBA_RULES.ROSTER_MAX) {
+      return deny(`Roster is full (${NBA_RULES.ROSTER_MAX}). Waive someone first.`)
+    }
+    if (contractYears < 1 || contractYears > 4) {
+      return deny('Contracts run from 1 to 4 years.')
+    }
+    if (firstYearSalary < NBA_RULES.MINIMUM_SALARY || firstYearSalary > NBA_RULES.MAX_SALARY) {
+      return deny(`Salary must sit between the minimum and the max ($${NBA_RULES.MAX_SALARY.toLocaleString()}).`)
+    }
+    if (phase === 'regular' && (firstYearSalary > NBA_RULES.MINIMUM_SALARY || contractYears !== 1)) {
+      return deny('During the season you can only offer a 1-year veteran minimum. Cap room and exceptions open in the offseason.')
     }
 
-    // Check Bird Rights
-    const bird = player.contract.birdRights;
-    const isCurrentTeam = team.roster.some(p => p.id === player.id);
+    const capHit = this.capHit(team)
+    const projected = capHit + firstYearSalary
+    const room = NBA_RULES.SALARY_CAP - capHit
+    const hardCap = team.finances.hardCap
+    const exceptions = team.finances.exceptions || this.freshExceptions()
 
-    if (isCurrentTeam) {
-      if (bird === 'full-bird') {
-        // Can sign up to max contract regardless of cap (even above second apron)
-        return { allowed: true, exceptionUsed: 'Full Bird Rights', reason: 'Full Bird Rights allow re-signing up to maximum contract.' };
-      } else if (bird === 'early-bird') {
-        const prevSalary = player.contract.salaries[0] || CBA_CONSTANTS.MINIMUM_SALARY;
-        const maxEarlyBird = Math.max(prevSalary * 1.75, CBA_CONSTANTS.SALARY_CAP * 0.25);
-        if (firstYearSalary <= maxEarlyBird) {
-          return { allowed: true, exceptionUsed: 'Early Bird Rights', reason: `Allowed under Early Bird up to $${Math.round(maxEarlyBird).toLocaleString()}.` };
-        }
-      } else if (bird === 'non-bird') {
-        const prevSalary = player.contract.salaries[0] || CBA_CONSTANTS.MINIMUM_SALARY;
-        const maxNonBird = prevSalary * 1.20;
-        if (firstYearSalary <= maxNonBird) {
-          return { allowed: true, exceptionUsed: 'Non-Bird Rights', reason: `Allowed under Non-Bird up to $${Math.round(maxNonBird).toLocaleString()}.` };
-        }
-      }
+    if (hardCap != null && projected > hardCap) {
+      return deny(`This signing would cross your hard cap of $${hardCap.toLocaleString()}. That hard cap came from using the full mid-level or the bi-annual.`)
     }
 
-    // Cap Space checks
-    const capSpace = CBA_CONSTANTS.SALARY_CAP - totalSalaries;
-    if (firstYearSalary <= capSpace) {
-      return { allowed: true, exceptionUsed: 'Cap Space', reason: `Fits within remaining Cap Space of $${capSpace.toLocaleString()}.` };
+    if (firstYearSalary <= NBA_RULES.MINIMUM_SALARY) {
+      return allow(
+        'Minimum Exception',
+        'Veteran minimums can be signed even when a team is over the cap or the aprons.'
+      )
     }
 
-    // Exception Checks
-    if (projectedTotal < CBA_CONSTANTS.SECOND_APRON) {
-      // Mid-Level Exception Check
-      const hasFirstApronRisk = projectedTotal > CBA_CONSTANTS.FIRST_APRON;
-      const maxMLE = hasFirstApronRisk ? 5000000 : 12800000; // Taxpayer vs Non-Taxpayer MLE
-      
-      if (firstYearSalary <= maxMLE) {
-        return { 
-          allowed: true, 
-          exceptionUsed: hasFirstApronRisk ? 'Taxpayer MLE' : 'Non-Taxpayer MLE', 
-          reason: `Fits inside MLE ($${maxMLE.toLocaleString()}) since team is below Second Apron.` 
-        };
-      }
-
-      // Bi-Annual Exception Check
-      if (!hasFirstApronRisk && firstYearSalary <= 4700000) {
-        return { allowed: true, exceptionUsed: 'Bi-Annual Exception', reason: 'Fits inside Bi-Annual Exception ($4.7M) and below First Apron.' };
-      }
+    if (firstYearSalary <= room) {
+      return allow('Cap Space', `Fits in $${Math.max(0, room).toLocaleString()} of cap room.`)
     }
 
-    // Hard Capped checks (if they crossed Second Apron or used non-taxpayer MLE)
-    if (projectedTotal > CBA_CONSTANTS.SECOND_APRON) {
-      return { allowed: false, exceptionUsed: 'None', reason: `Rejected: Projecting salaries to $${projectedTotal.toLocaleString()} crosses the Second Apron ($${CBA_CONSTANTS.SECOND_APRON.toLocaleString()}) without valid Bird Rights.` };
+    const underFirst = projected <= NBA_RULES.FIRST_APRON
+    const underSecond = projected <= NBA_RULES.SECOND_APRON
+
+    if (exceptions.mle && firstYearSalary <= NBA_RULES.MLE && underFirst) {
+      return allow(
+        'Non-Taxpayer MLE',
+        `Uses the mid-level ($${NBA_RULES.MLE.toLocaleString()}) and hard-caps the team at the first apron.`,
+        'mle',
+        NBA_RULES.FIRST_APRON
+      )
     }
 
-    return { allowed: false, exceptionUsed: 'None', reason: `Insufficient Cap Space and no exceptions applicable for $${firstYearSalary.toLocaleString()}.` };
+    if (exceptions.mle && firstYearSalary <= NBA_RULES.TAXPAYER_MLE && underSecond) {
+      return allow(
+        'Taxpayer MLE',
+        `Uses the taxpayer mid-level ($${NBA_RULES.TAXPAYER_MLE.toLocaleString()}). The team must stay under the second apron.` ,
+        'mle',
+        null
+      )
+    }
+
+    if (exceptions.biAnnual && capHit <= NBA_RULES.FIRST_APRON && firstYearSalary <= NBA_RULES.BAE && underFirst) {
+      return allow(
+        'Bi-Annual Exception',
+        `Uses the bi-annual ($${NBA_RULES.BAE.toLocaleString()}) and hard-caps the team at the first apron.`,
+        'biAnnual',
+        NBA_RULES.FIRST_APRON
+      )
+    }
+
+    if (!underSecond) {
+      return deny(`That salary would push the books to $${projected.toLocaleString()}, past the second apron. Only a minimum is legal from here.`)
+    }
+    if (!exceptions.mle && !exceptions.biAnnual) {
+      return deny('Cap room is gone, and both the mid-level and the bi-annual have already been used.')
+    }
+    return deny(`$${firstYearSalary.toLocaleString()} does not fit in cap room or an unused exception.`)
   }
 
-  // Calculate Player Demand
+  static extensionCeiling(player: Player): { max: number; name: string; reason: string } {
+    const previous = player.contract.salaries[0] || NBA_RULES.MINIMUM_SALARY
+    if (player.contract.birdRights === 'full-bird') {
+      return {
+        max: NBA_RULES.MAX_SALARY,
+        name: 'Full Bird Rights',
+        reason: 'Full Bird lets you re-sign him up to the max without cap room.'
+      }
+    }
+    if (player.contract.birdRights === 'early-bird') {
+      const max = Math.round(Math.max(previous * 1.75, NBA_RULES.SALARY_CAP * 0.25))
+      return {
+        max,
+        name: 'Early Bird Rights',
+        reason: `Early Bird caps the first year at $${max.toLocaleString()} (175% of his salary, or 25% of the cap).`
+      }
+    }
+    if (player.contract.birdRights === 'non-bird') {
+      const max = Math.round(previous * 1.2)
+      return {
+        max,
+        name: 'Non-Bird Rights',
+        reason: `Non-Bird caps the raise at 20%, so $${max.toLocaleString()}.`
+      }
+    }
+    return {
+      max: 0,
+      name: 'None',
+      reason: 'He has no Bird rights. He has to reach free agency.'
+    }
+  }
+
+  static evaluateExtension(team: Team, player: Player, firstYearSalary: number, contractYears: number): OfferVerdict {
+    if (!team.roster.some(p => p.id === player.id)) {
+      return deny('That player is not on the roster.')
+    }
+    if (player.contract.salaries.length !== 1) {
+      return deny('Extensions are only open in the final year of the contract. The new money starts next season.')
+    }
+    if (contractYears < 1 || contractYears > 4) {
+      return deny('Extensions run from 1 to 4 new years.')
+    }
+    const ceiling = this.extensionCeiling(player)
+    if (ceiling.max <= 0) return deny(ceiling.reason)
+    if (firstYearSalary < NBA_RULES.MINIMUM_SALARY) {
+      return deny('The offer is below the minimum salary.')
+    }
+    if (firstYearSalary > ceiling.max) {
+      return deny(`${ceiling.reason} This offer is over that.`)
+    }
+    return allow(ceiling.name, `${ceiling.reason} This year's cap hit does not change.`)
+  }
+
+  static applyExtension(team: Team, player: Player, firstYearSalary: number, contractYears: number): OfferVerdict {
+    const verdict = this.evaluateExtension(team, player, firstYearSalary, contractYears)
+    if (!verdict.allowed) return verdict
+    const current = player.contract.salaries[0] || NBA_RULES.MINIMUM_SALARY
+    const hasBird = player.contract.birdRights !== 'none'
+    player.contract.salaries = [current, ...this.generateContractSalaries(firstYearSalary, contractYears, hasBird)]
+    player.contract.option = 'none'
+    this.updateTeamFinances(team)
+    return verdict
+  }
+
+  static previewWaive(team: Team, player: Player): OfferVerdict {
+    if (!team.roster.some(p => p.id === player.id)) return deny('That player is not on the roster.')
+    if (team.roster.length <= NBA_RULES.ROSTER_MIN) {
+      return deny(`Rosters cannot drop below ${NBA_RULES.ROSTER_MIN}. Sign a replacement before waiving anyone else.`)
+    }
+    const hit = player.contract.salaries[0] || 0
+    return allow(
+      'Waiver',
+      `Waiving ${player.name} keeps $${hit.toLocaleString()} on the books this season as dead cap. Later years are wiped.`
+    )
+  }
+
   static getPlayerSalaryDemand(player: Player, leagueStanding: { isContender: boolean }): number {
-    const overall = player.overallRating;
-    const age = player.age;
-    const ego = player.personality.ego;
-    const greed = player.personality.greed;
-    const loyalty = player.personality.loyalty;
+    const overall = player.overallRating
+    const age = player.age
+    const ego = player.personality.ego
+    const greed = player.personality.greed
 
-    // Base formula based on overall rating
-    // Rating 90+: $35M - $50M (Max)
-    // Rating 80-89: $18M - $35M
-    // Rating 70-79: $5M - $18M
-    // Rating <70: $1.15M - $5M
-    let baseSalary = CBA_CONSTANTS.MINIMUM_SALARY;
+    let baseSalary = NBA_RULES.MINIMUM_SALARY
     if (overall >= 90) {
-      baseSalary = 35000000 + (overall - 90) * 1500000;
+      baseSalary = 35_000_000 + (overall - 90) * 1_500_000
     } else if (overall >= 80) {
-      baseSalary = 15000000 + (overall - 80) * 2000000;
+      baseSalary = 15_000_000 + (overall - 80) * 2_000_000
     } else if (overall >= 70) {
-      baseSalary = 4000000 + (overall - 70) * 1100000;
+      baseSalary = 4_000_000 + (overall - 70) * 1_100_000
     } else if (overall >= 60) {
-      baseSalary = 1500000 + (overall - 60) * 250000;
+      baseSalary = 1_500_000 + (overall - 60) * 250_000
     }
 
-    // Age modifications (veteran value vs regression/development)
-    if (age > 33) {
-      // Decline demand for aging players unless ego is huge
-      baseSalary *= (1 - (age - 33) * 0.07);
-    } else if (age < 23) {
-      // Rookie scales are locked or lower
-      baseSalary *= 0.85;
-    }
+    if (age > 33) baseSalary *= (1 - (age - 33) * 0.07)
+    else if (age < 23) baseSalary *= 0.85
 
-    // Personality Multipliers
-    let multiplier = 1.0;
-    multiplier += (greed - 50) * 0.005; // greed increases demand up to +25%
-    multiplier += (ego - 50) * 0.003;  // ego increases demand up to +15%
-    
-    let demand = Math.round(baseSalary * multiplier);
+    let multiplier = 1
+    multiplier += (greed - 50) * 0.005
+    multiplier += (ego - 50) * 0.003
+    let demand = Math.round(baseSalary * multiplier)
 
-    // Agent adjustments
-    const agent = player.contract?.agentType || 'reasonable';
-    if (agent === 'hardball') {
-      demand = Math.round(demand * 1.15);
-    } else if (agent === 'ring-chaser' && leagueStanding.isContender) {
-      demand = Math.round(demand * 0.65); // takes massive discount for rings
-    } else if (agent === 'team-first') {
-      demand = Math.round(demand * 0.9);
-    }
+    const agent = player.contract?.agentType || 'reasonable'
+    if (agent === 'hardball') demand = Math.round(demand * 1.15)
+    else if (agent === 'ring-chaser' && leagueStanding.isContender) demand = Math.round(demand * 0.65)
+    else if (agent === 'team-first') demand = Math.round(demand * 0.9)
 
-    // Clamp between minimum salary and absolute supermax ($60M)
-    return Math.max(CBA_CONSTANTS.MINIMUM_SALARY, Math.min(60000000, demand));
+    return Math.max(NBA_RULES.MINIMUM_SALARY, Math.min(NBA_RULES.MAX_SALARY, demand))
   }
 
-  // Helper to generate salaries over multi-year contract with proper raises
   static generateContractSalaries(firstYearSalary: number, years: number, hasBirdRights: boolean): number[] {
-    const raises = hasBirdRights ? 0.08 : 0.05; // 8% raises for Bird Rights, 5% otherwise
-    const salaries: number[] = [];
-    let current = firstYearSalary;
-
+    const raises = hasBirdRights ? 0.08 : 0.05
+    const salaries: number[] = []
+    let current = firstYearSalary
     for (let i = 0; i < years; i++) {
-      salaries.push(Math.round(current));
-      current *= (1 + raises);
+      salaries.push(Math.round(current))
+      current *= (1 + raises)
     }
-    return salaries;
+    return salaries
+  }
+
+  static scaleContracts(players: Player[], targetCapHit: number): void {
+    for (let pass = 0; pass < 4; pass++) {
+      const raw = players.reduce((sum, player) => sum + (player.contract.salaries[0] || 0), 0)
+      if (raw <= 0) return
+      const factor = targetCapHit / raw
+      if (Math.abs(factor - 1) < 0.02) return
+      for (const player of players) {
+        player.contract.salaries = player.contract.salaries.map(salary => (
+          Math.max(NBA_RULES.MINIMUM_SALARY, Math.min(NBA_RULES.MAX_SALARY, Math.round(salary * factor)))
+        ))
+      }
+    }
   }
 }
-export default CBASimulator;
+
+export function birdFromYears(yearsServed: number): BirdRights {
+  if (yearsServed >= 3) return 'full-bird'
+  if (yearsServed === 2) return 'early-bird'
+  if (yearsServed === 1) return 'non-bird'
+  return 'none'
+}
+
+export default CBASimulator

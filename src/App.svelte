@@ -9,7 +9,6 @@
   import Scouting from './pages/Scouting.svelte';
   import FreeAgents from './pages/FreeAgents.svelte';
   import TeamDirectory from './pages/TeamDirectory.svelte';
-  import type { Team } from './sim/types';
 
   // Instantiate League Manager
   let league = $state(new LeagueManager());
@@ -18,9 +17,29 @@
   let currentRound = $state(league.currentRound);
   let schedule = $state(league.schedule);
   let teams = $state(league.teams);
+  let phase = $state(league.phase);
+  let offseasonStep = $state(league.offseasonStep);
+  let seasonComplete = $state(league.seasonComplete);
+  let season = $state(league.season);
+  let news = $state(league.news);
+  let userTeamId = $state(league.userTeamId);
+  let draftProspects = $state(league.draftProspects);
+  let freeAgents = $state(league.freeAgents);
+  let scoutingTokens = $state(league.scoutingTokens);
+  let draftOrder = $state(league.draftOrder);
+  let draftIndex = $state(league.draftIndex);
+  let totalRounds = $state(league.totalRounds);
 
-  // Find User Team (derived from reactive teams state)
-  let userTeam = $derived(teams[0]);
+  let userTeam = $derived(teams.find(team => team.id === userTeamId) ?? teams[0]);
+  let onTheClock = $derived(
+    phase === 'offseason' && offseasonStep === 'draft' && draftOrder[draftIndex]?.teamId === userTeamId
+  );
+  let clockLabel = $derived.by(() => {
+    const pick = draftOrder[draftIndex];
+    if (!pick) return 'Draft complete';
+    const club = teams.find(team => team.id === pick.teamId);
+    return `Round ${pick.round}, pick ${pick.pick}${club ? ` — ${club.city}` : ''}`;
+  });
 
   // Routing State
   let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'league_stats' | 'scouting' | 'free_agents' | 'directory'>('dashboard');
@@ -32,6 +51,18 @@
     teams = [...league.teams];
     schedule = [...league.schedule];
     currentRound = league.currentRound;
+    totalRounds = league.totalRounds;
+    phase = league.phase;
+    offseasonStep = league.offseasonStep;
+    seasonComplete = league.seasonComplete;
+    season = league.season;
+    news = [...league.news];
+    userTeamId = league.userTeamId;
+    draftProspects = [...league.draftProspects];
+    freeAgents = [...league.freeAgents];
+    scoutingTokens = league.scoutingTokens;
+    draftOrder = [...league.draftOrder];
+    draftIndex = league.draftIndex;
     
     // Save to local storage
     league.saveToLocalStorage();
@@ -74,12 +105,49 @@
     refreshLeagueState();
   };
 
-  const handleProspectDrafted = (prospectId: string) => {
-    // Find the user team in the league (we need the mutable reference)
-    const liveUserTeam = league.teams[0];
-    if (!liveUserTeam) return;
-    league.draftProspect(prospectId, liveUserTeam);
+  const handleEnterOffseason = () => {
+    const result = league.enterOffseason();
     refreshLeagueState();
+    return result;
+  };
+
+  const handleStartSeason = () => {
+    const result = league.startNewSeason();
+    refreshLeagueState();
+    return result;
+  };
+
+  const handleScout = (prospectId: string) => {
+    league.scoutProspect(prospectId);
+    refreshLeagueState();
+  };
+
+  const handleDraft = (prospectId: string) => {
+    const result = league.draftProspect(prospectId);
+    refreshLeagueState();
+    return result;
+  };
+
+  const handleSignFreeAgent = (playerId: string, salary: number, years: number) => {
+    const result = league.signFreeAgent(playerId, salary, years);
+    refreshLeagueState();
+    return result;
+  };
+
+  const handleWaive = (playerId: string) => {
+    const result = league.waive(playerId);
+    refreshLeagueState();
+    return result;
+  };
+
+  const handleExtend = (playerId: string, salary: number, years: number) => {
+    const result = league.extend(playerId, salary, years);
+    refreshLeagueState();
+    return result;
+  };
+
+  const handleNewsRead = () => {
+    league.saveToLocalStorage();
   };
 </script>
 
@@ -200,16 +268,26 @@
         allTeams={teams} 
         schedule={schedule} 
         currentRound={currentRound} 
-        totalRounds={league.totalRounds}
+        totalRounds={totalRounds}
+        season={season}
+        phase={phase}
+        offseasonStep={offseasonStep}
+        seasonComplete={seasonComplete}
+        news={news}
+        clockLabel={clockLabel}
         onAdvanceRound={handleAdvanceRound}
         onInstantSim={handleInstantSim}
         onGoToMatchCenter={handleGoToMatchCenter}
+        onEnterOffseason={handleEnterOffseason}
+        onStartSeason={handleStartSeason}
+        onOpenTab={(tab) => { activeTab = tab; }}
+        onNewsRead={handleNewsRead}
       />
     {:else if activeTab === 'roster'}
       <RosterCBA 
-        team={league.teams[0]} 
-        otherTeams={league.teams.filter(t => t.id !== league.teams[0].id)} 
-        onRosterChanged={refreshLeagueState}
+        team={league.userTeam()} 
+        onWaive={handleWaive}
+        onExtend={handleExtend}
       />
     {:else if activeTab === 'tactics'}
       <Chalkboard 
@@ -218,7 +296,8 @@
       />
     {:else if activeTab === 'standings'}
       <Standings 
-        allTeams={teams} 
+        allTeams={teams}
+        userTeamId={userTeamId}
       />
     {:else if activeTab === 'league_stats'}
       <LeagueStats 
@@ -226,17 +305,22 @@
       />
     {:else if activeTab === 'scouting'}
       <Scouting 
-        bind:draftProspects={league.draftProspects} 
-        bind:scoutingTokens={league.scoutingTokens}
-        userTeam={league.teams[0]}
-        onScoutingChanged={refreshLeagueState}
-        onProspectDrafted={handleProspectDrafted}
+        {draftProspects}
+        {scoutingTokens}
+        {phase}
+        {offseasonStep}
+        {onTheClock}
+        {clockLabel}
+        onScout={handleScout}
+        onDraft={handleDraft}
       />
     {:else if activeTab === 'free_agents'}
       <FreeAgents 
-        bind:team={league.teams[0]} 
-        bind:freeAgents={league.freeAgents} 
-        onRosterChanged={refreshLeagueState}
+        team={league.userTeam()}
+        {freeAgents}
+        {phase}
+        {offseasonStep}
+        onSign={handleSignFreeAgent}
       />
     {:else if activeTab === 'directory'}
       <TeamDirectory 

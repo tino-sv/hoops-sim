@@ -1,43 +1,47 @@
 <script lang="ts">
-  import type { Team, Player, Position } from '../sim/types';
-  import { CBASimulator, CBA_CONSTANTS } from '../sim/cba';
+  import type { Team, Player } from '../sim/types';
+  import { CBASimulator, CBA_CONSTANTS, type OfferVerdict } from '../sim/cba';
 
-  let { team = $bindable(), otherTeams, onRosterChanged }: { team: Team, otherTeams: Team[], onRosterChanged?: () => void } = $props();
+  let { team, onWaive, onExtend }: {
+    team: Team,
+    onWaive: (playerId: string) => OfferVerdict,
+    onExtend: (playerId: string, salary: number, years: number) => OfferVerdict
+  } = $props();
 
   const TRAIT_META: Record<string, { name: string; desc: string; icon: string; style: string }> = {
     sharpshooter: {
       name: 'Sharpshooter',
-      desc: 'Elite three-point specialist (+6% to 3PT makes)',
+      desc: 'Three-point shot is elite. The match engine does not apply a separate bonus yet.',
       icon: '🎯',
       style: 'border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); color: #f87171;'
     },
     lockdown: {
       name: 'Lockdown',
-      desc: 'Elite defender who contests shots relentlessly (+10 to defensive contests)',
+      desc: 'Defends at an elite level for his position.',
       icon: '🛡️',
       style: 'border: 1px solid rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.1); color: #60a5fa;'
     },
     playmaker: {
       name: 'Floor General',
-      desc: 'Exceptional passing and playmaking (+6% to assisted shooter success rate)',
+      desc: 'High-level passer. The match engine does not apply a separate bonus yet.',
       icon: '🪄',
       style: 'border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.1); color: #c084fc;'
     },
     post_beast: {
       name: 'Post Beast',
-      desc: 'Dominant scoring close to the basket (+6% to interior makes)',
+      desc: 'Scores with his back to the basket.',
       icon: '🦁',
       style: 'border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1); color: #fbbf24;'
     },
     glass_cleaner: {
       name: 'Glass Cleaner',
-      desc: 'Relentless rebounder (+25% to rebounding strength)',
+      desc: 'Rebounds at an elite level.',
       icon: '🧼',
       style: 'border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1); color: #34d399;'
     },
     clutch: {
       name: 'Clutch',
-      desc: 'Composed under pressure (+6% to late-clock and overtime success)',
+      desc: 'Composure rating is elite.',
       icon: '⏱️',
       style: 'border: 1px solid rgba(236, 72, 153, 0.4); background: rgba(236, 72, 153, 0.1); color: #f472b6;'
     },
@@ -66,7 +70,8 @@
   let offerErrorMessage = $state('');
 
   // Svelte 5 derived state
-  let totalSalaries = $derived(CBASimulator.calculateTotalSalaries(team));
+  let activePayroll = $derived(CBASimulator.activePayroll(team));
+  let totalSalaries = $derived(CBASimulator.capHit(team));
   let capSpace = $derived(CBA_CONSTANTS.SALARY_CAP - totalSalaries);
   let apron1Margin = $derived(CBA_CONSTANTS.FIRST_APRON - totalSalaries);
   let apron2Margin = $derived(CBA_CONSTANTS.SECOND_APRON - totalSalaries);
@@ -92,18 +97,18 @@
   };
 
   const releasePlayer = (player: Player) => {
-    if (confirm(`Are you sure you want to release ${player.name}? Doing so will buy out his current year contract ($${player.contract.salaries[0].toLocaleString()}) and create dead cap.`)) {
-      team.roster = team.roster.filter(p => p.id !== player.id);
-      
-      // Update depth chart by removing player ID
-      for (const pos in team.depthChart) {
-        team.depthChart[pos as Position] = team.depthChart[pos as Position].filter(id => id !== player.id);
-      }
-      
-      CBASimulator.updateTeamFinances(team);
-      selectedPlayer = null;
-      onRosterChanged?.();
+    const check = CBASimulator.previewWaive(team, player);
+    if (!check.allowed) {
+      extensionErrorMessage = check.reason;
+      return;
     }
+    if (!confirm(check.reason)) return;
+    const result = onWaive(player.id);
+    if (!result.allowed) {
+      extensionErrorMessage = result.reason;
+      return;
+    }
+    selectedPlayer = null;
   };
 
   const getAgentDetails = (player: Player) => {
@@ -128,6 +133,16 @@
     extensionErrorMessage = '';
     offerErrorMessage = '';
     
+    if (player.contract.salaries.length !== 1) {
+      extensionErrorMessage = 'Extensions are only open in the final year. The new money starts next season and does not change this year\'s cap hit.';
+      return;
+    }
+    const ceiling = CBASimulator.extensionCeiling(player);
+    if (ceiling.max <= 0) {
+      extensionErrorMessage = ceiling.reason;
+      return;
+    }
+
     negotiatingPlayer = player;
     negotiationStage = 'intro';
     agentMood = 'neutral';
@@ -150,7 +165,7 @@
     if (!negotiatingPlayer) return;
     
     const isContender = team.wins > team.losses;
-    const signCheck = CBASimulator.evaluateSignOffer(team, negotiatingPlayer, currentOffer, currentYears);
+    const signCheck = CBASimulator.evaluateExtension(team, negotiatingPlayer, currentOffer, currentYears);
     
     if (!signCheck.allowed) {
       agentText = `We appreciate the offer, but your team has a CBA compliance issue: ${signCheck.reason}. Under league rules, you cannot offer this contract. Please adjust the numbers or clear some space first.`;
@@ -224,17 +239,13 @@
 
   const applyNegotiatedContract = () => {
     if (!negotiatingPlayer) return;
-    
-    const testSalaries = CBASimulator.generateContractSalaries(currentOffer, currentYears, true);
-    
-    negotiatingPlayer.contract.salaries = [...negotiatingPlayer.contract.salaries.slice(0, 1), ...testSalaries];
-    negotiatingPlayer.contract.yearsServed += 1;
-    CBASimulator.updateTeamFinances(team);
-    
-    extensionSuccessMessage = `🎉 Re-Signed! ${negotiatingPlayer.name} agreed to a ${currentYears}-year extension starting next year, averaging ${formatNumber(currentOffer)}/yr.`;
-    
+    const result = onExtend(negotiatingPlayer.id, currentOffer, currentYears);
+    if (!result.allowed) {
+      extensionErrorMessage = result.reason;
+      return;
+    }
+    extensionSuccessMessage = `${negotiatingPlayer.name} agreed to ${currentYears} new years at ${formatNumber(currentOffer)} starting next season. This year's hit stays the same.`;
     negotiatingPlayer = null;
-    onRosterChanged?.();
   };
 </script>
 
@@ -245,9 +256,9 @@
     
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
       <div class="stat-box">
-        <span class="stat-lbl">Active Salaries Total</span>
+        <span class="stat-lbl">Cap Hit</span>
         <span class="stat-val">{formatNumber(totalSalaries)}</span>
-        <span class="stat-sub">Cap Limit: {formatNumber(CBA_CONSTANTS.SALARY_CAP)}</span>
+        <span class="stat-sub">Active {formatNumber(activePayroll)} · Dead {formatNumber(team.finances.deadCap || 0)}</span>
       </div>
       
       <div class="stat-box">
@@ -276,16 +287,23 @@
     </div>
 
     <!-- Apron warnings -->
+    <p style="margin: 16px 0 0; font-size: 0.85rem; color: var(--text-secondary);">
+      Roster {team.roster.length}/{CBA_CONSTANTS.ROSTER_MAX} (minimum {CBA_CONSTANTS.ROSTER_MIN}).
+      MLE {team.finances.exceptions?.mle ? 'available' : 'used'}.
+      Bi-annual {team.finances.exceptions?.biAnnual ? 'available' : 'used'}.
+      {#if team.finances.hardCap}
+        Hard-capped at {formatNumber(team.finances.hardCap)}.
+      {/if}
+    </p>
+
     {#if totalSalaries > CBA_CONSTANTS.SECOND_APRON}
       <div class="warning-alert">
-        ⚠️ <b>CRITICAL WARNING: Above Second Apron!</b> Your team cannot sign free agents using Mid-Level Exceptions, and trades must match exact outgoing salary.
+        <b>Above the second apron.</b> The mid-level is closed. The only in-market signing left is a veteran minimum.
       </div>
-    {:else}
-      {#if totalSalaries > CBA_CONSTANTS.FIRST_APRON}
-        <div class="warning-alert" style="border-left-color: var(--accent); color: var(--accent);">
-          ⚠️ <b>First Apron Warning:</b> Your Mid-Level Exception is capped at Taxpayer rates ($5M) and trade rules are restricted.
-        </div>
-      {/if}
+    {:else if totalSalaries > CBA_CONSTANTS.FIRST_APRON}
+      <div class="warning-alert" style="border-left-color: var(--accent); color: var(--accent);">
+        <b>Above the first apron.</b> Only the taxpayer mid-level (${(CBA_CONSTANTS.TAXPAYER_MLE / 1_000_000).toFixed(1)}M) is available. The bi-annual is closed.
+      </div>
     {/if}
   </div>
 
@@ -501,8 +519,8 @@
 
         <!-- Actions -->
         <div style="display: flex; gap: 10px; margin-top: auto; border-top: 1px solid var(--border-color); padding-top: 16px;">
-          <button class="btn btn-secondary" style="flex: 1;" onclick={() => startNegotiation(selectedPlayer!)}>
-            🤝 Re-Sign Extension
+          <button class="btn btn-secondary" style="flex: 1;" onclick={() => startNegotiation(selectedPlayer!)} disabled={selectedPlayer.contract.salaries.length !== 1}>
+            {selectedPlayer.contract.salaries.length === 1 ? 'Re-sign (final year)' : 'Extension locked'}
           </button>
           <button class="btn btn-primary" style="background-color: var(--danger); color: white;" onclick={() => releasePlayer(selectedPlayer!)}>
             🗑️ Release Player
@@ -611,7 +629,7 @@
           <div style="display: flex; flex-direction: column; gap: 14px; text-align: center;">
             <div style="font-size: 1.1rem; color: var(--danger); font-weight: 700;">Negotiations Stalled</div>
             <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">The agent has walked away from the bargaining table. Negotiations are closed for this round.</p>
-            <button class="btn btn-secondary" onclick={() => { negotiatingPlayer = null; onRosterChanged?.(); }} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Close Table</button>
+            <button class="btn btn-secondary" onclick={() => { negotiatingPlayer = null; }} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Close Table</button>
           </div>
         {/if}
       </div>
