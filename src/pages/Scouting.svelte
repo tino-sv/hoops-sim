@@ -1,18 +1,25 @@
 <script lang="ts">
-  import type { DraftProspect, Position, Team } from '../sim/types';
+  import type { DraftProspect, OffseasonStep, Position, SeasonPhase } from '../sim/types';
+  import type { OfferVerdict } from '../sim/cba';
 
   let { 
-    draftProspects = $bindable(), 
-    scoutingTokens = $bindable(),
-    userTeam,
-    onScoutingChanged,
-    onProspectDrafted
+    draftProspects, 
+    scoutingTokens,
+    phase,
+    offseasonStep,
+    onTheClock,
+    clockLabel,
+    onScout,
+    onDraft
   }: { 
     draftProspects: DraftProspect[], 
     scoutingTokens: number,
-    userTeam: Team,
-    onScoutingChanged?: () => void,
-    onProspectDrafted?: (prospectId: string) => void
+    phase: SeasonPhase,
+    offseasonStep: OffseasonStep | null,
+    onTheClock: boolean,
+    clockLabel: string,
+    onScout: (prospectId: string) => void,
+    onDraft: (prospectId: string) => OfferVerdict
   } = $props();
 
   let selectedProspect = $state<DraftProspect | null>(null);
@@ -20,19 +27,10 @@
   let draftMessageType = $state<'success' | 'error' | ''>('');
 
   const scoutPlayer = (prospect: DraftProspect) => {
-    if (scoutingTokens <= 0) return;
-    
-    // Find in the bound array and update
-    const p = draftProspects.find(item => item.id === prospect.id);
-    if (p && !p.scouted) {
-      p.scouted = true;
-      scoutingTokens--;
-      onScoutingChanged?.();
-      
-      // Update selected prospect view if open
-      if (selectedProspect && selectedProspect.id === p.id) {
-        selectedProspect = { ...p };
-      }
+    if (scoutingTokens <= 0 || prospect.scouted) return;
+    onScout(prospect.id);
+    if (selectedProspect && selectedProspect.id === prospect.id) {
+      selectedProspect = draftProspects.find(item => item.id === prospect.id) ?? selectedProspect;
     }
   };
 
@@ -48,27 +46,13 @@
     draftMessageType = '';
   };
 
-  const signProspect = (prospect: DraftProspect) => {
+  const draftProspect = (prospect: DraftProspect) => {
     draftMessage = '';
     draftMessageType = '';
-
-    if (userTeam.roster.length >= 15) {
-      draftMessage = 'Roster is full (15/15). Release a player first before signing this prospect.';
-      draftMessageType = 'error';
-      return;
-    }
-
-    // Notify parent to handle the actual draft logic (which needs the LeagueManager)
-    onProspectDrafted?.(prospect.id);
-    draftMessage = `${prospect.name} has been signed to a rookie contract!`;
-    draftMessageType = 'success';
-
-    // Close the panel after a short delay and remove from local list
-    setTimeout(() => {
-      selectedProspect = null;
-      draftMessage = '';
-      draftMessageType = '';
-    }, 2500);
+    const result = onDraft(prospect.id);
+    draftMessage = result.reason;
+    draftMessageType = result.allowed ? 'success' : 'error';
+    if (result.allowed) selectedProspect = null;
   };
 
   const getPositionLabel = (pos: Position) => {
@@ -116,7 +100,15 @@
       </div>
       <div>
         <h2>College Scouting Center</h2>
-        <p>Scout upcoming collegiate prospects to reveal their exact ratings and build your draft board.</p>
+        <p>
+          {#if phase === 'offseason' && offseasonStep === 'draft'}
+            {clockLabel}. {onTheClock ? 'You are on the clock.' : 'Another team is picking.'}
+          {:else if phase === 'offseason'}
+            The draft is over. Undrafted players are in free agency.
+          {:else}
+            Scout the class now. You draft after the season, when your team is on the clock. The public range can be a bucket off.
+          {/if}
+        </p>
       </div>
     </div>
     <div class="tokens-right">
@@ -126,6 +118,12 @@
       </div>
     </div>
   </div>
+
+  {#if draftMessage && !selectedProspect}
+    <div class="draft-message" class:success={draftMessageType === 'success'} class:error={draftMessageType === 'error'} style="margin-bottom: 16px;">
+      {draftMessage}
+    </div>
+  {/if}
 
   <div class="dashboard-grid">
     <!-- Prospects Grid -->
@@ -250,51 +248,55 @@
             </div>
           {/if}
 
-          <hr class="divider" />
-
-          <div class="bullet-section">
-            <h4 style="color: var(--primary); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Key Strengths</h4>
-            <ul>
-              {#each selectedProspect.strengths as strength}
-                <li class="bullet-strength">⚡ {strength}</li>
-              {/each}
-            </ul>
-          </div>
-
-          <div class="bullet-section" style="margin-top: 16px;">
-            <h4 style="color: var(--danger); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Areas of Weakness</h4>
-            <ul>
-              {#each selectedProspect.weaknesses as weakness}
-                <li class="bullet-weakness">⚠️ {weakness}</li>
-              {/each}
-            </ul>
-          </div>
-
           {#if selectedProspect.scouted}
-            <div class="scout-summary-box">
-              <p><b>Scout Summary:</b> {selectedProspect.name} projects as a {selectedProspect.overallRating >= 73 ? 'highly skilled instant-starter' : 'long-term developmental piece'} with a potential tier of {selectedProspect.potentialRating >= 88 ? 'franchise cornerstone' : (selectedProspect.potentialRating >= 80 ? 'dependable starter' : 'rotation player')}.</p>
+            <hr class="divider" />
+
+            <div class="bullet-section">
+              <h4 style="color: var(--primary); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Key Strengths</h4>
+              <ul>
+                {#each selectedProspect.strengths as strength}
+                  <li class="bullet-strength">⚡ {strength}</li>
+                {/each}
+              </ul>
             </div>
 
-            <!-- Draft / Sign Button -->
-            {#if draftMessage}
-              <div class="draft-message" class:success={draftMessageType === 'success'} class:error={draftMessageType === 'error'}>
-                {draftMessageType === 'success' ? '🎉' : '⚠️'} {draftMessage}
-              </div>
-            {/if}
+            <div class="bullet-section" style="margin-top: 16px;">
+              <h4 style="color: var(--danger); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Areas of Weakness</h4>
+              <ul>
+                {#each selectedProspect.weaknesses as weakness}
+                  <li class="bullet-weakness">⚠️ {weakness}</li>
+                {/each}
+              </ul>
+            </div>
+
+            <div class="scout-summary-box">
+              <p><b>Scout Summary:</b> {selectedProspect.name} is a {selectedProspect.overallRating >= 73 ? 'ready contributor' : 'project'} with a ceiling of {selectedProspect.potentialRating}. Those notes come from his actual ratings, not a separate blurb.</p>
+            </div>
+          {/if}
+
+          {#if draftMessage}
+            <div class="draft-message" class:success={draftMessageType === 'success'} class:error={draftMessageType === 'error'}>
+              {draftMessageType === 'success' ? '🎉' : '⚠️'} {draftMessage}
+            </div>
+          {/if}
+          {#if onTheClock}
             <button
               type="button"
               class="btn btn-primary"
               style="width: 100%; margin-top: 16px; font-weight: 800; letter-spacing: 0.03em;"
-              disabled={userTeam.roster.length >= 15}
-              onclick={() => signProspect(selectedProspect!)}
+              onclick={() => draftProspect(selectedProspect!)}
             >
-              🏀 Sign to Roster
-              {#if userTeam.roster.length >= 15}
-                <span style="font-size: 0.75rem; opacity: 0.7;">(Roster Full)</span>
-              {:else}
-                <span style="font-size: 0.75rem; opacity: 0.7;">2yr Rookie Deal</span>
-              {/if}
+              Draft {selectedProspect.name}
+              <span style="font-size: 0.75rem; opacity: 0.7;">{selectedProspect.scouted ? 'Rookie scale' : 'Unscouted'}</span>
             </button>
+          {:else}
+            <p style="margin-top: 16px; font-size: 0.85rem; color: var(--text-muted);">
+              {phase === 'regular'
+                ? 'You cannot sign him during the season.'
+                : offseasonStep === 'draft'
+                  ? 'Your pick is not up.'
+                  : 'Draft night is over.'}
+            </p>
           {/if}
         </div>
       </div>

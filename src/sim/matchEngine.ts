@@ -1,389 +1,378 @@
-import { PossessionEngine } from './possessionEngine';
-import type { Team, Player, BoxScoreStats, Position } from './types';
+import { PossessionEngine, type PossessionResult } from './possessionEngine'
+import { POSITIONS, type BoxScoreStats, type Player, type Team, type TeamTactics } from './types'
 
 export interface PlayByPlayEvent {
-  quarter: number;
-  timeString: string;
-  log: string;
-  scoreA: number;
-  scoreB: number;
-  teamName: string;
+  quarter: number
+  timeString: string
+  log: string
+  scoreA: number
+  scoreB: number
+  teamName: string
 }
 
 export interface MatchResult {
-  teamAId: string;
-  teamBId: string;
-  teamAScore: number;
-  teamBScore: number;
-  playerStatsA: Record<string, BoxScoreStats>;
-  playerStatsB: Record<string, BoxScoreStats>;
-  playByPlay: PlayByPlayEvent[];
-  winnerId: string;
+  teamAId: string
+  teamBId: string
+  teamAScore: number
+  teamBScore: number
+  playerStatsA: Record<string, BoxScoreStats>
+  playerStatsB: Record<string, BoxScoreStats>
+  playByPlay: PlayByPlayEvent[]
+  winnerId: string
+}
+
+export interface StepLog {
+  text: string
+  type: 'score' | 'foul' | 'turnover' | 'system' | 'normal'
+}
+
+export function emptyBox(): BoxScoreStats {
+  return {
+    minutes: 0, points: 0, assists: 0, rebounds: 0, offRebounds: 0, defRebounds: 0,
+    steals: 0, blocks: 0, turnovers: 0, fouls: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0,
+    ftm: 0, fta: 0, plusMinus: 0
+  }
+}
+
+export function applyPossession(
+  offStats: Record<string, BoxScoreStats>,
+  defStats: Record<string, BoxScoreStats>,
+  event: PossessionResult
+) {
+  if (event.shooterId && offStats[event.shooterId]) {
+    const line = offStats[event.shooterId]
+    line.points += event.points
+    if (event.shotAttempted) {
+      line.fga += 1
+      if (event.shotMade) line.fgm += 1
+      if (event.shotType === 'three') {
+        line.tpa += 1
+        if (event.shotMade) line.tpm += 1
+      }
+    }
+    if (event.freeThrowsAwarded > 0) {
+      line.fta += event.freeThrowsAwarded
+      line.ftm += event.freeThrowsMade
+    }
+  }
+  if (event.passerId && event.shotMade && offStats[event.passerId]) {
+    offStats[event.passerId].assists += 1
+  }
+  if (event.rebounderId) {
+    const bag = event.offensiveRebound ? offStats : defStats
+    const line = bag[event.rebounderId]
+    if (line) {
+      line.rebounds += 1
+      if (event.offensiveRebound) line.offRebounds += 1
+      else line.defRebounds += 1
+    }
+  }
+  if (event.turnoverPlayerId && offStats[event.turnoverPlayerId]) offStats[event.turnoverPlayerId].turnovers += 1
+  if (event.stealedById && defStats[event.stealedById]) defStats[event.stealedById].steals += 1
+  if (event.blockedById && defStats[event.blockedById]) defStats[event.blockedById].blocks += 1
+  if (event.foulPlayerId && defStats[event.foulPlayerId]) defStats[event.foulPlayerId].fouls += 1
+}
+
+function classify(line: string): StepLog['type'] {
+  if (line.includes('SCORE:')) return 'score'
+  if (line.includes('FOUL:')) return 'foul'
+  if (line.includes('TURNOVER:') || line.includes('BLOCKED')) return 'turnover'
+  return 'normal'
+}
+
+function targetMinutes(team: Team, playerId: string): number {
+  let best = 99
+  for (const position of POSITIONS) {
+    const index = (team.depthChart[position] || []).indexOf(playerId)
+    if (index >= 0) best = Math.min(best, index)
+  }
+  if (best === 0) return 32
+  if (best === 1) return 16
+  return 6
+}
+
+function healthy(player: Player | undefined): player is Player {
+  return !!player && (!player.injury || player.injury.daysRemaining <= 0)
+}
+
+export function startingFive(team: Team, stats: Record<string, BoxScoreStats>): Player[] {
+  const onCourt: Player[] = []
+  for (const position of POSITIONS) {
+    const list = (team.depthChart[position] || [])
+      .map(id => team.roster.find(p => p.id === id))
+      .filter(healthy)
+    const available = list.find(player => (stats[player.id]?.fouls ?? 0) < 6)
+    if (available && !onCourt.includes(available)) onCourt.push(available)
+  }
+  for (const player of team.roster) {
+    if (onCourt.length >= 5) break
+    if (!onCourt.includes(player) && healthy(player) && (stats[player.id]?.fouls ?? 0) < 6) onCourt.push(player)
+  }
+  return onCourt.slice(0, 5)
+}
+
+function foulTroubleLimit(quarter: number): number {
+  if (quarter <= 1) return 2
+  if (quarter === 2) return 3
+  if (quarter === 3) return 4
+  return 5
+}
+
+export function rotateLineup(
+  team: Team,
+  onCourt: Player[],
+  stats: Record<string, BoxScoreStats>,
+  quarter: number,
+  secondsRemaining: number
+): Player[] {
+  const court = [...onCourt]
+  const elapsed = Math.min(48, (Math.min(quarter, 4) - 1) * 12 + (720 - Math.min(secondsRemaining, 720)) / 60)
+  if (elapsed < 5) return court
+  const fraction = Math.min(1, elapsed / 48)
+  const limit = foulTroubleLimit(quarter)
+
+  const lineOf = (player: Player) => stats[player.id] ?? emptyBox()
+  const behind = (player: Player) => targetMinutes(team, player.id) * fraction - lineOf(player).minutes
+  const shouldSit = (player: Player) => {
+    const line = lineOf(player)
+    if (line.fouls >= 6 || line.fouls >= limit) return true
+    if (player.fatigue > 76) return true
+    return line.minutes > targetMinutes(team, player.id) * fraction + 2
+  }
+  const wantsIn = (player: Player) => {
+    const line = lineOf(player)
+    return healthy(player)
+      && line.fouls < 6
+      && line.fouls < limit
+      && player.fatigue < 68
+      && line.minutes < targetMinutes(team, player.id) * fraction + 1
+  }
+
+  for (let i = 0; i < court.length; i++) {
+    const current = court[i]
+    if (!shouldSit(current)) continue
+    const candidates = team.roster.filter(player => player.id !== current.id && !court.includes(player) && wantsIn(player))
+    candidates.sort((a, b) => {
+      const score = (player: Player) => behind(player) + (player.position === current.position ? 3 : 0)
+      return score(b) - score(a)
+    })
+    const emergency = lineOf(current).fouls >= 6
+      ? team.roster.find(player => !court.includes(player) && healthy(player) && lineOf(player).fouls < 6)
+      : undefined
+    const next = candidates[0] ?? emergency
+    if (next) court[i] = next
+  }
+
+  if (quarter >= 4) {
+    for (const position of POSITIONS) {
+      const starter = team.roster.find(player => player.id === team.depthChart[position]?.[0])
+      if (!starter || court.includes(starter) || !healthy(starter)) continue
+      const starterLine = lineOf(starter)
+      if (starterLine.fouls >= 5 || starter.fatigue > 58 || starterLine.minutes > 33) continue
+      const replaceAt = court.findIndex(player => targetMinutes(team, player.id) < 20)
+      if (replaceAt >= 0) court[replaceAt] = starter
+    }
+  }
+  return court
+}
+
+function fatigueDelta(player: Player, seconds: number): number {
+  const stamina = player.attributes.physical.stamina || 50
+  let delta = seconds * (0.05 - stamina * 0.00032)
+  if (player.traits?.includes('iron_man')) delta *= 0.7
+  return Math.max(0.05, delta)
+}
+
+export class GameSession {
+  readonly home: Team
+  readonly away: Team
+  scoreHome = 0
+  scoreAway = 0
+  quarter = 1
+  secondsRemaining = 720
+  possession: 'home' | 'away'
+  isTransition = false
+  secondChance = false
+  finished = false
+  statsHome: Record<string, BoxScoreStats> = {}
+  statsAway: Record<string, BoxScoreStats> = {}
+  onCourtHome: Player[] = []
+  onCourtAway: Player[] = []
+  foulsHome = 0
+  foulsAway = 0
+  lastEvent: PossessionResult | null = null
+  playByPlay: PlayByPlayEvent[] = []
+  private narrate: boolean
+  private engine = new PossessionEngine()
+  homeTactics: TeamTactics | null = null
+
+  constructor(home: Team, away: Team, options?: { narrate?: boolean }) {
+    this.home = home
+    this.away = away
+    this.narrate = options?.narrate !== false
+    this.possession = Math.random() < 0.5 ? 'home' : 'away'
+    for (const player of home.roster) {
+      this.statsHome[player.id] = emptyBox()
+      player.fatigue = 0
+    }
+    for (const player of away.roster) {
+      this.statsAway[player.id] = emptyBox()
+      player.fatigue = 0
+    }
+    this.onCourtHome = startingFive(home, this.statsHome)
+    this.onCourtAway = startingFive(away, this.statsAway)
+  }
+
+  setHomeTactics(tactics: TeamTactics) {
+    this.homeTactics = tactics
+  }
+
+  manualSub(outId: string, inPlayer: Player): boolean {
+    const index = this.onCourtHome.findIndex(player => player.id === outId)
+    if (index === -1) return false
+    if (this.onCourtHome.some(player => player.id === inPlayer.id)) return false
+    if ((this.statsHome[inPlayer.id]?.fouls ?? 0) >= 6) return false
+    this.onCourtHome[index] = inPlayer
+    return true
+  }
+
+  step(): { logs: StepLog[]; finished: boolean } {
+    if (this.finished) return { logs: [], finished: true }
+    const logs: StepLog[] = []
+
+    this.onCourtHome = rotateLineup(this.home, this.onCourtHome, this.statsHome, this.quarter, this.secondsRemaining)
+    this.onCourtAway = rotateLineup(this.away, this.onCourtAway, this.statsAway, this.quarter, this.secondsRemaining)
+
+    const offenseIsHome = this.possession === 'home'
+    const offense = offenseIsHome ? this.home : this.away
+    const defense = offenseIsHome ? this.away : this.home
+    const offCourt = offenseIsHome ? this.onCourtHome : this.onCourtAway
+    const defCourt = offenseIsHome ? this.onCourtAway : this.onCourtHome
+    const offStats = offenseIsHome ? this.statsHome : this.statsAway
+    const defStats = offenseIsHome ? this.statsAway : this.statsHome
+
+    const events = this.engine.simulatePossession(offense, defense, offCourt, defCourt, {
+      isTransition: this.isTransition,
+      secondChance: this.secondChance,
+      defenseTeamFouls: offenseIsHome ? this.foulsAway : this.foulsHome,
+      secondsRemaining: this.secondsRemaining,
+      quarter: this.quarter,
+      isHomeOffense: offenseIsHome,
+      offenseTactics: offenseIsHome ? this.homeTactics ?? undefined : undefined,
+      defenseTactics: offenseIsHome ? undefined : this.homeTactics ?? undefined,
+      narrate: this.narrate
+    })
+
+    let elapsed = 0
+    for (const event of events) {
+      elapsed += event.secondsElapsed
+      applyPossession(offStats, defStats, event)
+      if (event.foulPlayerId) {
+        if (offenseIsHome) this.foulsAway += 1
+        else this.foulsHome += 1
+      }
+      if (event.points > 0) {
+        if (offenseIsHome) this.scoreHome += event.points
+        else this.scoreAway += event.points
+        for (const player of this.onCourtHome) {
+          this.statsHome[player.id].plusMinus += offenseIsHome ? event.points : -event.points
+        }
+        for (const player of this.onCourtAway) {
+          this.statsAway[player.id].plusMinus += offenseIsHome ? -event.points : event.points
+        }
+      }
+      for (const line of event.logs) logs.push({ text: line, type: classify(line) })
+      this.lastEvent = event
+    }
+
+    elapsed = Math.max(1, elapsed)
+    this.secondsRemaining -= elapsed
+    const minutes = elapsed / 60
+    for (const player of [...this.onCourtHome, ...this.onCourtAway]) {
+      const bag = this.statsHome[player.id] ? this.statsHome : this.statsAway
+      if (bag[player.id]) bag[player.id].minutes += minutes
+      player.fatigue = Math.min(100, player.fatigue + fatigueDelta(player, elapsed))
+    }
+    for (const player of [...this.home.roster, ...this.away.roster]) {
+      const onCourt = this.onCourtHome.includes(player) || this.onCourtAway.includes(player)
+      if (!onCourt) player.fatigue = Math.max(0, player.fatigue - elapsed * 0.11)
+    }
+
+    const last = events[events.length - 1]
+    if (last?.keepOffense) {
+      this.isTransition = false
+      this.secondChance = last.offensiveRebound
+    } else {
+      this.possession = offenseIsHome ? 'away' : 'home'
+      this.isTransition = !!last?.liveBall
+      this.secondChance = false
+    }
+
+    if (this.secondsRemaining <= 0) {
+      this.secondsRemaining = 0
+      logs.push(...this.endPeriod())
+    }
+    return { logs, finished: this.finished }
+  }
+
+  private endPeriod(): StepLog[] {
+    const logs: StepLog[] = []
+    const label = this.quarter <= 4 ? `End of quarter ${this.quarter}` : `End of overtime ${this.quarter - 4}`
+    logs.push({ text: `${label}. ${this.home.name} ${this.scoreHome}, ${this.away.name} ${this.scoreAway}.`, type: 'system' })
+    for (const player of [...this.onCourtHome, ...this.onCourtAway]) {
+      player.fatigue = Math.max(0, player.fatigue - 12)
+    }
+    this.foulsHome = 0
+    this.foulsAway = 0
+    const tied = this.scoreHome === this.scoreAway
+    if (this.quarter < 4 || tied) {
+      this.quarter += 1
+      this.secondsRemaining = this.quarter <= 4 ? 720 : 300
+      if (this.quarter > 4) logs.push({ text: 'OVERTIME.', type: 'system' })
+      if (this.quarter > 8) this.finished = true
+    } else {
+      this.finished = true
+      const winner = this.scoreHome > this.scoreAway ? this.home.name : this.away.name
+      logs.push({ text: `FINAL: ${this.home.name} ${this.scoreHome} - ${this.scoreAway} ${this.away.name}. ${winner} wins.`, type: 'system' })
+    }
+    return logs
+  }
+
+  result(): MatchResult {
+    const winnerId = this.scoreHome > this.scoreAway ? this.home.id : this.away.id
+    return {
+      teamAId: this.home.id,
+      teamBId: this.away.id,
+      teamAScore: this.scoreHome,
+      teamBScore: this.scoreAway,
+      playerStatsA: this.statsHome,
+      playerStatsB: this.statsAway,
+      playByPlay: this.playByPlay,
+      winnerId
+    }
+  }
 }
 
 export class MatchEngine {
-  private possessionEngine = new PossessionEngine();
-
-  // Helper to format remaining seconds into MM:SS
-  private formatTime(secondsRemaining: number): string {
-    const m = Math.floor(secondsRemaining / 60);
-    const s = Math.floor(secondsRemaining % 60);
-    const ss = s < 10 ? `0${s}` : `${s}`;
-    return `${m}:${ss}`;
-  }
-
-  // Initialize fresh box score stats for a player
-  private initBoxScore(): BoxScoreStats {
-    return {
-      minutes: 0,
-      points: 0,
-      assists: 0,
-      rebounds: 0,
-      offRebounds: 0,
-      defRebounds: 0,
-      steals: 0,
-      blocks: 0,
-      turnovers: 0,
-      fouls: 0,
-      fgm: 0,
-      fga: 0,
-      tpm: 0,
-      tpa: 0,
-      ftm: 0,
-      fta: 0,
-      plusMinus: 0
-    };
-  }
-
-  // Select on-court 5 based on depth chart and fitness/fouls
-  private determineOnCourt(team: Team, stats: Record<string, BoxScoreStats>, currentQuarter: number): Player[] {
-    const onCourt: Player[] = [];
-    const positions: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
-
-    positions.forEach(pos => {
-      const list = team.depthChart[pos] || [];
-      // Find the first player who is not fouled out and not severely injured
-      const activePlayer = list
-        .map(id => team.roster.find(p => p.id === id)!)
-        .filter(p => p && (!p.injury || p.injury.daysRemaining <= 0))
-        .find(p => {
-          const pStats = stats[p.id] || this.initBoxScore();
-          return pStats.fouls < 6;
-        });
-
-      if (activePlayer) {
-        onCourt.push(activePlayer);
-      } else {
-        // Fallback: any healthy player
-        const fallback = team.roster.find(p => !onCourt.includes(p) && (!p.injury || p.injury.daysRemaining <= 0));
-        if (fallback) onCourt.push(fallback);
-      }
-    });
-
-    // Ensure we have exactly 5 players
-    while (onCourt.length < 5 && team.roster.length > onCourt.length) {
-      const extra = team.roster.find(p => !onCourt.includes(p));
-      if (extra) onCourt.push(extra);
+  simulateMatch(home: Team, away: Team): MatchResult {
+    const game = new GameSession(home, away, { narrate: false })
+    let guard = 0
+    while (!game.finished && guard < 800) {
+      game.step()
+      guard += 1
     }
-
-    return onCourt.slice(0, 5);
-  }
-
-  // AI Coaching: substitution logic
-  private runSubstitutions(
-    team: Team,
-    onCourt: Player[],
-    stats: Record<string, BoxScoreStats>,
-    quarter: number
-  ): Player[] {
-    const updatedCourt = [...onCourt];
-    const positions: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
-
-    for (let i = 0; i < updatedCourt.length; i++) {
-      const current = updatedCourt[i];
-      const pStats = stats[current.id] || this.initBoxScore();
-      
-      // Determine if player needs rest or is in foul trouble
-      const needsRest = current.fatigue > 60;
-      
-      // Foul trouble limits
-      let foulLimit = 6;
-      if (quarter === 1) foulLimit = 2;
-      else if (quarter === 2) foulLimit = 3;
-      else if (quarter === 3) foulLimit = 4;
-      else if (quarter === 4) foulLimit = 5;
-      
-      const foulTrouble = pStats.fouls >= foulLimit && pStats.fouls < 6;
-      
-      if (needsRest || foulTrouble) {
-        // Look in depth chart for a replacement in the same position
-        const depthList = team.depthChart[current.position] || [];
-        const backup = depthList
-          .map(id => team.roster.find(p => p.id === id)!)
-          .filter(p => p && p.id !== current.id && !updatedCourt.includes(p) && (!p.injury || p.injury.daysRemaining <= 0))
-          .find(p => {
-            const bStats = stats[p.id] || this.initBoxScore();
-            return bStats.fouls < 6 && p.fatigue < 35;
-          });
-
-        if (backup) {
-          updatedCourt[i] = backup;
-        } else {
-          // Flexible fallback: look for any healthy, non-fouled bench player with fatigue < 35
-          const fallback = team.roster.find(p => 
-            p.id !== current.id && 
-            !updatedCourt.includes(p) && 
-            (!p.injury || p.injury.daysRemaining <= 0) &&
-            (stats[p.id]?.fouls || 0) < 6 &&
-            p.fatigue < 35
-          );
-          if (fallback) {
-            updatedCourt[i] = fallback;
-          }
-        }
-      }
-    }
-    return updatedCourt;
-  }
-
-  simulateMatch(teamA: Team, teamB: Team): MatchResult {
-    // Reset temporary variables
-    const playerStatsA: Record<string, BoxScoreStats> = {};
-    const playerStatsB: Record<string, BoxScoreStats> = {};
-    const playByPlay: PlayByPlayEvent[] = [];
-
-    // Initialize stats
-    teamA.roster.forEach(p => { playerStatsA[p.id] = this.initBoxScore(); p.fatigue = 0; });
-    teamB.roster.forEach(p => { playerStatsB[p.id] = this.initBoxScore(); p.fatigue = 0; });
-
-    let scoreA = 0;
-    let scoreB = 0;
-    
-    // Choose initial lineups
-    let onCourtA = this.determineOnCourt(teamA, playerStatsA, 1);
-    let onCourtB = this.determineOnCourt(teamB, playerStatsB, 1);
-
-    const totalQuarters = 4;
-    const quarterSeconds = 720; // 12 minutes
-    let currentQuarter = 1;
-    let possession: 'A' | 'B' = Math.random() < 0.5 ? 'A' : 'B';
-    let isTransition = false;
-
-    // Simulation loop
-    while (currentQuarter <= totalQuarters || (scoreA === scoreB && currentQuarter > totalQuarters)) {
-      let secondsRemaining = currentQuarter <= 4 ? quarterSeconds : 300; // 5 min OT
-      const qName = currentQuarter <= 4 ? `Quarter ${currentQuarter}` : `Overtime ${currentQuarter - 4}`;
-      
-      playByPlay.push({
-        quarter: currentQuarter,
-        timeString: this.formatTime(secondsRemaining),
-        log: `🏁 Start of ${qName}: ${teamA.name} vs ${teamB.name}`,
-        scoreA,
-        scoreB,
-        teamName: 'SYSTEM'
-      });
-
-      while (secondsRemaining > 0) {
-        // Run AI coaching & subs
-        onCourtA = this.runSubstitutions(teamA, onCourtA, playerStatsA, currentQuarter);
-        onCourtB = this.runSubstitutions(teamB, onCourtB, playerStatsB, currentQuarter);
-
-        // Simulate possession
-        const offTeam = possession === 'A' ? teamA : teamB;
-        const defTeam = possession === 'A' ? teamB : teamA;
-        const offCourt = possession === 'A' ? onCourtA : onCourtB;
-        const defCourt = possession === 'A' ? onCourtB : onCourtA;
-
-        const res = this.possessionEngine.simulatePossession(
-          offTeam,
-          defTeam,
-          offCourt,
-          defCourt,
-          isTransition
-        );
-
-        // Track minutes played based on actual time elapsed in possession
-        const minsElapsed = res.secondsElapsed / 60;
-        onCourtA.forEach(p => playerStatsA[p.id].minutes += minsElapsed);
-        onCourtB.forEach(p => playerStatsB[p.id].minutes += minsElapsed);
-
-        // Deduct time
-        secondsRemaining -= res.secondsElapsed;
-        if (secondsRemaining < 0) secondsRemaining = 0;
-
-        // Apply fatigue increments
-        offCourt.forEach(p => {
-          // fatigue increases: base + stamina dampening
-          const stamina = p.attributes.physical.stamina || 50;
-          let fatigueInc = res.secondsElapsed * (0.20 - stamina * 0.0016);
-          if (p.traits?.includes('iron_man')) {
-            fatigueInc *= 0.7;
-          }
-          p.fatigue += fatigueInc;
-          if (p.fatigue > 100) p.fatigue = 100;
-        });
-        
-        // Recover bench players
-        const benchedA = teamA.roster.filter(p => !onCourtA.includes(p));
-        const benchedB = teamB.roster.filter(p => !onCourtB.includes(p));
-        benchedA.forEach(p => {
-          p.fatigue = Math.max(0, p.fatigue - res.secondsElapsed * 0.20);
-        });
-        benchedB.forEach(p => {
-          p.fatigue = Math.max(0, p.fatigue - res.secondsElapsed * 0.20);
-        });
-
-        // Record score changes
-        if (possession === 'A') {
-          scoreA += res.points;
-        } else {
-          scoreB += res.points;
-        }
-
-        // Apply Box Score stats updates
-        const offStats = possession === 'A' ? playerStatsA : playerStatsB;
-        const defStats = possession === 'A' ? playerStatsB : playerStatsA;
-
-        // Points & Shots
-        if (res.shooterId) {
-          const pStat = offStats[res.shooterId];
-          if (pStat) {
-            pStat.points += res.points;
-            if (res.isShootingFoul) {
-              pStat.fta += res.freeThrowsAwarded;
-              // Made FTs are equal to points scored on foul
-              pStat.ftm += res.points;
-            } else {
-              pStat.fga += 1;
-              if (res.points >= 2) pStat.fgm += 1;
-              if (res.points === 3) {
-                pStat.tpa += 1;
-                pStat.tpm += 1;
-              } else if (res.points === 0 && res.freeThrowsAwarded === 0) {
-                // Check if missed shot was a 3
-                const logLower = res.logs.join(' ').toLowerCase();
-                if (logLower.includes('three-pointer') || logLower.includes('triple') || logLower.includes('corner three')) {
-                  pStat.tpa += 1;
-                }
-              }
-            }
-          }
-        }
-
-        // Assists
-        if (res.passerId) {
-          const pStat = offStats[res.passerId];
-          if (pStat) pStat.assists += 1;
-        }
-
-        // Rebounds
-        if (res.rebounderId) {
-          const isOffRebound = possession === 'A' ? 
-            onCourtA.some(p => p.id === res.rebounderId) : 
-            onCourtB.some(p => p.id === res.rebounderId);
-          
-          const rebStats = isOffRebound ? offStats : defStats;
-          const pStat = rebStats[res.rebounderId];
-          if (pStat) {
-            pStat.rebounds += 1;
-            if (isOffRebound) pStat.offRebounds += 1;
-            else pStat.defRebounds += 1;
-          }
-        }
-
-        // Turnovers
-        if (res.turnoverPlayerId) {
-          const pStat = offStats[res.turnoverPlayerId];
-          if (pStat) pStat.turnovers += 1;
-        }
-
-        // Steals
-        if (res.stealedById) {
-          const pStat = defStats[res.stealedById];
-          if (pStat) pStat.steals += 1;
-        }
-
-        // Blocks
-        if (res.blockedById) {
-          const pStat = defStats[res.blockedById];
-          if (pStat) pStat.blocks += 1;
-        }
-
-        // Fouls
-        if (res.foulPlayerId) {
-          const pStat = defStats[res.foulPlayerId];
-          if (pStat) pStat.fouls += 1;
-        }
-
-        // Plus/Minus tracking on scoring events
-        if (res.points > 0) {
-          onCourtA.forEach(p => playerStatsA[p.id].plusMinus += possession === 'A' ? res.points : -res.points);
-          onCourtB.forEach(p => playerStatsB[p.id].plusMinus += possession === 'B' ? res.points : -res.points);
-        }
-
-        // Append logs to match play-by-play
-        res.logs.forEach(log => {
-          playByPlay.push({
-            quarter: currentQuarter,
-            timeString: this.formatTime(secondsRemaining),
-            log,
-            scoreA,
-            scoreB,
-            teamName: possession === 'A' ? teamA.name : teamB.name
-          });
-        });
-
-        // Determine next possession and transition state
-        const hadOffRebound = res.rebounderId && (possession === 'A' ? 
-          onCourtA.some(p => p.id === res.rebounderId) : 
-          onCourtB.some(p => p.id === res.rebounderId)
-        );
-
-        if (hadOffRebound && res.points === 0) {
-          // Offense keeps possession, no transition
-          possession = possession; 
-          isTransition = false;
-        } else if (res.points > 0 && res.isShootingFoul) {
-          // After free throws, defense takes it out
-          possession = possession === 'A' ? 'B' : 'A';
-          isTransition = false;
-        } else {
-          // Flip possession
-          possession = possession === 'A' ? 'B' : 'A';
-          // If play ended in a live-ball steal or defensive rebound, fast break is possible
-          isTransition = !!(res.stealedById || (res.rebounderId && !hadOffRebound));
-        }
-      }
-
-      // Rest team and sub-out between quarters
-      onCourtA.forEach(p => { p.fatigue = Math.max(0, p.fatigue - 15); });
-      onCourtB.forEach(p => { p.fatigue = Math.max(0, p.fatigue - 15); });
-
-      currentQuarter++;
-    }
-
-    // Determine winner
-    const winnerId = scoreA > scoreB ? teamA.id : teamB.id;
-
-    playByPlay.push({
-      quarter: currentQuarter - 1,
+    const result = game.result()
+    const winner = result.winnerId === home.id ? home.name : away.name
+    result.playByPlay = [{
+      quarter: game.quarter,
       timeString: '0:00',
-      log: `🚨 FINAL BUZZER: ${teamA.name} ${scoreA} - ${scoreB} ${teamB.name}. Winner: ${scoreA > scoreB ? teamA.name : teamB.name}!`,
-      scoreA,
-      scoreB,
+      log: `FINAL: ${home.name} ${result.teamAScore} - ${result.teamBScore} ${away.name}. ${winner} wins.`,
+      scoreA: result.teamAScore,
+      scoreB: result.teamBScore,
       teamName: 'SYSTEM'
-    });
-
-    return {
-      teamAId: teamA.id,
-      teamBId: teamB.id,
-      teamAScore: scoreA,
-      teamBScore: scoreB,
-      playerStatsA,
-      playerStatsB,
-      playByPlay,
-      winnerId
-    };
+    }]
+    return result
   }
 }
-export default MatchEngine;
+
+export default MatchEngine

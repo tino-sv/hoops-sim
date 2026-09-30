@@ -34,42 +34,33 @@
   }
 
   const getTeamLeaders = (team: Team) => {
-    let ptsLeader: LeaderInfo | null = null;
-    let astLeader: LeaderInfo | null = null;
-    let rebLeader: LeaderInfo | null = null;
-    let stlLeader: LeaderInfo | null = null;
-    let blkLeader: LeaderInfo | null = null;
-
-    team.roster.forEach((p) => {
-      const stats = p.careerStats["season"];
-      const gp = stats?.games || 0;
-      if (gp > 0) {
-        const pts = stats.points / gp;
-        const ast = stats.assists / gp;
-        const reb = stats.rebounds / gp;
-        const stl = stats.steals / gp;
-        const blk = stats.blocks / gp;
-
-        if (!ptsLeader || pts > ptsLeader.value)
-          ptsLeader = { player: p, value: pts };
-        if (!astLeader || ast > astLeader.value)
-          astLeader = { player: p, value: ast };
-        if (!rebLeader || reb > rebLeader.value)
-          rebLeader = { player: p, value: reb };
-        if (!stlLeader || stl > stlLeader.value)
-          stlLeader = { player: p, value: stl };
-        if (!blkLeader || blk > blkLeader.value)
-          blkLeader = { player: p, value: blk };
-      }
-    });
-
-    return {
-      pts: ptsLeader,
-      ast: astLeader,
-      reb: rebLeader,
-      stl: stlLeader,
-      blk: blkLeader,
+    const leaders: Record<'pts' | 'ast' | 'reb' | 'stl' | 'blk', LeaderInfo | null> = {
+      pts: null,
+      ast: null,
+      reb: null,
+      stl: null,
+      blk: null
     };
+
+    for (const player of team.roster) {
+      const stats = player.careerStats["season"];
+      const gp = stats?.games || 0;
+      if (gp <= 0 || !stats) continue;
+      const next = {
+        pts: stats.points / gp,
+        ast: stats.assists / gp,
+        reb: stats.rebounds / gp,
+        stl: stats.steals / gp,
+        blk: stats.blocks / gp
+      };
+      for (const key of ['pts', 'ast', 'reb', 'stl', 'blk'] as const) {
+        if (!leaders[key] || next[key] > leaders[key].value) {
+          leaders[key] = { player, value: next[key] };
+        }
+      }
+    }
+
+    return leaders;
   };
 
   let leaders = $derived(selectedTeam ? getTeamLeaders(selectedTeam) : {
@@ -265,7 +256,7 @@
                 <span class="leader-category">PTS</span>
                 {#if leaders.pts}
                   <div class="leader-details">
-                    <span class="leader-name">{leaders.pts.Player.name}</span>
+                    <span class="leader-name">{leaders.pts.player.name}</span>
                     <span class="leader-val"
                       >{leaders.pts.value.toFixed(1)} PPG</span
                     >

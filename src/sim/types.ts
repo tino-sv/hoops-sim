@@ -1,5 +1,11 @@
 export type Position = 'PG' | 'SG' | 'SF' | 'PF' | 'C';
 
+export const POSITIONS: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
+
+export type Conference = 'East' | 'West';
+export type SeasonPhase = 'regular' | 'offseason';
+export type OffseasonStep = 'draft' | 'free-agency';
+
 export interface TechnicalAttributes {
   closeShot: number;       // 1-100
   midRange: number;        // 1-100
@@ -100,8 +106,14 @@ export interface Player {
   fatigue: number;            // 0 (fully rested) to 100 (exhausted)
   morale: number;             // Current morale state (0-100)
   overallRating: number;      // Calculated overall rating (1-99)
+  potential: number;          // Ceiling the offseason development roll can reach
   careerStats: Record<string, BoxScoreStats>; // Season index -> Cumulative Stats
   traits: string[];
+}
+
+export interface CapExceptions {
+  mle: boolean;
+  biAnnual: boolean;
 }
 
 export type OffensiveStyle = 'pace-and-space' | 'pick-and-roll' | 'motion' | 'post-up' | 'isolation';
@@ -119,19 +131,28 @@ export interface TeamTactics {
   targetOverplay: Record<string, OverplayType>;  // Opponent Player ID -> Overplay Type
 }
 
+export interface TeamFinances {
+  salaryCap: number;
+  /** Active salaries plus dead cap. This is the number the apron rules use. */
+  salariesTotal: number;
+  luxuryTaxApron1: number;
+  luxuryTaxApron2: number;
+  deadCap: number;
+  /** Set when a team uses the full mid-level or the bi-annual. Null if uncapped. */
+  hardCap: number | null;
+  exceptions: CapExceptions;
+}
+
 export interface Team {
   id: string;
   name: string;
   city: string;
+  conference: Conference;
+  color: string;
   roster: Player[];
   depthChart: Record<Position, string[]>; // Position -> Ordered array of Player IDs
   tactics: TeamTactics;
-  finances: {
-    salaryCap: number;
-    salariesTotal: number;
-    luxuryTaxApron1: number;
-    luxuryTaxApron2: number;
-  };
+  finances: TeamFinances;
   wins: number;
   losses: number;
   pointDiff: number;
@@ -140,6 +161,23 @@ export interface Team {
     wins: number;
     losses: number;
   }[];
+}
+
+export interface OfficeNote {
+  id: string;
+  sender: string;
+  subject: string;
+  body: string;
+  date: string;
+  read: boolean;
+}
+
+export interface DraftPick {
+  round: number;
+  pick: number;
+  teamId: string;
+  prospectId?: string;
+  playerName?: string;
 }
 
 export interface LiveMatchStats {
