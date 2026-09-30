@@ -11,43 +11,43 @@
   const TRAIT_META: Record<string, { name: string; desc: string; icon: string; style: string }> = {
     sharpshooter: {
       name: 'Sharpshooter',
-      desc: 'Three-point shot is elite. The match engine does not apply a separate bonus yet.',
+      desc: 'Makes about 3% more of his threes.',
       icon: '🎯',
       style: 'border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); color: #f87171;'
     },
     lockdown: {
       name: 'Lockdown',
-      desc: 'Defends at an elite level for his position.',
+      desc: 'Contests shots a little harder (+2% contest).',
       icon: '🛡️',
       style: 'border: 1px solid rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.1); color: #60a5fa;'
     },
     playmaker: {
       name: 'Floor General',
-      desc: 'High-level passer. The match engine does not apply a separate bonus yet.',
+      desc: 'A few more of his passes turn into assists.',
       icon: '🪄',
       style: 'border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.1); color: #c084fc;'
     },
     post_beast: {
       name: 'Post Beast',
-      desc: 'Scores with his back to the basket.',
+      desc: 'Makes about 3% more shots at the rim.',
       icon: '🦁',
       style: 'border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1); color: #fbbf24;'
     },
     glass_cleaner: {
       name: 'Glass Cleaner',
-      desc: 'Rebounds at an elite level.',
+      desc: 'Grabs more rebounds (weight ×1.2).',
       icon: '🧼',
       style: 'border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1); color: #34d399;'
     },
     clutch: {
       name: 'Clutch',
-      desc: 'Composure rating is elite.',
+      desc: 'Makes about 2% more shots in the last 3 minutes of the 4th.',
       icon: '⏱️',
       style: 'border: 1px solid rgba(236, 72, 153, 0.4); background: rgba(236, 72, 153, 0.1); color: #f472b6;'
     },
     iron_man: {
       name: 'Iron Man',
-      desc: 'Durable and high stamina (reduces fatigue buildup by 30%)',
+      desc: 'Fatigue builds 30% slower.',
       icon: '🤖',
       style: 'border: 1px solid rgba(100, 116, 139, 0.4); background: rgba(100, 116, 139, 0.1); color: #94a3b8;'
     }

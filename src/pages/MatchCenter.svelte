@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PossessionEngine } from '../sim/possessionEngine';
+  import { GameSession } from '../sim/matchEngine';
   import type { Team, Player, BoxScoreStats, TeamTactics, Position } from '../sim/types';
   import type { ScheduledMatch } from '../sim/league';
 
@@ -18,6 +18,7 @@
   const matchData = schedule.find(m => m.id === matchId)!;
   const teamHome = allTeams.find(t => t.id === matchData.homeTeamId)!;
   const teamAway = allTeams.find(t => t.id === matchData.awayTeamId)!;
+  let session: GameSession;
 
   // Active game states
   let isRunning = $state(false);
@@ -135,247 +136,67 @@
     ftm: 0, fta: 0, plusMinus: 0
   });
 
-  // Setup initial state
-  const setupGame = () => {
-    // Reset player box scores
-    teamHome.roster.forEach(p => { statsHome[p.id] = initBoxScore(); p.fatigue = 0; });
-    teamAway.roster.forEach(p => { statsAway[p.id] = initBoxScore(); p.fatigue = 0; });
-    
-    // Choose start 5
-    onCourtHome = determineLineup(teamHome, statsHome);
-    onCourtAway = determineLineup(teamAway, statsAway);
-    
-    logsList = [{ text: `🚨 Game is preparing for Tip-Off: ${teamHome.name} vs ${teamAway.name}!`, type: 'system' }];
+  const syncFromSession = () => {
+    scoreHome = session.scoreHome;
+    scoreAway = session.scoreAway;
+    currentQuarter = session.quarter;
+    secondsRemaining = session.secondsRemaining;
+    possession = session.possession;
+    isTransition = session.isTransition;
+    onCourtHome = [...session.onCourtHome];
+    onCourtAway = [...session.onCourtAway];
+    statsHome = { ...session.statsHome };
+    statsAway = { ...session.statsAway };
   };
 
-  const determineLineup = (team: Team, stats: Record<string, BoxScoreStats>): Player[] => {
-    const list: Player[] = [];
-    const positions: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
-    positions.forEach(pos => {
-      const id = team.depthChart[pos]?.[0];
-      const p = team.roster.find(pl => pl.id === id);
-      if (p && stats[p.id].fouls < 6) list.push(p);
-      else {
-        const alt = team.roster.find(pl => !list.includes(pl) && stats[pl.id].fouls < 6);
-        if (alt) list.push(alt);
-      }
-    });
-    return list.slice(0, 5);
+  const setupGame = () => {
+    session = new GameSession(teamHome, teamAway, { narrate: true });
+    syncFromSession();
+    logsList = [{ text: `Tip-off: ${teamHome.name} vs ${teamAway.name}.`, type: 'system' }];
   };
 
   setupGame();
 
   let intervalHandle: any = null;
 
-  const runSubstitutionsAuto = (team: Team, court: Player[], stats: Record<string, BoxScoreStats>): Player[] => {
-    const nextCourt = [...court];
-    for (let i = 0; i < nextCourt.length; i++) {
-      const curr = nextCourt[i];
-      const s = stats[curr.id];
-      if (curr.fatigue > 65 || s.fouls >= 4) {
-        // Swap with a fresh backup
-        const backup = team.roster.find(p => !nextCourt.includes(p) && stats[p.id].fouls < 6 && p.fatigue < 30);
-        if (backup) {
-          nextCourt[i] = backup;
-          logsList = [{ text: `🔄 Substitution: ${backup.name} enters for ${curr.name} (${team.name}).`, type: 'normal' }, ...logsList];
-        }
-      }
-    }
-    return nextCourt;
-  };
-
-  // Run single possession step
-  const executePossession = () => {
-    // 1. Check auto subs
-    onCourtHome = runSubstitutionsAuto(teamHome, onCourtHome, statsHome);
-    onCourtAway = runSubstitutionsAuto(teamAway, onCourtAway, statsAway);
-
-    const offTeam = possession === 'home' ? teamHome : teamAway;
-    const defTeam = possession === 'home' ? teamAway : teamHome;
-    const offCourt = possession === 'home' ? onCourtHome : onCourtAway;
-    const defCourt = possession === 'home' ? onCourtAway : onCourtHome;
-    const offStats = possession === 'home' ? statsHome : statsAway;
-    const defStats = possession === 'home' ? statsAway : statsHome;
-
-    const pe = new PossessionEngine();
-    // Simulate
-    const res = pe.simulatePossession(offTeam, defTeam, offCourt, defCourt, isTransition);
-
-    secondsRemaining -= res.secondsElapsed;
-    if (secondsRemaining <= 0) secondsRemaining = 0;
-
-    // Track minutes played based on actual time elapsed in possession
-    const minsElapsed = res.secondsElapsed / 60;
-    onCourtHome.forEach(p => statsHome[p.id].minutes += minsElapsed);
-    onCourtAway.forEach(p => statsAway[p.id].minutes += minsElapsed);
-
-    // Apply fatigue
-    offCourt.forEach(p => {
-      const stamina = p.attributes.physical.stamina || 50;
-      let fatigueInc = res.secondsElapsed * (0.20 - stamina * 0.0016);
-      if (p.traits?.includes('iron_man')) {
-        fatigueInc *= 0.7;
-      }
-      p.fatigue += fatigueInc;
-      if (p.fatigue > 100) p.fatigue = 100;
-    });
-
-    const benchOff = offTeam.roster.filter(p => !offCourt.includes(p));
-    const benchDef = defTeam.roster.filter(p => !defCourt.includes(p));
-    benchOff.forEach(p => p.fatigue = Math.max(0, p.fatigue - res.secondsElapsed * 0.20));
-    benchDef.forEach(p => p.fatigue = Math.max(0, p.fatigue - res.secondsElapsed * 0.20));
-
-    // Update score
-    if (possession === 'home') {
-      scoreHome += res.points;
-    } else {
-      scoreAway += res.points;
-    }
-
-    // Apply stats
-    if (res.shooterId) {
-      const s = offStats[res.shooterId];
-      if (s) {
-        s.points += res.points;
-        if (res.isShootingFoul) {
-          s.fta += res.freeThrowsAwarded;
-          s.ftm += res.points;
-        } else {
-          s.fga += 1;
-          if (res.points >= 2) s.fgm += 1;
-          if (res.points === 3) { s.tpm += 1; s.tpa += 1; }
-        }
-      }
-    }
-
-    if (res.passerId) {
-      const p = offStats[res.passerId];
-      if (p) p.assists += 1;
-    }
-
-    if (res.rebounderId) {
-      const isOff = possession === 'home' ? 
-        onCourtHome.some(p => p.id === res.rebounderId) : 
-        onCourtAway.some(p => p.id === res.rebounderId);
-      const targetStats = isOff ? offStats : defStats;
-      const r = targetStats[res.rebounderId];
-      if (r) {
-        r.rebounds += 1;
-        if (isOff) r.offRebounds += 1;
-        else r.defRebounds += 1;
-      }
-    }
-
-    if (res.turnoverPlayerId) {
-      const t = offStats[res.turnoverPlayerId];
-      if (t) t.turnovers += 1;
-    }
-    if (res.stealedById) {
-      const st = defStats[res.stealedById];
-      if (st) st.steals += 1;
-    }
-    if (res.blockedById) {
-      const bl = defStats[res.blockedById];
-      if (bl) bl.blocks += 1;
-    }
-    if (res.foulPlayerId) {
-      const f = defStats[res.foulPlayerId];
-      if (f) f.fouls += 1;
-    }
-
-    // Live display location mapping - dynamic ball tracking
-    const offStyle = possession === 'home' ? tacticsHome.offensiveStyle : teamAway.tactics.offensiveStyle;
+  const placeBall = (event: import('../sim/possessionEngine').PossessionResult | null, offCourt: Player[], defCourt: Player[], offenseWasHome: boolean) => {
+    if (!event) return;
+    const offStyle = offenseWasHome ? tacticsHome.offensiveStyle : teamAway.tactics.offensiveStyle;
     const getPlayerCoord = (pId: string) => {
       const pl = offCourt.find(p => p.id === pId) || defCourt.find(p => p.id === pId);
-      if (pl) {
-        const isOff = offCourt.some(p => p.id === pId);
-        if (isOff) {
-          return getCoordinates(pl.position, offStyle);
-        } else {
-          const matchedOff = offCourt.find(o => o.position === pl.position) || offCourt[0];
-          const offBase = matchedOff ? getCoordinates(matchedOff.position, offStyle) : { x: 50, y: 50 };
-          return {
-            x: offBase.x - (offBase.x - 4.75) * 0.18,
-            y: offBase.y - (offBase.y - 50) * 0.18
-          };
-        }
-      }
-      return { x: 50, y: 50 };
+      if (!pl) return { x: 50, y: 50 };
+      const isOff = offCourt.some(p => p.id === pId);
+      if (isOff) return getCoordinates(pl.position, offStyle);
+      const matchedOff = offCourt.find(o => o.position === pl.position) || offCourt[0];
+      const offBase = matchedOff ? getCoordinates(matchedOff.position, offStyle) : { x: 50, y: 50 };
+      return {
+        x: offBase.x - (offBase.x - 4.75) * 0.18,
+        y: offBase.y - (offBase.y - 50) * 0.18
+      };
     };
+    if (event.points > 0) liveBallLocation = { x: 4.75, y: 50 };
+    else if (event.blockedById) liveBallLocation = { x: 6, y: 50 };
+    else if (event.rebounderId) liveBallLocation = getPlayerCoord(event.rebounderId);
+    else if (event.stealedById) liveBallLocation = getPlayerCoord(event.stealedById);
+    else if (event.turnoverPlayerId) liveBallLocation = getPlayerCoord(event.turnoverPlayerId);
+    else if (event.shooterId) liveBallLocation = getPlayerCoord(event.shooterId);
+  };
 
-    if (res.points > 0) {
-      // Made shot - ball goes to rim
-      liveBallLocation = { x: 4.75, y: 50 };
-    } else if (res.blockedById) {
-      // Blocked shot - ball near rim
-      liveBallLocation = { x: 6, y: 50 };
-    } else if (res.rebounderId) {
-      // Missed shot/rebound - ball goes to rebounder
-      const rCoord = getPlayerCoord(res.rebounderId);
-      liveBallLocation = { x: rCoord.x, y: rCoord.y };
-    } else if (res.stealedById) {
-      // Steal - ball goes to stealer
-      const sCoord = getPlayerCoord(res.stealedById);
-      liveBallLocation = { x: sCoord.x, y: sCoord.y };
-    } else if (res.turnoverPlayerId) {
-      // Turnover - ball at turnover player
-      const tCoord = getPlayerCoord(res.turnoverPlayerId);
-      liveBallLocation = { x: tCoord.x, y: tCoord.y };
-    } else if (res.shooterId) {
-      // Shot in progress
-      const shCoord = getPlayerCoord(res.shooterId);
-      liveBallLocation = { x: shCoord.x, y: shCoord.y };
-    } else {
-      // Default to PG ball handler
-      const pgPl = offCourt.find(p => p.position === 'PG') || offCourt[0];
-      if (pgPl) {
-        const pgCoord = getPlayerCoord(pgPl.id);
-        liveBallLocation = { x: pgCoord.x, y: pgCoord.y };
-      }
+  const executePossession = () => {
+    if (session.finished) return;
+    const offenseWasHome = session.possession === 'home';
+    const offCourt = offenseWasHome ? [...session.onCourtHome] : [...session.onCourtAway];
+    const defCourt = offenseWasHome ? [...session.onCourtAway] : [...session.onCourtHome];
+    session.setHomeTactics(tacticsHome);
+    const stepped = session.step();
+    placeBall(session.lastEvent, offCourt, defCourt, offenseWasHome);
+    syncFromSession();
+    for (const line of stepped.logs) {
+      logsList = [line, ...logsList];
     }
-
-    // Prepend logs
-    res.logs.forEach(l => {
-      let type: 'score' | 'foul' | 'turnover' | 'normal' = 'normal';
-      if (l.includes('SCORE:')) type = 'score';
-      else if (l.includes('FOUL:')) type = 'foul';
-      else if (l.includes('TURNOVER:')) type = 'turnover';
-      
-      logsList = [{ text: l, type }, ...logsList];
-    });
-
-    // Toggle possession
-    const hadOffRebound = res.rebounderId && (possession === 'home' ? 
-      onCourtHome.some(p => p.id === res.rebounderId) : 
-      onCourtAway.some(p => p.id === res.rebounderId)
-    );
-
-    if (hadOffRebound && res.points === 0) {
-      // Retain
-      possession = possession;
-      isTransition = false;
-    } else {
-      possession = possession === 'home' ? 'away' : 'home';
-      isTransition = !!(res.stealedById || (res.rebounderId && !hadOffRebound));
-    }
-
-    // Check quarter end
-    if (secondsRemaining <= 0) {
-      logsList = [{ text: `🚨 End of Quarter ${currentQuarter} • Score: ${teamHome.name} ${scoreHome} - ${scoreAway} ${teamAway.name}`, type: 'system' }, ...logsList];
-      if (currentQuarter < 4) {
-        currentQuarter++;
-        secondsRemaining = 720;
-      } else {
-        // Game Over!
-        if (scoreHome === scoreAway) {
-          currentQuarter++;
-          secondsRemaining = 300; // OT
-          logsList = [{ text: `⏰ OVERTIME REQUIRED! Game is tied after regulation.`, type: 'system' }, ...logsList];
-        } else {
-          stopGame();
-          saveGameResult();
-        }
-      }
+    if (session.finished) {
+      stopGame();
+      saveGameResult();
     }
   };
 
@@ -436,10 +257,7 @@
       
       // Perform steps based on speed
       if (playSpeed === 100) {
-        // Fast-simulate to end
-        while (secondsRemaining > 0 || (scoreHome === scoreAway && currentQuarter >= 4)) {
-          executePossession();
-        }
+        while (!session.finished) executePossession();
         return;
       }
 
@@ -463,12 +281,12 @@
   // Manual sub actions
   const makeManualSub = (benchPlayer: Player) => {
     if (!selectedOnCourtId) return;
-    const courtIdx = onCourtHome.findIndex(p => p.id === selectedOnCourtId);
-    if (courtIdx !== -1) {
-      const outgoing = onCourtHome[courtIdx];
-      onCourtHome[courtIdx] = benchPlayer;
+    const outgoing = onCourtHome.find(p => p.id === selectedOnCourtId);
+    if (!outgoing) return;
+    if (session.manualSub(selectedOnCourtId, benchPlayer)) {
       selectedOnCourtId = null;
-      logsList = [{ text: `🔄 Substitution: ${benchPlayer.name} replaces ${outgoing.name}.`, type: 'normal' }, ...logsList];
+      syncFromSession();
+      logsList = [{ text: `Substitution: ${benchPlayer.name} replaces ${outgoing.name}.`, type: 'normal' }, ...logsList];
     }
   };
 
