@@ -1,7 +1,7 @@
 import { settleTeamMorale } from './badges'
 import { birdFromYears, CBASimulator, type OfferVerdict } from './cba'
 import { MatchEngine } from './matchEngine'
-import { bookGameMoney, findPlayer, luxuryTaxBill, pickAllStars, pickAwards } from './office'
+import { bookGameMoney, ensureCommercials, findPlayer, luxuryTaxBill, pickAllStars, pickAwards } from './office'
 import { createPlayer, createProspect, playerFromProspect } from './players'
 import { deriveTraits, developPlayer } from './ratings'
 import { NBA_RULES } from './rules'
@@ -10,41 +10,64 @@ import { buildSeason, type ScheduleTeam } from './schedule'
 import type { AllStarWeekend, BoxScoreStats, CoachStyle, Conference, Division, DraftPick, DraftProspect, OfficeNote, OffseasonStep, Player, Position, SeasonAwards, SeasonPhase, Team, TeamTactics } from './types'
 import { POSITIONS } from './types'
 
-const TEAM_TEMPLATES: { city: string; name: string; color: string; conference: Conference; division: Division }[] = [
-  { city: 'Boston', name: 'Shamrocks', color: '#008348', conference: 'East', division: 'Atlantic' },
-  { city: 'New York', name: 'Skyscrapers', color: '#F58426', conference: 'East', division: 'Atlantic' },
-  { city: 'Philadelphia', name: 'Phantoms', color: '#006BB6', conference: 'East', division: 'Atlantic' },
-  { city: 'Toronto', name: 'Dinos', color: '#E31837', conference: 'East', division: 'Atlantic' },
-  { city: 'Brooklyn', name: 'Bridges', color: '#000000', conference: 'East', division: 'Atlantic' },
-  { city: 'Chicago', name: 'Wind', color: '#CE1141', conference: 'East', division: 'Central' },
-  { city: 'Milwaukee', name: 'Stags', color: '#00471B', conference: 'East', division: 'Central' },
-  { city: 'Detroit', name: 'Motors', color: '#1D42BA', conference: 'East', division: 'Central' },
-  { city: 'Cleveland', name: 'Rocks', color: '#860038', conference: 'East', division: 'Central' },
-  { city: 'Indianapolis', name: 'Steam', color: '#002D62', conference: 'East', division: 'Central' },
-  { city: 'Miami', name: 'Heatwave', color: '#98002E', conference: 'East', division: 'Southeast' },
-  { city: 'Atlanta', name: 'Embers', color: '#E03A3E', conference: 'East', division: 'Southeast' },
-  { city: 'Charlotte', name: 'Queens', color: '#1D1160', conference: 'East', division: 'Southeast' },
-  { city: 'Orlando', name: 'Surf', color: '#0077C0', conference: 'East', division: 'Southeast' },
-  { city: 'Washington', name: 'Monuments', color: '#002B5C', conference: 'East', division: 'Southeast' },
-  { city: 'Denver', name: 'Peaks', color: '#0E2240', conference: 'West', division: 'Northwest' },
-  { city: 'Seattle', name: 'Jetstreams', color: '#006241', conference: 'West', division: 'Northwest' },
-  { city: 'Minneapolis', name: 'Lakes', color: '#0C2340', conference: 'West', division: 'Northwest' },
-  { city: 'Portland', name: 'Pines', color: '#E03A3E', conference: 'West', division: 'Northwest' },
-  { city: 'Salt Lake', name: 'Granite', color: '#002B5C', conference: 'West', division: 'Northwest' },
-  { city: 'Los Angeles', name: 'Breakers', color: '#552583', conference: 'West', division: 'Pacific' },
-  { city: 'Golden State', name: 'Waves', color: '#1D428A', conference: 'West', division: 'Pacific' },
-  { city: 'Phoenix', name: 'Flares', color: '#E56020', conference: 'West', division: 'Pacific' },
-  { city: 'Sacramento', name: 'Rivers', color: '#5A2D81', conference: 'West', division: 'Pacific' },
-  { city: 'Las Vegas', name: 'Neon', color: '#000000', conference: 'West', division: 'Pacific' },
-  { city: 'Dallas', name: 'Stallions', color: '#00538C', conference: 'West', division: 'Southwest' },
-  { city: 'Houston', name: 'Gulf', color: '#CE1141', conference: 'West', division: 'Southwest' },
-  { city: 'San Antonio', name: 'Bells', color: '#C4CED4', conference: 'West', division: 'Southwest' },
-  { city: 'New Orleans', name: 'Bayou', color: '#0C2340', conference: 'West', division: 'Southwest' },
-  { city: 'Oklahoma City', name: 'Range', color: '#007AC1', conference: 'West', division: 'Southwest' }
+const TEAM_TEMPLATES: { city: string; name: string; color: string; conference: Conference; division: Division; coach: string; owner: string }[] = [
+  { city: 'Boston', name: 'Shamrocks', color: '#008348', conference: 'East', division: 'Atlantic', coach: 'Alex Ward', owner: 'Helen Cho' },
+  { city: 'New York', name: 'Skyscrapers', color: '#F58426', conference: 'East', division: 'Atlantic', coach: 'Marcus Hale', owner: 'Diane Voss' },
+  { city: 'Philadelphia', name: 'Phantoms', color: '#006BB6', conference: 'East', division: 'Atlantic', coach: 'Andre Pell', owner: 'Ruth Keene' },
+  { city: 'Toronto', name: 'Dinos', color: '#E31837', conference: 'East', division: 'Atlantic', coach: 'Samir Patel', owner: 'Nora Lind' },
+  { city: 'Brooklyn', name: 'Bridges', color: '#000000', conference: 'East', division: 'Atlantic', coach: 'Chris Adeyemi', owner: 'Paul Okonkwo' },
+  { city: 'Chicago', name: 'Wind', color: '#CE1141', conference: 'East', division: 'Central', coach: 'Elena Brooks', owner: 'Frank Iverson' },
+  { city: 'Milwaukee', name: 'Stags', color: '#00471B', conference: 'East', division: 'Central', coach: 'Owen Hart', owner: 'Maya Solis' },
+  { city: 'Detroit', name: 'Motors', color: '#1D42BA', conference: 'East', division: 'Central', coach: 'Luis Ortega', owner: 'Beth Calder' },
+  { city: 'Cleveland', name: 'Rocks', color: '#860038', conference: 'East', division: 'Central', coach: 'Nina Petrova', owner: 'George Lam' },
+  { city: 'Indianapolis', name: 'Steam', color: '#002D62', conference: 'East', division: 'Central', coach: 'Theo Marsh', owner: 'Alice Nguyen' },
+  { city: 'Miami', name: 'Heatwave', color: '#98002E', conference: 'East', division: 'Southeast', coach: 'Camila Reyes', owner: 'Victor Lang' },
+  { city: 'Atlanta', name: 'Embers', color: '#E03A3E', conference: 'East', division: 'Southeast', coach: 'Jordan Ellis', owner: 'Priya Shah' },
+  { city: 'Charlotte', name: 'Queens', color: '#1D1160', conference: 'East', division: 'Southeast', coach: 'Miles Grant', owner: 'Hannah Crowe' },
+  { city: 'Orlando', name: 'Surf', color: '#0077C0', conference: 'East', division: 'Southeast', coach: 'Devin Cole', owner: 'Sofia Marin' },
+  { city: 'Washington', name: 'Monuments', color: '#002B5C', conference: 'East', division: 'Southeast', coach: 'Amina Diallo', owner: 'Robert Chen' },
+  { city: 'Denver', name: 'Peaks', color: '#0E2240', conference: 'West', division: 'Northwest', coach: 'Caleb Frost', owner: 'June Harlow' },
+  { city: 'Seattle', name: 'Jetstreams', color: '#006241', conference: 'West', division: 'Northwest', coach: 'Naomi Park', owner: 'Erik Soren' },
+  { city: 'Minneapolis', name: 'Lakes', color: '#0C2340', conference: 'West', division: 'Northwest', coach: 'Wes Gallagher', owner: 'Linda Berg' },
+  { city: 'Portland', name: 'Pines', color: '#E03A3E', conference: 'West', division: 'Northwest', coach: 'Isaac Romero', owner: 'Claire Dunn' },
+  { city: 'Salt Lake', name: 'Granite', color: '#002B5C', conference: 'West', division: 'Northwest', coach: 'Noah Briggs', owner: 'Esther Cole' },
+  { city: 'Los Angeles', name: 'Breakers', color: '#552583', conference: 'West', division: 'Pacific', coach: 'Malik Benton', owner: 'Grace Yoo' },
+  { city: 'Golden State', name: 'Waves', color: '#1D428A', conference: 'West', division: 'Pacific', coach: 'Riley Santos', owner: 'Howard Peck' },
+  { city: 'Phoenix', name: 'Flares', color: '#E56020', conference: 'West', division: 'Pacific', coach: 'Diego Alvarez', owner: 'Kim Tran' },
+  { city: 'Sacramento', name: 'Rivers', color: '#5A2D81', conference: 'West', division: 'Pacific', coach: 'Jonah Blake', owner: 'Patricia Ng' },
+  { city: 'Las Vegas', name: 'Neon', color: '#000000', conference: 'West', division: 'Pacific', coach: 'Felix Moore', owner: 'Asha Bennett' },
+  { city: 'Dallas', name: 'Stallions', color: '#00538C', conference: 'West', division: 'Southwest', coach: 'Grant Wheeler', owner: 'Monica Ruiz' },
+  { city: 'Houston', name: 'Gulf', color: '#CE1141', conference: 'West', division: 'Southwest', coach: 'Tanya Okada', owner: 'Bill Mercer' },
+  { city: 'San Antonio', name: 'Bells', color: '#C4CED4', conference: 'West', division: 'Southwest', coach: 'Mateo Cruz', owner: 'Irene Vasquez' },
+  { city: 'New Orleans', name: 'Bayou', color: '#0C2340', conference: 'West', division: 'Southwest', coach: 'Lucien Baptiste', owner: 'Marie Landry' },
+  { city: 'Oklahoma City', name: 'Range', color: '#007AC1', conference: 'West', division: 'Southwest', coach: 'Seth Walker', owner: 'Dana Iqbal' }
 ]
 
 const COACH_STYLES: CoachStyle[] = ['players-coach', 'tactician', 'disciplinarian']
 const DIVISIONS: Division[] = ['Atlantic', 'Central', 'Southeast', 'Northwest', 'Pacific', 'Southwest']
+
+export type PlayoffRoundName = 'first' | 'semi' | 'conf' | 'final'
+
+export interface PlayoffSeries {
+  id: string
+  round: PlayoffRoundName
+  conference: Conference | 'Finals'
+  highId: string
+  lowId: string
+  highSeed: number
+  lowSeed: number
+  highWins: number
+  lowWins: number
+  winnerId: string | null
+  playedIds: string[]
+}
+
+export function playoffRoundLabel(round: PlayoffRoundName): string {
+  if (round === 'first') return 'First round'
+  if (round === 'semi') return 'Conference semifinals'
+  if (round === 'conf') return 'Conference finals'
+  return 'Finals'
+}
 
 export interface ScheduledMatch {
   id: string
@@ -55,6 +78,8 @@ export interface ScheduledMatch {
   cup: boolean
   cupKnockout?: 'quarter' | 'semi' | 'final'
   exhibition?: boolean
+  playoff?: boolean
+  playoffSeriesId?: string
   simulated: boolean
   scoreHome?: number
   scoreAway?: number
@@ -63,6 +88,45 @@ export interface ScheduledMatch {
 }
 
 type TeamQuality = 'contender' | 'middle' | 'rebuild'
+
+const GOAL_WINS: Record<TeamQuality, number> = { contender: 50, middle: 40, rebuild: 30 }
+
+function outlookFor(index: number): TeamQuality {
+  if (index % 5 === 0) return 'contender'
+  if (index % 5 === 4) return 'rebuild'
+  return 'middle'
+}
+
+export interface CareerChoice {
+  id: string
+  city: string
+  name: string
+  color: string
+  conference: Conference
+  division: Division
+  outlook: TeamQuality
+  goalWins: number
+  coach: string
+  owner: string
+}
+
+export function careerChoices(): CareerChoice[] {
+  return TEAM_TEMPLATES.map((template, index) => {
+    const outlook = outlookFor(index)
+    return {
+      id: `team_${index + 1}`,
+      city: template.city,
+      name: template.name,
+      color: template.color,
+      conference: template.conference,
+      division: template.division,
+      outlook,
+      goalWins: GOAL_WINS[outlook],
+      coach: template.coach,
+      owner: template.owner
+    }
+  })
+}
 
 function deny(reason: string): OfferVerdict {
   return { allowed: false, exceptionUsed: 'None', reason, consumes: null, setsHardCap: null }
@@ -96,9 +160,12 @@ export class LeagueManager {
   cupResolved = false
   cupChampionId: string | null = null
   awards: SeasonAwards | null = null
+  playoffSeries: PlayoffSeries[] = []
+  championId: string | null = null
 
   constructor() {
-    if (!this.loadFromLocalStorage()) this.initializeLeague()
+    if (this.loadFromLocalStorage()) return
+    if (typeof window === 'undefined') this.initializeLeague()
   }
 
   userTeam(): Team {
@@ -130,7 +197,7 @@ export class LeagueManager {
   }
 
   saveToLocalStorage(): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
+    if (typeof window === 'undefined' || !window.localStorage || this.teams.length === 0) return
     window.localStorage.setItem('hoops_sim_league_data', JSON.stringify({
       schemaVersion: NBA_RULES.SCHEMA_VERSION,
       teams: this.teams,
@@ -154,7 +221,9 @@ export class LeagueManager {
       allStar: this.allStar,
       cupResolved: this.cupResolved,
       cupChampionId: this.cupChampionId,
-      awards: this.awards
+      awards: this.awards,
+      playoffSeries: this.playoffSeries,
+      championId: this.championId
     }))
   }
 
@@ -165,6 +234,7 @@ export class LeagueManager {
     try {
       const data = JSON.parse(saved)
       if (data.schemaVersion !== NBA_RULES.SCHEMA_VERSION) return false
+      if (!Array.isArray(data.teams) || data.teams.length === 0 || !data.userTeamId) return false
       this.teams = data.teams
       this.schedule = data.schedule
       this.currentRound = data.currentRound
@@ -187,10 +257,13 @@ export class LeagueManager {
       this.cupResolved = data.cupResolved ?? false
       this.cupChampionId = data.cupChampionId ?? null
       this.awards = data.awards ?? null
+      this.playoffSeries = data.playoffSeries ?? []
+      this.championId = data.championId ?? null
       const refreshBadges = (player: Player) => {
         if (!player.attributes || !player.personality) return
         player.traits = deriveTraits(player.attributes, player.position, player.personality)
       }
+      this.teams.forEach((team, index) => ensureCommercials(team, index))
       for (const team of this.teams) for (const player of team.roster) refreshBadges(player)
       for (const player of this.freeAgents) refreshBadges(player)
       return true
@@ -206,10 +279,10 @@ export class LeagueManager {
     }
   }
 
-  initializeLeague(): void {
+  initializeLeague(teamId?: string): void {
     const names = new Set<string>()
     this.teams = TEAM_TEMPLATES.map((template, index) => this.buildTeam(template, index, names))
-    this.userTeamId = this.teams[0].id
+    this.userTeamId = this.teams.find(team => team.id === teamId)?.id ?? this.teams[0].id
     this.generateSchedule()
     this.generateFreeAgents(names)
     this.generateDraftProspects(names)
@@ -232,9 +305,7 @@ export class LeagueManager {
   }
 
   private qualityFor(index: number): TeamQuality {
-    if (index % 5 === 0) return 'contender'
-    if (index % 5 === 4) return 'rebuild'
-    return 'middle'
+    return outlookFor(index)
   }
 
   private buildTeam(
@@ -277,12 +348,12 @@ export class LeagueManager {
       division: template.division,
       color: template.color,
       coach: {
-        name: index === 0 ? 'Alex Ward' : `${template.city} bench`,
+        name: template.coach,
         style: COACH_STYLES[index % COACH_STYLES.length]
       },
       owner: {
-        name: index === 0 ? 'Helen Cho' : `${template.city} ownership`,
-        goalWins: quality === 'contender' ? 50 : quality === 'rebuild' ? 30 : 40,
+        name: template.owner,
+        goalWins: GOAL_WINS[quality],
         patience: 70
       },
       roster,
@@ -309,6 +380,7 @@ export class LeagueManager {
     }
     rebuildDepthChart(team)
     CBASimulator.updateTeamFinances(team)
+    ensureCommercials(team, index)
     return team
   }
 
@@ -434,6 +506,8 @@ export class LeagueManager {
     this.cupResolved = false
     this.cupChampionId = null
     this.awards = null
+    this.playoffSeries = []
+    this.championId = null
   }
 
   userCupGame(): ScheduledMatch | null {
@@ -463,7 +537,25 @@ export class LeagueManager {
     this.saveToLocalStorage()
   }
 
-  simulateRound(userTeamId: string | null = null, onUserGameDone?: (res: any) => void): void {
+  simulateRegularSeason(): { wins: number, losses: number } {
+    let guard = 0
+    while (this.phase === 'regular' && !this.seasonComplete && guard++ < 250) {
+      const cup = this.userCupGame()
+      if (cup) {
+        this.simKnockout(cup)
+        this.maybeCup()
+        continue
+      }
+      const round = this.currentRound
+      this.simulateRound(null, undefined, false)
+      if (!this.seasonComplete && this.currentRound === round && !this.userCupGame()) break
+    }
+    this.saveToLocalStorage()
+    const team = this.userTeam()
+    return { wins: team.wins, losses: team.losses }
+  }
+
+  simulateRound(userTeamId: string | null = null, onUserGameDone?: (res: any) => void, save = true): void {
     if (this.phase !== 'regular' || this.seasonComplete) return
     if (userTeamId && this.userCupGame()) return
 
@@ -489,9 +581,10 @@ export class LeagueManager {
     if (this.currentRound >= this.totalRounds) {
       this.seasonComplete = true
       this.handAwards()
+      this.openPlayoffs()
     } else this.currentRound++
     this.touchOwner()
-    this.saveToLocalStorage()
+    if (save) this.saveToLocalStorage()
   }
 
   bookWatchedGame(matchId: string, homeWon: boolean) {
@@ -546,7 +639,7 @@ export class LeagueManager {
     this.note(
       'League office',
       'All-Star weekend',
-      `The break is ${this.allStarDate}. Twelve from the East, twelve from the West.${yours.length ? ` Your side: ${yours.join(', ')}.` : ' Nobody from your roster made it.'}`
+      `The break is ${this.allStarDate}. Twelve from the East, twelve from the West.${yours.length ? ` From your team: ${yours.join(', ')}.` : ' Nobody from your roster made it.'}`
     )
   }
 
@@ -648,8 +741,8 @@ export class LeagueManager {
         'League office',
         'Cup quarterfinals',
         yours
-          ? `Group games are done. You are in. Knockout games pay the gate and do not change the regular-season record.`
-          : 'Group games are done. Your club missed the knockout.'
+          ? `Group games are done. You are in. Elimination games pay the gate and do not change the regular-season record.`
+          : 'Group games are done. Your team missed the elimination round.'
       )
     }
     const stages = ['quarter', 'semi', 'final'] as const
@@ -670,13 +763,238 @@ export class LeagueManager {
         if (winner) {
           winner.finances.cash += NBA_RULES.CUP_PURSE
           winner.finances.seasonRevenue += NBA_RULES.CUP_PURSE
-          this.note('League office', 'Cup champion', `${winner.city} ${winner.name} won the Cup. $${(NBA_RULES.CUP_PURSE / 1_000_000).toFixed(0)}M goes to the club, not the cap.`)
+          this.note('League office', 'Cup champion', `${winner.city} ${winner.name} won the Cup. $${(NBA_RULES.CUP_PURSE / 1_000_000).toFixed(0)}M goes to the team, not the cap.`)
         }
         return
       }
       const next = stage === 'quarter' ? 'semi' : 'final'
       if (!this.schedule.some(match => match.cupKnockout === next)) this.seedCup(next)
     }
+  }
+
+  private playoffGamesOpen(): ScheduledMatch[] {
+    return this.schedule.filter(match => match.playoff && !match.simulated)
+  }
+
+  private playoffRoundNow(): PlayoffRoundName | null {
+    if (this.playoffSeries.length === 0) return null
+    return this.playoffSeries[this.playoffSeries.length - 1].round
+  }
+
+  private playoffSeed(teamId: string): number {
+    for (const series of this.playoffSeries) {
+      if (series.round !== 'first') continue
+      if (series.highId === teamId) return series.highSeed
+      if (series.lowId === teamId) return series.lowSeed
+    }
+    return NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE
+  }
+
+  private schedulePlayoffGame(series: PlayoffSeries) {
+    const gameNumber = series.highWins + series.lowWins + 1
+    if (series.winnerId || gameNumber > 7) return
+    const highHosts = gameNumber === 1 || gameNumber === 2 || gameNumber === 5 || gameNumber === 7
+    this.schedule.push({
+      id: `${series.id}_g${gameNumber}`,
+      round: 0,
+      date: `Playoffs ${playoffRoundLabel(series.round)} Game ${gameNumber}`,
+      homeTeamId: highHosts ? series.highId : series.lowId,
+      awayTeamId: highHosts ? series.lowId : series.highId,
+      cup: false,
+      playoff: true,
+      playoffSeriesId: series.id,
+      simulated: false
+    })
+  }
+
+  private addPlayoffSeries(
+    round: PlayoffRoundName,
+    conference: Conference | 'Finals',
+    high: Team,
+    low: Team,
+    highSeed: number,
+    lowSeed: number
+  ) {
+    const series: PlayoffSeries = {
+      id: `po_${round}_${high.id}_${low.id}`,
+      round,
+      conference,
+      highId: high.id,
+      lowId: low.id,
+      highSeed,
+      lowSeed,
+      highWins: 0,
+      lowWins: 0,
+      winnerId: null,
+      playedIds: []
+    }
+    this.playoffSeries.push(series)
+    this.schedulePlayoffGame(series)
+  }
+
+  private higherSeed(a: Team, b: Team): [Team, Team] {
+    return this.bestFirst(a, b) <= 0 ? [a, b] : [b, a]
+  }
+
+  private seedPlayoffRound(round: PlayoffRoundName) {
+    if (round === 'first') {
+      for (const conference of ['East', 'West'] as const) {
+        const table = this.teams.filter(team => team.conference === conference).sort((a, b) => this.bestFirst(a, b)).slice(0, NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE)
+        const pairs: [number, number][] = [[0, 7], [3, 4], [1, 6], [2, 5]]
+        for (const [highIndex, lowIndex] of pairs) {
+          this.addPlayoffSeries(round, conference, table[highIndex], table[lowIndex], highIndex + 1, lowIndex + 1)
+        }
+      }
+      const mine = this.playoffSeries.find(series => series.highId === this.userTeamId || series.lowId === this.userTeamId)
+      const user = this.userTeam()
+      if (mine) {
+        const seed = mine.highId === user.id ? mine.highSeed : mine.lowSeed
+        this.note('League office', 'Playoffs', `You are the ${seed} seed in the ${user.conference}. Best of seven. The higher seed hosts games 1, 2, 5, and 7.`)
+      } else {
+        this.note('League office', 'Playoffs', 'The top 8 in each conference are in. Your team is out. The bracket still has to finish before the draft.')
+      }
+      return
+    }
+
+    if (round === 'final') {
+      const east = this.playoffSeries.find(series => series.round === 'conf' && series.conference === 'East')
+      const west = this.playoffSeries.find(series => series.round === 'conf' && series.conference === 'West')
+      const eastTeam = this.teams.find(team => team.id === east?.winnerId)
+      const westTeam = this.teams.find(team => team.id === west?.winnerId)
+      if (!eastTeam || !westTeam) return
+      const [high, low] = this.higherSeed(eastTeam, westTeam)
+      this.addPlayoffSeries('final', 'Finals', high, low, this.playoffSeed(high.id), this.playoffSeed(low.id))
+      this.note('League office', 'Finals', `${high.city} ${high.name} have home court against ${low.city} ${low.name}.`)
+      return
+    }
+
+    const previous = round === 'semi' ? 'first' : 'semi'
+    for (const conference of ['East', 'West'] as const) {
+      const done = this.playoffSeries.filter(series => series.round === previous && series.conference === conference)
+      for (let index = 0; index < done.length; index += 2) {
+        const first = this.teams.find(team => team.id === done[index]?.winnerId)
+        const second = this.teams.find(team => team.id === done[index + 1]?.winnerId)
+        if (!first || !second) return
+        const [high, low] = this.higherSeed(first, second)
+        this.addPlayoffSeries(round, conference, high, low, this.playoffSeed(high.id), this.playoffSeed(low.id))
+      }
+    }
+  }
+
+  private crownChampion() {
+    const winner = this.teams.find(team => team.id === this.championId)
+    if (!winner) return
+    const userIn = this.playoffSeries.some(series => series.highId === this.userTeamId || series.lowId === this.userTeamId)
+    if (winner.id === this.userTeamId) {
+      this.note('League office', 'Champions', `${winner.city} ${winner.name} won the championship.`)
+      return
+    }
+    this.note(
+      'League office',
+      'Champions',
+      `${winner.city} ${winner.name} won the championship. ${userIn ? 'Your season ended earlier in the bracket.' : 'You did not make the playoffs.'}`
+    )
+  }
+
+  private queuePlayoffGames() {
+    if (this.championId) return
+    if (this.playoffGamesOpen().length > 0) return
+    if (this.playoffSeries.length === 0) {
+      this.seedPlayoffRound('first')
+      return
+    }
+    const round = this.playoffRoundNow()
+    if (!round) return
+    const live = this.playoffSeries.filter(series => series.round === round && !series.winnerId)
+    if (live.length > 0) {
+      for (const series of live) this.schedulePlayoffGame(series)
+      return
+    }
+    if (round === 'final') {
+      this.championId = this.playoffSeries.find(series => series.round === 'final')?.winnerId ?? null
+      this.crownChampion()
+      return
+    }
+    const next: PlayoffRoundName = round === 'first' ? 'semi' : round === 'semi' ? 'conf' : 'final'
+    this.seedPlayoffRound(next)
+  }
+
+  private recordSeriesGame(match: ScheduledMatch) {
+    const series = this.playoffSeries.find(item => item.id === match.playoffSeriesId)
+    if (!series || !match.winnerId || series.playedIds.includes(match.id)) return
+    series.playedIds.push(match.id)
+    if (match.winnerId === series.highId) series.highWins++
+    else series.lowWins++
+    if (series.highWins >= NBA_RULES.PLAYOFF_WINS_TO_ADVANCE) series.winnerId = series.highId
+    else if (series.lowWins >= NBA_RULES.PLAYOFF_WINS_TO_ADVANCE) series.winnerId = series.lowId
+    if (!series.winnerId) return
+    if (series.highId !== this.userTeamId && series.lowId !== this.userTeamId) return
+    const userWins = series.highId === this.userTeamId ? series.highWins : series.lowWins
+    const oppWins = series.highId === this.userTeamId ? series.lowWins : series.highWins
+    const won = series.winnerId === this.userTeamId
+    this.note('League office', won ? 'Series win' : 'Season over', won ? `You won the series ${userWins}-${oppWins}.` : `You lost the series ${userWins}-${oppWins}.`)
+  }
+
+  private simPlayoffGame(match: ScheduledMatch) {
+    if (match.simulated) return
+    const home = this.teams.find(team => team.id === match.homeTeamId)
+    const away = this.teams.find(team => team.id === match.awayTeamId)
+    if (!home || !away) return
+    const result = this.matchEngine.simulateMatch(home, away)
+    match.simulated = true
+    match.scoreHome = result.teamAScore
+    match.scoreAway = result.teamBScore
+    match.winnerId = result.winnerId
+    match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
+    this.bookGate(home, away, result.winnerId === home.id, false)
+    settleTeamMorale(home.roster, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, home.coach?.style)
+    settleTeamMorale(away.roster, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, away.coach?.style)
+    this.recordSeriesGame(match)
+  }
+
+  openPlayoffs(): void {
+    if (!this.seasonComplete || this.championId || this.playoffSeries.length > 0) return
+    this.queuePlayoffGames()
+  }
+
+  userPlayoffGame(): ScheduledMatch | null {
+    return this.schedule.find(match =>
+      match.playoff && !match.simulated && (match.homeTeamId === this.userTeamId || match.awayTeamId === this.userTeamId)
+    ) ?? null
+  }
+
+  playoffNight(simUser = false): void {
+    if (!this.seasonComplete || this.phase !== 'regular' || this.championId) return
+    this.queuePlayoffGames()
+    for (const game of this.playoffGamesOpen()) {
+      if (!simUser && (game.homeTeamId === this.userTeamId || game.awayTeamId === this.userTeamId)) continue
+      this.simPlayoffGame(game)
+    }
+    this.saveToLocalStorage()
+  }
+
+  finishWatchedPlayoff(matchId: string): void {
+    const match = this.schedule.find(item => item.id === matchId)
+    if (match?.playoff && match.winnerId) this.recordSeriesGame(match)
+    for (const game of this.playoffGamesOpen()) {
+      if (game.homeTeamId === this.userTeamId || game.awayTeamId === this.userTeamId) continue
+      this.simPlayoffGame(game)
+    }
+    this.saveToLocalStorage()
+  }
+
+  simulatePlayoffs(): string | null {
+    let guard = 0
+    while (!this.championId && this.seasonComplete && guard++ < 40) {
+      this.queuePlayoffGames()
+      if (this.championId) break
+      const open = this.playoffGamesOpen()
+      if (open.length === 0) break
+      for (const game of open) this.simPlayoffGame(game)
+    }
+    if (!this.championId) this.queuePlayoffGames()
+    this.saveToLocalStorage()
+    return this.championId
   }
 
   private applyMatchResults(home: Team, away: Team, res: any, _cup = false): void {
@@ -734,6 +1052,9 @@ export class LeagueManager {
     if (this.phase !== 'regular' || !this.seasonComplete) {
       return deny('The season is still going. Offseason starts after the last game.')
     }
+    if (this.playoffSeries.length > 0 && !this.championId) {
+      return deny('The playoffs are still going. Crown a champion before the offseason.')
+    }
 
     if (!this.awards) this.handAwards()
 
@@ -748,6 +1069,16 @@ export class LeagueManager {
       }
       const met = team.wins >= team.owner.goalWins
       team.owner.patience = Math.max(0, Math.min(100, team.owner.patience + (met ? 8 : -15)))
+    }
+    for (const team of this.teams) {
+      const annual = team.finances.sponsor?.annual ?? 0
+      if (annual <= 0) continue
+      team.finances.cash += annual
+      team.finances.seasonRevenue += annual
+    }
+    const sponsor = user.finances.sponsor
+    if (sponsor) {
+      this.note('Front Office', `${sponsor.name} paid`, `${sponsor.name} sent $${(sponsor.annual / 1_000_000).toFixed(0)}M. That is cash, not cap room. The TV deal stays ${user.finances.tvDeal}.`)
     }
     const metGoal = user.wins >= user.owner.goalWins
     const taxLine = userTax > 0 ? ` Luxury tax is $${(userTax / 1_000_000).toFixed(1)}M.` : ''

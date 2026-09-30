@@ -215,7 +215,7 @@
     matchData.winnerId = winnerId;
     matchData.playByPlaySummary = `Game ended. Final: ${scoreHome}-${scoreAway}.`;
     
-    const countsInStandings = !matchData.cupKnockout;
+    const countsInStandings = !matchData.cupKnockout && !matchData.playoff;
     if (countsInStandings) {
       if (winnerId === teamHome.id) {
         teamHome.wins++;

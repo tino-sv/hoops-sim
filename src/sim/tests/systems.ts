@@ -1,5 +1,5 @@
 import { CBASimulator } from '../cba'
-import { LeagueManager } from '../league'
+import { careerChoices, LeagueManager } from '../league'
 import { createPlayer } from '../players'
 import { NBA_RULES } from '../rules'
 
@@ -79,6 +79,8 @@ assert(veteran.contract.salaries[0] !== 25_000_000, 'extension money starts next
 assert(veteran.contract.salaries[1] === 25_000_000, 'year two is the new money')
 assert(CBASimulator.capHit(user) === beforeHit, 'extension does not change this year cap hit')
 
+assert(league.userTeam().finances.tvDeal === 'national', 'a contender has a national TV deal')
+assert(league.userTeam().finances.sponsor?.annual === NBA_RULES.SPONSOR_NATIONAL, 'national sponsor is on the books')
 assert(!league.draftProspect(league.draftProspects[0].id).allowed, 'cannot draft in season')
 league.seasonComplete = true
 const opened = league.enterOffseason()
@@ -134,6 +136,40 @@ assert(user.wins === 0 && user.losses === 0, 'record reset')
 assert(user.roster.length >= NBA_RULES.ROSTER_MIN && user.roster.length <= NBA_RULES.ROSTER_MAX, 'legal opening roster')
 assert(league.draftProspects.length === 60, 'next class is scoutable')
 assert(league.scoutingTokens === NBA_RULES.SCOUTING_TOKENS, 'tokens refill')
+
+const choices = careerChoices()
+assert(choices.length === 30, 'every franchise is choosable')
+const picked = new LeagueManager()
+picked.initializeLeague('team_14')
+assert(picked.userTeamId === 'team_14', 'career starts with the chosen team')
+assert(picked.userTeam().city === 'Orlando' && picked.userTeam().owner.name === 'Sofia Marin', 'Orlando keeps its owner')
+
+const bracket = new LeagueManager()
+bracket.initializeLeague('team_1')
+for (const conference of ['East', 'West'] as const) {
+  const table = bracket.teams.filter(team => team.conference === conference).sort((a, b) => a.city.localeCompare(b.city))
+  table.forEach((team, index) => {
+    team.wins = 60 - index
+    team.losses = 22 + index
+  })
+}
+const winsBefore = bracket.userTeam().wins
+bracket.seasonComplete = true
+bracket.openPlayoffs()
+assert(bracket.playoffSeries.length === 8, 'eight first-round series')
+assert(bracket.userPlayoffGame(), 'the user has a playoff game')
+const firstHome = bracket.userPlayoffGame()!
+assert(firstHome.homeTeamId === bracket.userTeamId, 'higher seed hosts game 1')
+const champion = bracket.simulatePlayoffs()
+assert(champion, 'a champion is crowned')
+assert(bracket.userTeam().wins === winsBefore, 'playoff games stay off the regular-season record')
+for (const series of bracket.playoffSeries) {
+  assert(series.winnerId, 'every series has a winner')
+  const wins = Math.max(series.highWins, series.lowWins)
+  assert(wins === NBA_RULES.PLAYOFF_WINS_TO_ADVANCE, 'a series ends at four wins')
+  assert(series.highWins + series.lowWins <= 7, 'no series runs past seven')
+}
+assert(bracket.enterOffseason().allowed, 'offseason opens after the title')
 
 console.log('systems ok')
 console.log(`user payroll $${(CBASimulator.capHit(user) / 1_000_000).toFixed(1)}M, roster ${user.roster.length}, season ${league.season}`)

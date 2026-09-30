@@ -55,7 +55,9 @@ export class CBASimulator {
       exceptions,
       cash: team.finances?.cash ?? 0,
       seasonRevenue: team.finances?.seasonRevenue ?? 0,
-      seasonExpenses: team.finances?.seasonExpenses ?? 0
+      seasonExpenses: team.finances?.seasonExpenses ?? 0,
+      tvDeal: team.finances?.tvDeal,
+      sponsor: team.finances?.sponsor
     }
   }
 

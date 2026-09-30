@@ -1,11 +1,45 @@
 import { seasonLine } from './seasonStats'
-import type { CoachStyle, Player, SeasonAwards, Team } from './types'
+import type { CoachStyle, MarketDeal, Player, SeasonAwards, Team } from './types'
 import { NBA_RULES } from './rules'
 import { CBASimulator } from './cba'
 
+const SPONSORS = [
+  'Harbor Bank', 'Northline', 'Red Cedar', 'Glasshouse', 'Summit Rail', 'Copper Kettle',
+  'Brightwater', 'Fieldstone', 'Lumen Fuel', 'Oak & Iron', 'Marlow', 'Kinship',
+  'Paperplane', 'Westwind', 'Cobalt', 'Hearth', 'Silverline', 'Driftwood',
+  'Amberjack', 'Pine State', 'Lowland', 'Vantage', 'Commonwealth', 'Nighthawk',
+  'Riverbed', 'Halcyon', 'Broadstreet', 'Kindling', 'Atlas Grocery', 'Second Shift'
+]
+
+export function marketTier(team: Team): MarketDeal {
+  if (team.owner.goalWins >= 50) return 'national'
+  if (team.owner.goalWins <= 30) return 'local'
+  return 'partner'
+}
+
+export function sponsorAnnual(tier: MarketDeal): number {
+  if (tier === 'national') return NBA_RULES.SPONSOR_NATIONAL
+  if (tier === 'local') return NBA_RULES.SPONSOR_LOCAL
+  return NBA_RULES.SPONSOR_PARTNER
+}
+
+export function tvCheck(team: Team): number {
+  const tier = team.finances.tvDeal ?? 'partner'
+  const scale = tier === 'national' ? NBA_RULES.TV_NATIONAL : tier === 'local' ? NBA_RULES.TV_LOCAL : 1
+  return Math.round(NBA_RULES.TV_SHARE * scale)
+}
+
+export function ensureCommercials(team: Team, index = 0): void {
+  const tier = team.finances.tvDeal ?? marketTier(team)
+  team.finances.tvDeal = tier
+  if (!team.finances.sponsor) {
+    team.finances.sponsor = { name: SPONSORS[index % SPONSORS.length], annual: sponsorAnnual(tier) }
+  }
+}
+
 export function bookGameMoney(team: Team, home: boolean, won: boolean) {
   const gate = home ? (won ? NBA_RULES.HOME_GATE_WIN : NBA_RULES.HOME_GATE_LOSS) : NBA_RULES.AWAY_GATE
-  const tv = NBA_RULES.TV_SHARE
+  const tv = tvCheck(team)
   const payroll = Math.round(CBASimulator.capHit(team) / NBA_RULES.SEASON_GAMES)
   team.finances.cash += gate + tv - payroll
   team.finances.seasonRevenue += gate + tv
@@ -36,15 +70,32 @@ function isReserve(team: Team, player: Player): boolean {
   return index > 0
 }
 
+export interface AwardCandidate {
+  player: Player
+  team: Team
+  mvp: number
+  defense: number
+  reserve: boolean
+}
+
+export function awardRace(teams: Team[]): AwardCandidate[] {
+  return teams.flatMap(team => team.roster.map(player => {
+    const line = seasonLine(player.careerStats['season'])
+    return {
+      player,
+      team,
+      mvp: mvpScore(player, team),
+      defense: line.stl + line.blk * 1.4 + line.dreb * 0.25,
+      reserve: isReserve(team, player)
+    }
+  }))
+}
+
 export function pickAwards(teams: Team[]): SeasonAwards {
-  const pool = teams.flatMap(team => team.roster.map(player => ({ player, team })))
-  const ranked = [...pool].sort((a, b) => mvpScore(b.player, b.team) - mvpScore(a.player, a.team))
+  const pool = awardRace(teams)
+  const ranked = [...pool].sort((a, b) => b.mvp - a.mvp)
   const mvp = ranked[0]?.player
-  const defense = [...pool].sort((a, b) => {
-    const lineA = seasonLine(a.player.careerStats['season'])
-    const lineB = seasonLine(b.player.careerStats['season'])
-    return (lineB.stl + lineB.blk * 1.4 + lineB.dreb * 0.25) - (lineA.stl + lineA.blk * 1.4 + lineA.dreb * 0.25)
-  })
+  const defense = [...pool].sort((a, b) => b.defense - a.defense)
   const rookies = pool.filter(item => item.player.experience === 0)
   const royPool = rookies.length ? rookies : pool
   const roy = [...royPool].sort((a, b) => mvpScore(b.player, b.team) - mvpScore(a.player, a.team))[0]?.player

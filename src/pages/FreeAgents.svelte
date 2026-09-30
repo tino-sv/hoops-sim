@@ -20,6 +20,7 @@
   // Search & Filter state
   let searchQuery = $state('');
   let filterPosition = $state('ALL');
+  let sortKey = $state<'overall' | 'age' | 'salary'>('overall');
 
   // Selected Player Profile Modal
   let selectedPlayer = $state<Player | null>(null);
@@ -63,7 +64,11 @@
       const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesPos = filterPosition === 'ALL' || p.position === filterPosition;
       return matchesSearch && matchesPos;
-    }).sort((a, b) => b.overallRating - a.overallRating);
+    }).sort((a, b) => {
+      if (sortKey === 'age') return a.age - b.age;
+      if (sortKey === 'salary') return (b.contract.salaries[0] ?? 0) - (a.contract.salaries[0] ?? 0);
+      return b.overallRating - a.overallRating;
+    });
   });
 
   const getAgentDetails = (player: Player) => {
@@ -275,6 +280,11 @@
             <option value="SF">Small Forward (SF)</option>
             <option value="PF">Power Forward (PF)</option>
             <option value="C">Center (C)</option>
+          </select>
+          <select class="tactics-select" bind:value={sortKey} style="padding: 6px 12px; font-size: 0.85rem;">
+            <option value="overall">Sort: overall</option>
+            <option value="age">Sort: age</option>
+            <option value="salary">Sort: salary</option>
           </select>
         </div>
       </div>
@@ -510,7 +520,7 @@
           <div style="display: flex; flex-direction: column; gap: 14px; text-align: center;">
             <div style="font-size: 1.1rem; color: var(--danger); font-weight: 700;">Negotiations Terminated</div>
             <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">The agent has walked away and refuses to negotiate further at this time.</p>
-            <button class="btn btn-secondary" onclick={() => negotiatingPlayer = null} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Close Table</button>
+            <button class="btn btn-secondary" onclick={() => negotiatingPlayer = null} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Close</button>
           </div>
         {/if}
       </div>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LeagueManager } from './sim/league';
+  import { LeagueManager, type PlayoffSeries } from './sim/league';
   import Dashboard from './pages/Dashboard.svelte';
   import RosterCBA from './pages/RosterCBA.svelte';
   import Chalkboard from './components/Chalkboard.svelte';
@@ -11,6 +11,9 @@
   import TeamDirectory from './pages/TeamDirectory.svelte';
   import Calendar from './pages/Calendar.svelte';
   import FrontOffice from './pages/FrontOffice.svelte';
+  import Honors from './pages/Honors.svelte';
+  import Playoffs from './pages/Playoffs.svelte';
+  import TeamSelect from './pages/TeamSelect.svelte';
   import type { CoachStyle, DefensiveCoverage, OffensiveStyle, TeamTactics } from './sim/types';
 
   // Instantiate League Manager
@@ -45,10 +48,12 @@
   });
 
   // Routing State
-  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'calendar'>('dashboard');
+  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'playoffs' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'honors' | 'calendar'>('dashboard');
   let awards = $state(league.awards);
   let allStar = $state(league.allStar);
   let cupChampionId = $state(league.cupChampionId);
+  let playoffSeries = $state<PlayoffSeries[]>(league.playoffSeries);
+  let championId = $state(league.championId);
   let allStarDate = $state(league.allStarDate);
   let activeMatchId = $state<string | null>(null); // If active, shows MatchCenter
 
@@ -74,18 +79,31 @@
     allStar = league.allStar;
     cupChampionId = league.cupChampionId;
     allStarDate = league.allStarDate;
+    playoffSeries = league.playoffSeries.map(series => ({ ...series, playedIds: [...series.playedIds] }));
+    championId = league.championId;
     
     // Save to local storage
     league.saveToLocalStorage();
   };
 
   let showResetConfirm = $state(false);
+  let pickingTeam = $state(league.teams.length === 0);
+  let userIndex = $derived(teams.findIndex(team => team.id === userTeamId));
+
+  const startCareer = (teamId: string) => {
+    league.initializeLeague(teamId);
+    refreshLeagueState();
+    activeTab = 'dashboard';
+    activeMatchId = null;
+    pickingTeam = false;
+  };
 
   const executeResetLeague = () => {
     league.clearLocalStorage();
     league = new LeagueManager();
-    refreshLeagueState();
     showResetConfirm = false;
+    activeMatchId = null;
+    pickingTeam = true;
   };
 
   const skipByes = () => {
@@ -104,7 +122,37 @@
     refreshLeagueState();
   };
 
+  const handleSimSeason = () => {
+    if (!confirm('Sim every remaining regular-season game, including yours? Awards and the Cup resolve at the end, then the playoff bracket is set. This is for testing.')) return;
+    const summary = league.simulateRegularSeason();
+    refreshLeagueState();
+    alert(`${userTeam.city} ${userTeam.name} finished ${summary.wins}-${summary.losses}. The playoffs are up.`);
+  };
+
+  const handlePlayoffNight = () => {
+    league.playoffNight(false);
+    refreshLeagueState();
+  };
+
+  const handleSimPlayoffs = () => {
+    if (!confirm('Sim every remaining playoff game, including yours? This is for testing.')) return;
+    const winnerId = league.simulatePlayoffs();
+    refreshLeagueState();
+    const winner = league.teams.find(team => team.id === winnerId);
+    alert(winner ? `${winner.city} ${winner.name} won the championship.` : 'The bracket is still going.');
+  };
+
   const handleInstantSim = () => {
+    const playoff = league.userPlayoffGame();
+    if (playoff) {
+      const oppId = playoff.homeTeamId === userTeam.id ? playoff.awayTeamId : playoff.homeTeamId;
+      const opp = league.teams.find(club => club.id === oppId);
+      league.playoffNight(true);
+      const played = league.schedule.find(match => match.id === playoff.id);
+      alert(`Playoff final: ${played?.scoreHome}-${played?.scoreAway} vs ${opp?.name ?? 'opponent'}`);
+      refreshLeagueState();
+      return;
+    }
     const cup = league.userCupGame();
     if (cup) {
       const oppId = cup.homeTeamId === userTeam.id ? cup.awayTeamId : cup.homeTeamId;
@@ -138,6 +186,7 @@
     activeMatchId = null;
     const match = matchId ? league.schedule.find(item => item.id === matchId) : undefined;
     if (match?.cupKnockout) league.continueCup();
+    else if (match?.playoff) league.finishWatchedPlayoff(match.id);
     else {
       league.simulateRound(userTeam.id);
       skipByes();
@@ -196,6 +245,9 @@
   };
 </script>
 
+{#if pickingTeam}
+  <TeamSelect onStart={startCareer} />
+{:else}
 <div class="shell-container">
   <!-- Sidebar Navigation -->
   <aside class="sidebar">
@@ -207,7 +259,8 @@
       </div>
     </div>
 
-    <ul class="sidebar-menu" style="overflow-y: auto;">
+    <ul class="sidebar-menu">
+      <li class="nav-label">Team</li>
       <li class="menu-item">
         <button 
           class="menu-link" 
@@ -235,6 +288,7 @@
           📋 Lineups
         </button>
       </li>
+      <li class="nav-label">League</li>
       <li class="menu-item">
         <button 
           class="menu-link" 
@@ -245,12 +299,30 @@
         </button>
       </li>
       <li class="menu-item">
+        <button
+          class="menu-link"
+          class:active={activeTab === 'playoffs' && !activeMatchId}
+          onclick={() => { activeTab = 'playoffs'; activeMatchId = null; }}
+        >
+          🎟️ Playoffs
+        </button>
+      </li>
+      <li class="menu-item">
         <button 
           class="menu-link" 
           class:active={activeTab === 'league_stats' && !activeMatchId}
           onclick={() => { activeTab = 'league_stats'; activeMatchId = null; }}
         >
           📈 League Leaders
+        </button>
+      </li>
+      <li class="menu-item">
+        <button
+          class="menu-link"
+          class:active={activeTab === 'honors' && !activeMatchId}
+          onclick={() => { activeTab = 'honors'; activeMatchId = null; }}
+        >
+          🥇 Honors
         </button>
       </li>
       <li class="menu-item">
@@ -280,6 +352,7 @@
           🏢 Teams
         </button>
       </li>
+      <li class="nav-label">Desk</li>
       <li class="menu-item">
         <button 
           class="menu-link" 
@@ -300,9 +373,9 @@
       </li>
     </ul>
 
-    <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 12px;">
-      <div class="user-team-badge">
-        <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Managing</div>
+    <div class="sidebar-footer">
+      <div class="user-team-badge" style="border-left-color: {userTeam.color}">
+        <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Your team</div>
         <div style="color: var(--primary); font-weight: 800;">{userTeam.city} {userTeam.name}</div>
         <div style="font-size: 0.8rem; font-weight: 700; margin-top: 2px;">{userTeam.wins} - {userTeam.losses}</div>
       </div>
@@ -336,10 +409,15 @@
         phase={phase}
         offseasonStep={offseasonStep}
         seasonComplete={seasonComplete}
+        playoffSeries={playoffSeries}
+        {championId}
         news={news}
         clockLabel={clockLabel}
         onAdvanceRound={handleAdvanceRound}
         onInstantSim={handleInstantSim}
+        onSimSeason={handleSimSeason}
+        onPlayoffNight={handlePlayoffNight}
+        onSimPlayoffs={handleSimPlayoffs}
         onGoToMatchCenter={handleGoToMatchCenter}
         onEnterOffseason={handleEnterOffseason}
         onStartSeason={handleStartSeason}
@@ -354,13 +432,25 @@
       />
     {:else if activeTab === 'tactics'}
       <Chalkboard 
-        bind:team={league.teams[0]} 
+        bind:team={league.teams[userIndex]} 
         onTacticsChanged={refreshLeagueState}
       />
     {:else if activeTab === 'standings'}
       <Standings 
         allTeams={teams}
         userTeamId={userTeamId}
+      />
+    {:else if activeTab === 'playoffs'}
+      <Playoffs
+        allTeams={teams}
+        {schedule}
+        series={playoffSeries}
+        {userTeamId}
+        {championId}
+        {seasonComplete}
+        onPlay={handleGoToMatchCenter}
+        onSimNight={handlePlayoffNight}
+        onSimRest={handleSimPlayoffs}
       />
     {:else if activeTab === 'league_stats'}
       <LeagueStats 
@@ -387,16 +477,21 @@
       />
     {:else if activeTab === 'directory'}
       <TeamDirectory 
-        allTeams={teams} 
+        allTeams={teams}
+        {userTeamId}
       />
     {:else if activeTab === 'office'}
       <FrontOffice
         team={userTeam}
+        onSave={handleSaveCoach}
+      />
+    {:else if activeTab === 'honors'}
+      <Honors
         allTeams={teams}
         {awards}
         {allStar}
         {cupChampionId}
-        onSave={handleSaveCoach}
+        {userTeam}
       />
     {:else if activeTab === 'calendar'}
       <Calendar
@@ -415,13 +510,14 @@
   <div class="confirm-overlay">
     <div class="confirm-modal">
       <h3>⚠️ Reset League</h3>
-      <p>Are you sure you want to reset the league? This wipes the schedule, the records, and the stats, and starts a fresh 2026 season.</p>
+      <p>This wipes the schedule, the records, and the stats. You pick a franchise again.</p>
       <div class="confirm-actions">
         <button class="btn btn-secondary" onclick={() => showResetConfirm = false}>Cancel</button>
         <button class="btn btn-danger" onclick={executeResetLeague}>Confirm Reset</button>
       </div>
     </div>
   </div>
+{/if}
 {/if}
 
 <style>

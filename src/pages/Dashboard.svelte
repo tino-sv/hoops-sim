@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { OfficeNote, OffseasonStep, Player, SeasonPhase, Team } from '../sim/types';
-  import type { ScheduledMatch } from '../sim/league';
+  import { playoffRoundLabel, type PlayoffSeries, type ScheduledMatch } from '../sim/league';
   import { formatSlateDate } from '../sim/schedule';
   import type { OfferVerdict } from '../sim/cba';
 
@@ -14,10 +14,15 @@
     phase,
     offseasonStep,
     seasonComplete,
+    playoffSeries,
+    championId,
     news,
     clockLabel,
     onAdvanceRound, 
     onInstantSim,
+    onSimSeason,
+    onPlayoffNight,
+    onSimPlayoffs,
     onGoToMatchCenter,
     onEnterOffseason,
     onStartSeason,
@@ -33,19 +38,26 @@
     phase: SeasonPhase,
     offseasonStep: OffseasonStep | null,
     seasonComplete: boolean,
+    playoffSeries: PlayoffSeries[],
+    championId: string | null,
     news: OfficeNote[],
     clockLabel: string,
     onAdvanceRound: () => void, 
     onInstantSim: () => void,
+    onSimSeason: () => void,
+    onPlayoffNight: () => void,
+    onSimPlayoffs: () => void,
     onGoToMatchCenter: (matchId: string) => void,
     onEnterOffseason: () => OfferVerdict,
     onStartSeason: () => OfferVerdict,
-    onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster' | 'office' | 'calendar') => void,
+    onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster' | 'office' | 'calendar' | 'standings' | 'playoffs') => void,
     onNewsRead: () => void
   } = $props();
 
   let selectedMessage = $state<OfficeNote | null>(null);
   let actionError = $state('');
+  let unreadOnly = $state(false);
+  let inbox = $derived(unreadOnly ? news.filter(note => !note.read) : news);
 
   $effect(() => {
     if (!selectedMessage && news.length > 0) selectedMessage = news[0];
@@ -62,14 +74,43 @@
   // User team rank
   let userRank = $derived(standings.findIndex(t => t.id === team.id) + 1);
 
+  let divisionTable = $derived(
+    [...allTeams.filter(club => club.division === team.division)].sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (a.losses !== b.losses) return a.losses - b.losses;
+      return b.pointDiff - a.pointDiff;
+    })
+  );
+
+  const gamesBehind = (club: Team, leader: Team) => {
+    if (club.id === leader.id) return '—';
+    const gb = ((leader.wins - club.wins) + (club.losses - leader.losses)) / 2;
+    return gb === 0 ? '0.0' : gb.toFixed(1);
+  };
+
   // Find next match for the user's team
   let nextUserMatch = $derived(
-    schedule.find(m => !m.cupKnockout && !m.simulated && m.round >= currentRound && (m.homeTeamId === team.id || m.awayTeamId === team.id))
+    schedule.find(m => !m.playoff && !m.cupKnockout && !m.simulated && m.round >= currentRound && (m.homeTeamId === team.id || m.awayTeamId === team.id))
   );
+  let playoffMatch = $derived(
+    schedule.find(m => m.playoff && !m.simulated && (m.homeTeamId === team.id || m.awayTeamId === team.id))
+  );
+  let inPlayoffs = $derived(phase === 'regular' && seasonComplete && playoffSeries.length > 0 && !championId);
+  let playoffLabel = $derived.by(() => {
+    const round = playoffSeries[playoffSeries.length - 1]?.round;
+    return round ? playoffRoundLabel(round) : 'Playoffs';
+  });
+  let seriesScore = $derived.by(() => {
+    const item = playoffSeries.find(series => series.id === playoffMatch?.playoffSeriesId);
+    if (!item) return '';
+    const userWins = item.highId === team.id ? item.highWins : item.lowWins;
+    const oppWins = item.highId === team.id ? item.lowWins : item.highWins;
+    return `Series ${userWins}-${oppWins}`;
+  });
   let cupMatch = $derived(
     schedule.find(m => m.cupKnockout && !m.simulated && (m.homeTeamId === team.id || m.awayTeamId === team.id))
   );
-  let featuredMatch = $derived(cupMatch ?? nextUserMatch);
+  let featuredMatch = $derived(playoffMatch ?? cupMatch ?? nextUserMatch);
 
   let nextOpponent = $derived.by(() => {
     if (!featuredMatch) return null;
@@ -78,9 +119,10 @@
     return allTeams.find(t => t.id === oppId) || null;
   });
   let featuredHome = $derived(featuredMatch?.homeTeamId === team.id);
-  let playableNow = $derived(!!cupMatch || (!!nextUserMatch && nextUserMatch.round === currentRound));
+  let playableNow = $derived(!!playoffMatch || !!cupMatch || (!!nextUserMatch && nextUserMatch.round === currentRound));
 
-  let activeLeaderTab = $state<'pts' | 'ast' | 'reb' | 'stl' | 'blk'>('pts');
+  const leaderTabs = ['pts', 'ast', 'reb', 'stl', 'blk'] as const;
+  let activeLeaderTab = $state<(typeof leaderTabs)[number]>('pts');
 
   // Derived top players in the league based on selected tab
   let leagueLeaders = $derived.by(() => {
@@ -111,6 +153,14 @@
   };
 
   const advanceDay = () => {
+    if (playoffMatch && !playoffMatch.simulated) {
+      onGoToMatchCenter(playoffMatch.id);
+      return;
+    }
+    if (inPlayoffs) {
+      onPlayoffNight();
+      return;
+    }
     if (phase !== 'regular' || seasonComplete) return;
     if (featuredMatch && !featuredMatch.simulated && (featuredMatch === cupMatch || featuredMatch.round === currentRound)) {
       onGoToMatchCenter(featuredMatch.id);
@@ -133,14 +183,24 @@
 </script>
 
 <div class="dashboard-page fade-in">
-  <!-- Top Welcome / Quick Stats -->
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+  <div class="page-head">
     <div>
       <h2 style="font-size: 1.8rem; font-weight: 800;">Welcome, General Manager</h2>
-      <p style="color: var(--text-secondary);">Season {season} • {phase === 'offseason' ? `Offseason · ${offseasonStep === 'draft' ? 'Draft' : 'Free agency'}` : `Round ${currentRound} of ${totalRounds}`}</p>
+      <p>Season {season} · {phase === 'offseason' ? `Offseason · ${offseasonStep === 'draft' ? 'Draft' : 'Free agency'}` : inPlayoffs ? `Playoffs · ${playoffLabel}` : `Night ${currentRound} of ${totalRounds}`}</p>
     </div>
     
-    <div style="display: flex; gap: 12px;">
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+      {#if inPlayoffs}
+        <button class="btn btn-secondary" onclick={onSimPlayoffs}>Sim rest of playoffs</button>
+        {#if playoffMatch}
+          <button class="btn btn-secondary" onclick={onInstantSim}>⚡ Instant Sim</button>
+          <button class="btn btn-primary" onclick={advanceDay}>🏀 Playoff game</button>
+        {:else}
+          <button class="btn btn-primary" onclick={onPlayoffNight}>⏩ Sim the night</button>
+        {/if}
+      {:else if phase === 'regular' && !seasonComplete}
+        <button class="btn btn-secondary" onclick={onSimSeason}>Sim rest of season</button>
+      {/if}
       {#if phase === 'offseason' && offseasonStep === 'draft'}
         <button class="btn btn-primary" onclick={() => onOpenTab('scouting')}>
           🧭 Draft ({clockLabel})
@@ -148,8 +208,10 @@
       {:else if phase === 'offseason'}
         <button class="btn btn-secondary" onclick={() => onOpenTab('free_agents')}>Free Agency</button>
         <button class="btn btn-primary" onclick={startSeason}>Open {season + 1}</button>
-      {:else if seasonComplete}
+      {:else if seasonComplete && !inPlayoffs}
         <button class="btn btn-primary" onclick={enterOffseason}>Enter Offseason</button>
+      {:else if inPlayoffs}
+        <!-- Playoff actions sit in the row above. -->
       {:else if playableNow}
         {#if !cupMatch}
           <button class="btn btn-secondary" onclick={onInstantSim}>
@@ -161,7 +223,7 @@
         </button>
       {:else}
         <button class="btn btn-primary" onclick={advanceDay}>
-          ⏩ Advance Round ({currentRound}/{totalRounds})
+          ⏩ Sim the night ({currentRound}/{totalRounds})
         </button>
       {/if}
     </div>
@@ -172,12 +234,15 @@
 
   <div class="dashboard-grid">
     <!-- Team Summary Card -->
-    <div class="card" style="grid-column: span 4; display: flex; flex-direction: column; justify-content: space-between;">
+    <div class="card span-4" style="display: flex; flex-direction: column; justify-content: space-between;">
       <div>
         <h3 style="color: var(--primary); margin-bottom: 4px;">{team.city} {team.name}</h3>
         <span class="badge badge-secondary">Rank #{userRank} in League</span>
+        <div class="season-meter" title="{team.wins + team.losses} of 82 games">
+          <span style="width: {Math.min(100, ((team.wins + team.losses) / 82) * 100)}%"></span>
+        </div>
         
-        <div style="margin-top: 24px; display: flex; align-items: baseline; gap: 12px;">
+        <div style="margin-top: 16px; display: flex; align-items: baseline; gap: 12px;">
           <span style="font-size: 3rem; font-family: var(--font-display); font-weight: 900; line-height: 1;">
             {team.wins} - {team.losses}
           </span>
@@ -197,21 +262,26 @@
     </div>
 
     <!-- Next Match Card -->
-    <div class="card" style="grid-column: span 4; display: flex; flex-direction: column; justify-content: space-between;">
+    <div class="card span-4" style="display: flex; flex-direction: column; justify-content: space-between;">
       <div>
-        <h3 class="card-title">Next game <span class="badge badge-primary">{cupMatch ? 'CUP' : formatSlateDate(featuredMatch?.date ?? '')}</span> <button class="btn btn-secondary" style="margin-left: 8px;" onclick={() => onOpenTab('calendar')}>Calendar</button></h3>
+        <h3 class="card-title">Next game <span class="badge badge-primary">{playoffMatch ? 'PLAYOFFS' : cupMatch ? 'CUP' : formatSlateDate(featuredMatch?.date ?? '')}</span> <button class="text-btn" onclick={() => onOpenTab(playoffMatch ? 'playoffs' : 'calendar')}>{playoffMatch ? 'Bracket' : 'Calendar'}</button></h3>
         
         {#if nextOpponent}
           <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px;">
             <div style="text-align: center; flex: 1;">
               <div style="font-size: 1.5rem; font-weight: 800;">{team.name}</div>
-              <div style="font-size: 0.8rem; color: var(--text-secondary);">{featuredHome ? 'Home' : 'Road'}</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">{featuredHome ? 'Home' : 'Road'}{seriesScore ? ` · ${seriesScore}` : ''}</div>
             </div>
             <div style="font-size: 1.25rem; font-weight: 800; color: var(--text-muted);">VS</div>
             <div style="text-align: center; flex: 1;">
               <div style="font-size: 1.5rem; font-weight: 800; color: var(--secondary);">{nextOpponent.name}</div>
               <div style="font-size: 0.8rem; color: var(--text-secondary);">{nextOpponent.city} ({nextOpponent.wins}-{nextOpponent.losses})</div>
             </div>
+          </div>
+        {:else if inPlayoffs}
+          <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
+            Your series is over. The rest of the bracket is still going.
+            <button class="text-btn" onclick={() => onOpenTab('playoffs')}>Bracket</button>
           </div>
         {:else}
           <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
@@ -225,9 +295,13 @@
           <button class="btn btn-primary" style="width: 100%;" onclick={() => onOpenTab(offseasonStep === 'draft' ? 'scouting' : 'free_agents')}>
             {offseasonStep === 'draft' ? `On the clock: ${clockLabel}` : 'Open free agency'}
           </button>
+        {:else if inPlayoffs}
+          <button class="btn btn-primary" style="width: 100%;" onclick={() => playoffMatch ? advanceDay() : onPlayoffNight()}>
+            {playoffMatch ? '🏀 Tip off' : 'Sim the night'}
+          </button>
         {:else if seasonComplete}
           <button class="btn btn-primary" style="width: 100%;" onclick={enterOffseason}>
-            Season complete. Enter offseason
+            {championId ? 'Champion is crowned. Enter offseason' : 'Season complete. Enter offseason'}
           </button>
         {:else if playableNow}
           {#if !cupMatch}
@@ -251,15 +325,13 @@
     </div>
 
     <!-- League Leaders Card -->
-    <div class="card" style="grid-column: span 4;">
+    <div class="card span-4">
       <h3 class="card-title" style="margin-bottom: 8px;">League Leaders</h3>
       
-      <div style="display: flex; gap: 4px; margin-bottom: 12px; font-size: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; width: 100%; justify-content: space-between;">
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'pts' ? '800' : '400'}; color: {activeLeaderTab === 'pts' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'pts' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'pts'}>PTS</button>
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'ast' ? '800' : '400'}; color: {activeLeaderTab === 'ast' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'ast' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'ast'}>AST</button>
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'reb' ? '800' : '400'}; color: {activeLeaderTab === 'reb' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'reb' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'reb'}>REB</button>
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'stl' ? '800' : '400'}; color: {activeLeaderTab === 'stl' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'stl' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'stl'}>STL</button>
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'blk' ? '800' : '400'}; color: {activeLeaderTab === 'blk' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'blk' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'blk'}>BLK</button>
+      <div class="stat-tabs">
+        {#each leaderTabs as stat}
+          <button class:on={activeLeaderTab === stat} onclick={() => activeLeaderTab = stat}>{stat.toUpperCase()}</button>
+        {/each}
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
@@ -291,13 +363,13 @@
     </div>
 
     <!-- Inbox & Mail Card -->
-    <div class="card" style="grid-column: span 6; display: flex; flex-direction: column; gap: 16px;">
-      <h3 class="card-title">Office Inbox</h3>
+    <div class="card span-6" style="display: flex; flex-direction: column; gap: 16px;">
+      <h3 class="card-title">Office Inbox <button class="text-btn" onclick={() => unreadOnly = !unreadOnly}>{unreadOnly ? 'Show all' : `Unread ${news.filter(note => !note.read).length}`}</button></h3>
       
       <div style="display: flex; gap: 16px; height: 260px;">
         <!-- Mail List -->
         <div style="width: 35%; border-right: 1px solid var(--border-color); overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 6px;">
-          {#each news as msg}
+          {#each inbox as msg}
             <button 
               class="mail-item-btn" 
               class:active={selectedMessage?.id === msg.id}
@@ -330,10 +402,10 @@
     </div>
 
     <!-- Standings Card -->
-    <div class="card" style="grid-column: span 6;">
-      <h3 class="card-title">League Standings</h3>
+    <div class="card span-6">
+      <h3 class="card-title">{team.division} <button class="text-btn" onclick={() => onOpenTab('standings')}>All standings</button></h3>
       
-      <div class="table-container" style="max-height: 260px; overflow-y: auto;">
+      <div class="table-container">
         <table class="sim-table">
           <thead>
             <tr>
@@ -341,19 +413,17 @@
               <th>Team</th>
               <th>W</th>
               <th>L</th>
-              <th>PD</th>
+              <th>GB</th>
             </tr>
           </thead>
           <tbody>
-            {#each standings as t, idx}
-              <tr class:user-row={t.id === team.id}>
-                <td><span style="font-weight: 800; color: {idx < 8 ? 'var(--primary)' : 'var(--text-muted)'}">{idx + 1}</span></td>
-                <td style="font-weight: 700;">{t.city} {t.name}</td>
-                <td>{t.wins}</td>
-                <td>{t.losses}</td>
-                <td style="color: {t.pointDiff >= 0 ? 'var(--primary)' : 'var(--danger)'}">
-                  {t.pointDiff > 0 ? '+' : ''}{t.pointDiff}
-                </td>
+            {#each divisionTable as club, idx}
+              <tr class:user-row={club.id === team.id}>
+                <td><span style="font-weight: 800; color: var(--text-muted)">{idx + 1}</span></td>
+                <td style="font-weight: 700;">{club.city} {club.name}</td>
+                <td>{club.wins}</td>
+                <td>{club.losses}</td>
+                <td>{divisionTable[0] ? gamesBehind(club, divisionTable[0]) : '—'}</td>
               </tr>
             {/each}
           </tbody>
@@ -391,5 +461,54 @@
 
   .user-row {
     background-color: var(--secondary-glow) !important;
+  }
+
+  .season-meter {
+    margin-top: 12px;
+    height: 6px;
+    border-radius: 99px;
+    background: var(--border-color);
+    overflow: hidden;
+  }
+
+  .season-meter span {
+    display: block;
+    height: 100%;
+    background: var(--primary);
+  }
+
+  .text-btn {
+    background: none;
+    border: none;
+    color: var(--secondary);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .stat-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+  }
+
+  .stat-tabs button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+  }
+
+  .stat-tabs button.on {
+    font-weight: 800;
+    color: var(--primary);
+    background: var(--primary-glow);
   }
 </style>

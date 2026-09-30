@@ -22,8 +22,15 @@
   let year = $state(2026);
   let month = $state(9);
   let following = $state(true);
+  let slate = $state<'all' | 'home' | 'away' | 'cup'>('all');
 
-  const mine = $derived(schedule.filter(match => match.homeTeamId === team.id || match.awayTeamId === team.id));
+  const mine = $derived(schedule.filter(match => !match.playoff && (match.homeTeamId === team.id || match.awayTeamId === team.id)));
+  const visible = $derived(mine.filter(match => {
+    if (slate === 'home') return match.homeTeamId === team.id;
+    if (slate === 'away') return match.awayTeamId === team.id;
+    if (slate === 'cup') return match.cup || !!match.cupKnockout;
+    return true;
+  }));
   const today = $derived(
     mine.find(match => !match.simulated && !match.cupKnockout)?.date
     ?? schedule.find(match => match.round === currentRound)?.date
@@ -44,9 +51,9 @@
 
   const iso = (day: number) => `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-  const gamesOn = (day: number) => mine.filter(match => match.date === iso(day));
+  const gamesOn = (day: number) => visible.filter(match => match.date === iso(day));
 
-  const monthGames = $derived(mine.filter(match => match.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)));
+  const monthGames = $derived(visible.filter(match => match.date.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)));
 
   const opponent = (match: ScheduledMatch) => {
     const id = match.homeTeamId === team.id ? match.awayTeamId : match.homeTeamId;
@@ -84,6 +91,12 @@
       <strong>{monthName}</strong>
       <button class="btn btn-secondary" onclick={() => shift(1)}>Next</button>
       <button class="btn btn-secondary" onclick={jumpToToday}>Today</button>
+      <select class="form-input" bind:value={slate}>
+        <option value="all">All games</option>
+        <option value="home">Home</option>
+        <option value="away">Road</option>
+        <option value="cup">Cup</option>
+      </select>
     </div>
   </div>
 
