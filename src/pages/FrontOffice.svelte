@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { luxuryTaxBill } from '../sim/office';
+  import { luxuryTaxBill, tvCheck } from '../sim/office';
   import { NBA_RULES } from '../sim/rules';
   import type { CoachStyle, Team, TeamTactics } from '../sim/types';
 
@@ -92,6 +92,8 @@
       <p>Gate and TV {millions(team.finances.seasonRevenue)}</p>
       <p>Spent {millions(team.finances.seasonExpenses)}</p>
       <p>Payroll {millions(team.finances.salariesTotal)}</p>
+      <p>TV deal {team.finances.tvDeal ?? 'partner'}. Each game pays {millions(tvCheck(team))}.</p>
+      <p>Sponsor {team.finances.sponsor ? `${team.finances.sponsor.name}, ${millions(team.finances.sponsor.annual)} a year` : 'none yet'}.</p>
       <p style="color: var(--text-secondary);">
         {#if tax > 0}
           Luxury tax if the season ended today: {millions(tax)}. That comes off cash, not the cap.

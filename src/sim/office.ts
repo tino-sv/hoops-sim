@@ -1,11 +1,45 @@
 import { seasonLine } from './seasonStats'
-import type { CoachStyle, Player, SeasonAwards, Team } from './types'
+import type { CoachStyle, MarketDeal, Player, SeasonAwards, Team } from './types'
 import { NBA_RULES } from './rules'
 import { CBASimulator } from './cba'
 
+const SPONSORS = [
+  'Harbor Bank', 'Northline', 'Red Cedar', 'Glasshouse', 'Summit Rail', 'Copper Kettle',
+  'Brightwater', 'Fieldstone', 'Lumen Fuel', 'Oak & Iron', 'Marlow', 'Kinship',
+  'Paperplane', 'Westwind', 'Cobalt', 'Hearth', 'Silverline', 'Driftwood',
+  'Amberjack', 'Pine State', 'Lowland', 'Vantage', 'Commonwealth', 'Nighthawk',
+  'Riverbed', 'Halcyon', 'Broadstreet', 'Kindling', 'Atlas Grocery', 'Second Shift'
+]
+
+export function marketTier(team: Team): MarketDeal {
+  if (team.owner.goalWins >= 50) return 'national'
+  if (team.owner.goalWins <= 30) return 'local'
+  return 'partner'
+}
+
+export function sponsorAnnual(tier: MarketDeal): number {
+  if (tier === 'national') return NBA_RULES.SPONSOR_NATIONAL
+  if (tier === 'local') return NBA_RULES.SPONSOR_LOCAL
+  return NBA_RULES.SPONSOR_PARTNER
+}
+
+export function tvCheck(team: Team): number {
+  const tier = team.finances.tvDeal ?? 'partner'
+  const scale = tier === 'national' ? NBA_RULES.TV_NATIONAL : tier === 'local' ? NBA_RULES.TV_LOCAL : 1
+  return Math.round(NBA_RULES.TV_SHARE * scale)
+}
+
+export function ensureCommercials(team: Team, index = 0): void {
+  const tier = team.finances.tvDeal ?? marketTier(team)
+  team.finances.tvDeal = tier
+  if (!team.finances.sponsor) {
+    team.finances.sponsor = { name: SPONSORS[index % SPONSORS.length], annual: sponsorAnnual(tier) }
+  }
+}
+
 export function bookGameMoney(team: Team, home: boolean, won: boolean) {
   const gate = home ? (won ? NBA_RULES.HOME_GATE_WIN : NBA_RULES.HOME_GATE_LOSS) : NBA_RULES.AWAY_GATE
-  const tv = NBA_RULES.TV_SHARE
+  const tv = tvCheck(team)
   const payroll = Math.round(CBASimulator.capHit(team) / NBA_RULES.SEASON_GAMES)
   team.finances.cash += gate + tv - payroll
   team.finances.seasonRevenue += gate + tv

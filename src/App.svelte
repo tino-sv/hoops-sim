@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LeagueManager } from './sim/league';
+  import { LeagueManager, type PlayoffSeries } from './sim/league';
   import Dashboard from './pages/Dashboard.svelte';
   import RosterCBA from './pages/RosterCBA.svelte';
   import Chalkboard from './components/Chalkboard.svelte';
@@ -12,6 +12,7 @@
   import Calendar from './pages/Calendar.svelte';
   import FrontOffice from './pages/FrontOffice.svelte';
   import Honors from './pages/Honors.svelte';
+  import Playoffs from './pages/Playoffs.svelte';
   import TeamSelect from './pages/TeamSelect.svelte';
   import type { CoachStyle, DefensiveCoverage, OffensiveStyle, TeamTactics } from './sim/types';
 
@@ -47,10 +48,12 @@
   });
 
   // Routing State
-  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'honors' | 'calendar'>('dashboard');
+  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'playoffs' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'honors' | 'calendar'>('dashboard');
   let awards = $state(league.awards);
   let allStar = $state(league.allStar);
   let cupChampionId = $state(league.cupChampionId);
+  let playoffSeries = $state<PlayoffSeries[]>(league.playoffSeries);
+  let championId = $state(league.championId);
   let allStarDate = $state(league.allStarDate);
   let activeMatchId = $state<string | null>(null); // If active, shows MatchCenter
 
@@ -76,6 +79,8 @@
     allStar = league.allStar;
     cupChampionId = league.cupChampionId;
     allStarDate = league.allStarDate;
+    playoffSeries = league.playoffSeries.map(series => ({ ...series, playedIds: [...series.playedIds] }));
+    championId = league.championId;
     
     // Save to local storage
     league.saveToLocalStorage();
@@ -118,13 +123,36 @@
   };
 
   const handleSimSeason = () => {
-    if (!confirm('Sim every remaining regular-season game, including yours? Awards and the Cup resolve at the end. This is for testing.')) return;
+    if (!confirm('Sim every remaining regular-season game, including yours? Awards and the Cup resolve at the end, then the playoff bracket is set. This is for testing.')) return;
     const summary = league.simulateRegularSeason();
     refreshLeagueState();
-    alert(`${userTeam.city} ${userTeam.name} finished ${summary.wins}-${summary.losses}.`);
+    alert(`${userTeam.city} ${userTeam.name} finished ${summary.wins}-${summary.losses}. The playoffs are up.`);
+  };
+
+  const handlePlayoffNight = () => {
+    league.playoffNight(false);
+    refreshLeagueState();
+  };
+
+  const handleSimPlayoffs = () => {
+    if (!confirm('Sim every remaining playoff game, including yours? This is for testing.')) return;
+    const winnerId = league.simulatePlayoffs();
+    refreshLeagueState();
+    const winner = league.teams.find(team => team.id === winnerId);
+    alert(winner ? `${winner.city} ${winner.name} won the championship.` : 'The bracket is still going.');
   };
 
   const handleInstantSim = () => {
+    const playoff = league.userPlayoffGame();
+    if (playoff) {
+      const oppId = playoff.homeTeamId === userTeam.id ? playoff.awayTeamId : playoff.homeTeamId;
+      const opp = league.teams.find(club => club.id === oppId);
+      league.playoffNight(true);
+      const played = league.schedule.find(match => match.id === playoff.id);
+      alert(`Playoff final: ${played?.scoreHome}-${played?.scoreAway} vs ${opp?.name ?? 'opponent'}`);
+      refreshLeagueState();
+      return;
+    }
     const cup = league.userCupGame();
     if (cup) {
       const oppId = cup.homeTeamId === userTeam.id ? cup.awayTeamId : cup.homeTeamId;
@@ -158,6 +186,7 @@
     activeMatchId = null;
     const match = matchId ? league.schedule.find(item => item.id === matchId) : undefined;
     if (match?.cupKnockout) league.continueCup();
+    else if (match?.playoff) league.finishWatchedPlayoff(match.id);
     else {
       league.simulateRound(userTeam.id);
       skipByes();
@@ -270,6 +299,15 @@
         </button>
       </li>
       <li class="menu-item">
+        <button
+          class="menu-link"
+          class:active={activeTab === 'playoffs' && !activeMatchId}
+          onclick={() => { activeTab = 'playoffs'; activeMatchId = null; }}
+        >
+          🎟️ Playoffs
+        </button>
+      </li>
+      <li class="menu-item">
         <button 
           class="menu-link" 
           class:active={activeTab === 'league_stats' && !activeMatchId}
@@ -371,11 +409,15 @@
         phase={phase}
         offseasonStep={offseasonStep}
         seasonComplete={seasonComplete}
+        playoffSeries={playoffSeries}
+        {championId}
         news={news}
         clockLabel={clockLabel}
         onAdvanceRound={handleAdvanceRound}
         onInstantSim={handleInstantSim}
         onSimSeason={handleSimSeason}
+        onPlayoffNight={handlePlayoffNight}
+        onSimPlayoffs={handleSimPlayoffs}
         onGoToMatchCenter={handleGoToMatchCenter}
         onEnterOffseason={handleEnterOffseason}
         onStartSeason={handleStartSeason}
@@ -397,6 +439,18 @@
       <Standings 
         allTeams={teams}
         userTeamId={userTeamId}
+      />
+    {:else if activeTab === 'playoffs'}
+      <Playoffs
+        allTeams={teams}
+        {schedule}
+        series={playoffSeries}
+        {userTeamId}
+        {championId}
+        {seasonComplete}
+        onPlay={handleGoToMatchCenter}
+        onSimNight={handlePlayoffNight}
+        onSimRest={handleSimPlayoffs}
       />
     {:else if activeTab === 'league_stats'}
       <LeagueStats 

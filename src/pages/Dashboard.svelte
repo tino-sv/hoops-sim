@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { OfficeNote, OffseasonStep, Player, SeasonPhase, Team } from '../sim/types';
-  import type { ScheduledMatch } from '../sim/league';
+  import { playoffRoundLabel, type PlayoffSeries, type ScheduledMatch } from '../sim/league';
   import { formatSlateDate } from '../sim/schedule';
   import type { OfferVerdict } from '../sim/cba';
 
@@ -14,11 +14,15 @@
     phase,
     offseasonStep,
     seasonComplete,
+    playoffSeries,
+    championId,
     news,
     clockLabel,
     onAdvanceRound, 
     onInstantSim,
     onSimSeason,
+    onPlayoffNight,
+    onSimPlayoffs,
     onGoToMatchCenter,
     onEnterOffseason,
     onStartSeason,
@@ -34,15 +38,19 @@
     phase: SeasonPhase,
     offseasonStep: OffseasonStep | null,
     seasonComplete: boolean,
+    playoffSeries: PlayoffSeries[],
+    championId: string | null,
     news: OfficeNote[],
     clockLabel: string,
     onAdvanceRound: () => void, 
     onInstantSim: () => void,
     onSimSeason: () => void,
+    onPlayoffNight: () => void,
+    onSimPlayoffs: () => void,
     onGoToMatchCenter: (matchId: string) => void,
     onEnterOffseason: () => OfferVerdict,
     onStartSeason: () => OfferVerdict,
-    onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster' | 'office' | 'calendar' | 'standings') => void,
+    onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster' | 'office' | 'calendar' | 'standings' | 'playoffs') => void,
     onNewsRead: () => void
   } = $props();
 
@@ -82,12 +90,27 @@
 
   // Find next match for the user's team
   let nextUserMatch = $derived(
-    schedule.find(m => !m.cupKnockout && !m.simulated && m.round >= currentRound && (m.homeTeamId === team.id || m.awayTeamId === team.id))
+    schedule.find(m => !m.playoff && !m.cupKnockout && !m.simulated && m.round >= currentRound && (m.homeTeamId === team.id || m.awayTeamId === team.id))
   );
+  let playoffMatch = $derived(
+    schedule.find(m => m.playoff && !m.simulated && (m.homeTeamId === team.id || m.awayTeamId === team.id))
+  );
+  let inPlayoffs = $derived(phase === 'regular' && seasonComplete && playoffSeries.length > 0 && !championId);
+  let playoffLabel = $derived.by(() => {
+    const round = playoffSeries[playoffSeries.length - 1]?.round;
+    return round ? playoffRoundLabel(round) : 'Playoffs';
+  });
+  let seriesScore = $derived.by(() => {
+    const item = playoffSeries.find(series => series.id === playoffMatch?.playoffSeriesId);
+    if (!item) return '';
+    const userWins = item.highId === team.id ? item.highWins : item.lowWins;
+    const oppWins = item.highId === team.id ? item.lowWins : item.highWins;
+    return `Series ${userWins}-${oppWins}`;
+  });
   let cupMatch = $derived(
     schedule.find(m => m.cupKnockout && !m.simulated && (m.homeTeamId === team.id || m.awayTeamId === team.id))
   );
-  let featuredMatch = $derived(cupMatch ?? nextUserMatch);
+  let featuredMatch = $derived(playoffMatch ?? cupMatch ?? nextUserMatch);
 
   let nextOpponent = $derived.by(() => {
     if (!featuredMatch) return null;
@@ -96,7 +119,7 @@
     return allTeams.find(t => t.id === oppId) || null;
   });
   let featuredHome = $derived(featuredMatch?.homeTeamId === team.id);
-  let playableNow = $derived(!!cupMatch || (!!nextUserMatch && nextUserMatch.round === currentRound));
+  let playableNow = $derived(!!playoffMatch || !!cupMatch || (!!nextUserMatch && nextUserMatch.round === currentRound));
 
   const leaderTabs = ['pts', 'ast', 'reb', 'stl', 'blk'] as const;
   let activeLeaderTab = $state<(typeof leaderTabs)[number]>('pts');
@@ -130,6 +153,14 @@
   };
 
   const advanceDay = () => {
+    if (playoffMatch && !playoffMatch.simulated) {
+      onGoToMatchCenter(playoffMatch.id);
+      return;
+    }
+    if (inPlayoffs) {
+      onPlayoffNight();
+      return;
+    }
     if (phase !== 'regular' || seasonComplete) return;
     if (featuredMatch && !featuredMatch.simulated && (featuredMatch === cupMatch || featuredMatch.round === currentRound)) {
       onGoToMatchCenter(featuredMatch.id);
@@ -155,11 +186,19 @@
   <div class="page-head">
     <div>
       <h2 style="font-size: 1.8rem; font-weight: 800;">Welcome, General Manager</h2>
-      <p>Season {season} · {phase === 'offseason' ? `Offseason · ${offseasonStep === 'draft' ? 'Draft' : 'Free agency'}` : `Night ${currentRound} of ${totalRounds}`}</p>
+      <p>Season {season} · {phase === 'offseason' ? `Offseason · ${offseasonStep === 'draft' ? 'Draft' : 'Free agency'}` : inPlayoffs ? `Playoffs · ${playoffLabel}` : `Night ${currentRound} of ${totalRounds}`}</p>
     </div>
     
     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-      {#if phase === 'regular' && !seasonComplete}
+      {#if inPlayoffs}
+        <button class="btn btn-secondary" onclick={onSimPlayoffs}>Sim rest of playoffs</button>
+        {#if playoffMatch}
+          <button class="btn btn-secondary" onclick={onInstantSim}>⚡ Instant Sim</button>
+          <button class="btn btn-primary" onclick={advanceDay}>🏀 Playoff game</button>
+        {:else}
+          <button class="btn btn-primary" onclick={onPlayoffNight}>⏩ Sim the night</button>
+        {/if}
+      {:else if phase === 'regular' && !seasonComplete}
         <button class="btn btn-secondary" onclick={onSimSeason}>Sim rest of season</button>
       {/if}
       {#if phase === 'offseason' && offseasonStep === 'draft'}
@@ -169,8 +208,10 @@
       {:else if phase === 'offseason'}
         <button class="btn btn-secondary" onclick={() => onOpenTab('free_agents')}>Free Agency</button>
         <button class="btn btn-primary" onclick={startSeason}>Open {season + 1}</button>
-      {:else if seasonComplete}
+      {:else if seasonComplete && !inPlayoffs}
         <button class="btn btn-primary" onclick={enterOffseason}>Enter Offseason</button>
+      {:else if inPlayoffs}
+        <!-- Playoff actions sit in the row above. -->
       {:else if playableNow}
         {#if !cupMatch}
           <button class="btn btn-secondary" onclick={onInstantSim}>
@@ -223,19 +264,24 @@
     <!-- Next Match Card -->
     <div class="card span-4" style="display: flex; flex-direction: column; justify-content: space-between;">
       <div>
-        <h3 class="card-title">Next game <span class="badge badge-primary">{cupMatch ? 'CUP' : formatSlateDate(featuredMatch?.date ?? '')}</span> <button class="text-btn" onclick={() => onOpenTab('calendar')}>Calendar</button></h3>
+        <h3 class="card-title">Next game <span class="badge badge-primary">{playoffMatch ? 'PLAYOFFS' : cupMatch ? 'CUP' : formatSlateDate(featuredMatch?.date ?? '')}</span> <button class="text-btn" onclick={() => onOpenTab(playoffMatch ? 'playoffs' : 'calendar')}>{playoffMatch ? 'Bracket' : 'Calendar'}</button></h3>
         
         {#if nextOpponent}
           <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px;">
             <div style="text-align: center; flex: 1;">
               <div style="font-size: 1.5rem; font-weight: 800;">{team.name}</div>
-              <div style="font-size: 0.8rem; color: var(--text-secondary);">{featuredHome ? 'Home' : 'Road'}</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">{featuredHome ? 'Home' : 'Road'}{seriesScore ? ` · ${seriesScore}` : ''}</div>
             </div>
             <div style="font-size: 1.25rem; font-weight: 800; color: var(--text-muted);">VS</div>
             <div style="text-align: center; flex: 1;">
               <div style="font-size: 1.5rem; font-weight: 800; color: var(--secondary);">{nextOpponent.name}</div>
               <div style="font-size: 0.8rem; color: var(--text-secondary);">{nextOpponent.city} ({nextOpponent.wins}-{nextOpponent.losses})</div>
             </div>
+          </div>
+        {:else if inPlayoffs}
+          <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
+            Your series is over. The rest of the bracket is still going.
+            <button class="text-btn" onclick={() => onOpenTab('playoffs')}>Bracket</button>
           </div>
         {:else}
           <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
@@ -249,9 +295,13 @@
           <button class="btn btn-primary" style="width: 100%;" onclick={() => onOpenTab(offseasonStep === 'draft' ? 'scouting' : 'free_agents')}>
             {offseasonStep === 'draft' ? `On the clock: ${clockLabel}` : 'Open free agency'}
           </button>
+        {:else if inPlayoffs}
+          <button class="btn btn-primary" style="width: 100%;" onclick={() => playoffMatch ? advanceDay() : onPlayoffNight()}>
+            {playoffMatch ? '🏀 Tip off' : 'Sim the night'}
+          </button>
         {:else if seasonComplete}
           <button class="btn btn-primary" style="width: 100%;" onclick={enterOffseason}>
-            Season complete. Enter offseason
+            {championId ? 'Champion is crowned. Enter offseason' : 'Season complete. Enter offseason'}
           </button>
         {:else if playableNow}
           {#if !cupMatch}

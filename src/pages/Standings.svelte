@@ -123,7 +123,7 @@
   <div class="page-head" style="margin-bottom: 16px;">
     <div>
       <h2 style="font-size: 1.6rem; font-weight: 800;">Standings</h2>
-      <p>Divisions come first. Games behind in those tables are against that division's leader. The conference table is the playoff picture, and it stays blank until a game is played. The series is not played yet.</p>
+      <p>Divisions come first. Games behind in those tables are against that division's leader. The conference table is the playoff picture, and it stays blank until a game is played. The top 8 play a best-of-seven.</p>
     </div>
   </div>
   {#each conferences as conference}

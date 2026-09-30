@@ -16,15 +16,15 @@ Status: `not started` | `in progress` | `done`
 - Honors is its own page, with a live award race you can sort and filter. League leaders, the calendar, and the inbox can be filtered too. `done`
 - Screens and news say team, night, and elimination game. The Football Manager words are gone. `done`
 - A new game, and a reset, ask which franchise you run. A save you already have keeps its team. `done`
-- Playoffs are a standings picture only. They are not simulated. `not started`
+- Playoffs are a best-of-seven bracket. The higher seed hosts games 1, 2, 5, and 7. Your games can be played. The rest of the night can be simulated. `done`
 
 ## Next
 
-Simulate the playoffs next. Deeper work waits until that is in: finances (1), social media (5), and the visual redesign (11).
+Deeper work starts now: finances (1), then social media (5), then the visual redesign (11).
 
 ## Backlog
 
-1. Deeper finances. Move the team, change jerseys, sponsors, TV deals. `not started`
+1. Deeper finances. Sponsors and a TV tier are on the books and change cash. Moving the team and changing jerseys are still open. `in progress`
 2. The game should center on an inbox, in the style of Football Manager. `not started`
 3. Scouting past the NBA draft: G League, small regional leagues, overseas leagues, high school. `not started`
 4. Full staff, rival staff, and agents and agencies that change decisions. `not started`

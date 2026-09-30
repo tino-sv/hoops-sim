@@ -135,6 +135,13 @@ export interface TeamTactics {
   targetOverplay: Record<string, OverplayType>;  // Opponent Player ID -> Overplay Type
 }
 
+export type MarketDeal = 'local' | 'partner' | 'national'
+
+export interface SponsorDeal {
+  name: string
+  annual: number
+}
+
 export interface TeamFinances {
   salaryCap: number;
   /** Active salaries plus dead cap. This is the number the apron rules use. */
@@ -149,6 +156,10 @@ export interface TeamFinances {
   cash: number;
   seasonRevenue: number;
   seasonExpenses: number;
+  /** Local, partner, or national. Scales the TV check on every game. */
+  tvDeal?: MarketDeal;
+  /** Paid in cash when the offseason opens. It does not hit the cap. */
+  sponsor?: SponsorDeal;
 }
 
 export interface Coach {

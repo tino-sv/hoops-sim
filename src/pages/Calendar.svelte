@@ -24,7 +24,7 @@
   let following = $state(true);
   let slate = $state<'all' | 'home' | 'away' | 'cup'>('all');
 
-  const mine = $derived(schedule.filter(match => match.homeTeamId === team.id || match.awayTeamId === team.id));
+  const mine = $derived(schedule.filter(match => !match.playoff && (match.homeTeamId === team.id || match.awayTeamId === team.id)));
   const visible = $derived(mine.filter(match => {
     if (slate === 'home') return match.homeTeamId === team.id;
     if (slate === 'away') return match.awayTeamId === team.id;
