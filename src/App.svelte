@@ -9,6 +9,9 @@
   import Scouting from './pages/Scouting.svelte';
   import FreeAgents from './pages/FreeAgents.svelte';
   import TeamDirectory from './pages/TeamDirectory.svelte';
+  import Calendar from './pages/Calendar.svelte';
+  import FrontOffice from './pages/FrontOffice.svelte';
+  import type { CoachStyle, DefensiveCoverage, OffensiveStyle, TeamTactics } from './sim/types';
 
   // Instantiate League Manager
   let league = $state(new LeagueManager());
@@ -42,7 +45,11 @@
   });
 
   // Routing State
-  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'league_stats' | 'scouting' | 'free_agents' | 'directory'>('dashboard');
+  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'calendar'>('dashboard');
+  let awards = $state(league.awards);
+  let allStar = $state(league.allStar);
+  let cupChampionId = $state(league.cupChampionId);
+  let allStarDate = $state(league.allStarDate);
   let activeMatchId = $state<string | null>(null); // If active, shows MatchCenter
 
   // Trigger Svelte state refresh
@@ -63,6 +70,10 @@
     scoutingTokens = league.scoutingTokens;
     draftOrder = [...league.draftOrder];
     draftIndex = league.draftIndex;
+    awards = league.awards;
+    allStar = league.allStar;
+    cupChampionId = league.cupChampionId;
+    allStarDate = league.allStarDate;
     
     // Save to local storage
     league.saveToLocalStorage();
@@ -77,13 +88,33 @@
     showResetConfirm = false;
   };
 
+  const skipByes = () => {
+    let guard = 0;
+    while (guard++ < 12 && !league.seasonComplete && !league.userCupGame()) {
+      const due = league.schedule.some(match => match.round === league.currentRound && !match.simulated && (match.homeTeamId === userTeam.id || match.awayTeamId === userTeam.id));
+      if (due) return;
+      const before = league.currentRound;
+      league.simulateRound(userTeam.id);
+      if (league.currentRound === before) return;
+    }
+  };
+
   const handleAdvanceRound = () => {
-    // Advance league schedule for other teams
-    league.simulateRound(userTeam.id);
+    skipByes();
     refreshLeagueState();
   };
 
   const handleInstantSim = () => {
+    const cup = league.userCupGame();
+    if (cup) {
+      const oppId = cup.homeTeamId === userTeam.id ? cup.awayTeamId : cup.homeTeamId;
+      const opp = league.teams.find(club => club.id === oppId);
+      league.simUserCup();
+      const played = league.schedule.find(match => match.id === cup.id);
+      alert(`Cup game final: ${played?.scoreHome}-${played?.scoreAway} vs ${opp?.name ?? 'opponent'}`);
+      refreshLeagueState();
+      return;
+    }
     league.simulateRound(userTeam.id, (result) => {
       const opp = league.teams.find(t => t.id === (result.teamAId === userTeam.id ? result.teamBId : result.teamAId))!;
       const userScore = result.teamAId === userTeam.id ? result.teamAScore : result.teamBScore;
@@ -98,10 +129,24 @@
     activeMatchId = matchId;
   };
 
-  const handleFinishedMatch = (scoreHome: number, scoreAway: number, winnerId: string) => {
-    // Return back to dashboard, simulate rest of round matches, and save/refresh
+  const handleFinishedMatch = (_scoreHome: number, _scoreAway: number, winnerId: string) => {
+    const matchId = activeMatchId;
+    if (matchId) {
+      const match = league.schedule.find(item => item.id === matchId);
+      if (match) league.bookWatchedGame(matchId, winnerId === match.homeTeamId);
+    }
     activeMatchId = null;
-    league.simulateRound(userTeam.id);
+    const match = matchId ? league.schedule.find(item => item.id === matchId) : undefined;
+    if (match?.cupKnockout) league.continueCup();
+    else {
+      league.simulateRound(userTeam.id);
+      skipByes();
+    }
+    refreshLeagueState();
+  };
+
+  const handleSaveCoach = (name: string, style: CoachStyle, tempo: TeamTactics['tempo'], offense: OffensiveStyle, coverage: DefensiveCoverage) => {
+    league.setCoach(name, style, tempo, offense, coverage);
     refreshLeagueState();
   };
 
@@ -235,6 +280,24 @@
           🏢 Teams
         </button>
       </li>
+      <li class="menu-item">
+        <button 
+          class="menu-link" 
+          class:active={activeTab === 'office' && !activeMatchId}
+          onclick={() => { activeTab = 'office'; activeMatchId = null; }}
+        >
+          💼 Office
+        </button>
+      </li>
+      <li class="menu-item">
+        <button 
+          class="menu-link" 
+          class:active={activeTab === 'calendar' && !activeMatchId}
+          onclick={() => { activeTab = 'calendar'; activeMatchId = null; }}
+        >
+          📅 Calendar
+        </button>
+      </li>
     </ul>
 
     <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 12px;">
@@ -325,6 +388,24 @@
     {:else if activeTab === 'directory'}
       <TeamDirectory 
         allTeams={teams} 
+      />
+    {:else if activeTab === 'office'}
+      <FrontOffice
+        team={userTeam}
+        allTeams={teams}
+        {awards}
+        {allStar}
+        {cupChampionId}
+        onSave={handleSaveCoach}
+      />
+    {:else if activeTab === 'calendar'}
+      <Calendar
+        team={userTeam}
+        allTeams={teams}
+        {schedule}
+        {currentRound}
+        {allStarDate}
+        onPlay={handleGoToMatchCenter}
       />
     {/if}
   </main>

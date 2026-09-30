@@ -180,6 +180,7 @@
         y: offBase.y - (offBase.y - 50) * 0.18
       };
     };
+    activeShooter = event.shooterId || event.turnoverPlayerId || event.blockedById;
     if (event.points > 0) liveBallLocation = { x: 4.75, y: 50 };
     else if (event.blockedById) liveBallLocation = { x: 6, y: 50 };
     else if (event.rebounderId) liveBallLocation = getPlayerCoord(event.rebounderId);
@@ -214,17 +215,18 @@
     matchData.winnerId = winnerId;
     matchData.playByPlaySummary = `Game ended. Final: ${scoreHome}-${scoreAway}.`;
     
-    // Standings updates
-    if (winnerId === teamHome.id) {
-      teamHome.wins++;
-      teamAway.losses++;
-    } else {
-      teamAway.wins++;
-      teamHome.losses++;
+    const countsInStandings = !matchData.cupKnockout;
+    if (countsInStandings) {
+      if (winnerId === teamHome.id) {
+        teamHome.wins++;
+        teamAway.losses++;
+      } else {
+        teamAway.wins++;
+        teamHome.losses++;
+      }
+      teamHome.pointDiff += (scoreHome - scoreAway);
+      teamAway.pointDiff += (scoreAway - scoreHome);
     }
-
-    teamHome.pointDiff += (scoreHome - scoreAway);
-    teamAway.pointDiff += (scoreAway - scoreHome);
 
     // Save player career stats
     const updateStats = (t: Team, pStats: any) => {
@@ -246,10 +248,12 @@
         }
       });
     };
-    updateStats(teamHome, statsHome);
-    updateStats(teamAway, statsAway);
-    settleTeamMorale(teamHome.roster, player => statsHome[player.id]?.minutes ?? 0, winnerId === teamHome.id);
-    settleTeamMorale(teamAway.roster, player => statsAway[player.id]?.minutes ?? 0, winnerId === teamAway.id);
+    if (countsInStandings) {
+      updateStats(teamHome, statsHome);
+      updateStats(teamAway, statsAway);
+    }
+    settleTeamMorale(teamHome.roster, player => statsHome[player.id]?.minutes ?? 0, winnerId === teamHome.id, teamHome.coach?.style);
+    settleTeamMorale(teamAway.roster, player => statsAway[player.id]?.minutes ?? 0, winnerId === teamAway.id, teamAway.coach?.style);
 
     alert(`Game Completed! Final Score: ${teamHome.name} ${scoreHome} - ${scoreAway} ${teamAway.name}`);
     onFinishedMatch(scoreHome, scoreAway, winnerId);
@@ -311,6 +315,8 @@
     return quarter === 5 ? 'OT' : `OT${quarter - 4}`;
   };
 
+  let selectedHome = $derived(onCourtHome.find(player => player.id === selectedOnCourtId) ?? null);
+
   const formatTimeStr = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
@@ -357,6 +363,10 @@
     </div>
   </header>
 
+  <div class="last-play card" class:commentary-score={logsList[0]?.type === 'score'} class:commentary-foul={logsList[0]?.type === 'foul'} class:commentary-turnover={logsList[0]?.type === 'turnover'}>
+    {logsList[0]?.text ?? 'Tip-off is next.'}
+  </div>
+
   <div class="dashboard-grid">
     <div class="card court-card" style="grid-column: span 7;">
       <div class="court-container">
@@ -394,11 +404,12 @@
             class="court-dot"
             class:offense={c.isOffense}
             class:defense={!c.isOffense}
+            class:hot={playerId === activeShooter}
             style="left: {c.x}%; top: {c.y}%; z-index: 5;"
             title="{c.name} ({c.pos})"
           >
             {c.pos}
-            <span class="court-dot-tooltip">{c.name}</span>
+            <span class="dot-name">{c.name.split(' ').slice(-1)[0]}</span>
           </div>
         {/each}
       </div>
@@ -432,6 +443,8 @@
             <option value="drop">Drop</option>
             <option value="blitz">Blitz the handler</option>
             <option value="switch-everything">Switch everything</option>
+            <option value="zone-23">2-3 zone</option>
+            <option value="zone-32">3-2 zone</option>
           </select>
         </label>
       </div>
@@ -444,6 +457,7 @@
             <span class="floor-stat">{line?.points || 0} pts</span>
             <span class="floor-stat" class:foul-trouble={(line?.fouls || 0) >= 4}>{line?.fouls || 0} pf</span>
             <span class="floor-stat">Legs {Math.round(p.fatigue)}</span>
+            <span class="floor-stat">Mood {p.morale}</span>
             <span class="floor-badges">
               {#each p.traits as id}
                 {@const badge = badgeById(id)}
@@ -455,6 +469,22 @@
           </button>
         {/each}
       </div>
+      {#if selectedHome}
+        <div class="badge-card">
+          <div class="badge-card-head">
+            <strong>{selectedHome.name}</strong>
+            <span>Morale {selectedHome.morale}</span>
+          </div>
+          {#each selectedHome.traits as id}
+            {@const badge = badgeById(id)}
+            {#if badge}
+              <p><span class="mini-badge {badge.group}">{badge.name}</span> {badge.effect}</p>
+            {/if}
+          {:else}
+            <p>No badge. His ratings still decide the possession.</p>
+          {/each}
+        </div>
+      {/if}
       {#if selectedOnCourtId}
         <div class="bench-row">
           <span class="bench-label">Bring in</span>
@@ -559,6 +589,50 @@
 </div>
 
 <style>
+
+  .last-play {
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    font-weight: 650;
+  }
+
+  .dot-name {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    text-shadow: 0 1px 2px #000;
+    pointer-events: none;
+  }
+
+  .court-dot.hot {
+    outline: 2px solid #f97316;
+    outline-offset: 2px;
+  }
+
+  .badge-card {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-dark);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+
+  .badge-card p {
+    margin: 6px 0 0;
+  }
+
+  .badge-card-head {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-primary);
+  }
 
   .scorebug {
     display: grid;
@@ -740,7 +814,7 @@
 
   .floor-player {
     display: grid;
-    grid-template-columns: 28px minmax(0, 1.4fr) repeat(3, auto) minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1.4fr) repeat(4, auto) minmax(0, 1fr);
     gap: 8px;
     align-items: center;
     text-align: left;

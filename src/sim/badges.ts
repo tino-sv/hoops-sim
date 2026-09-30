@@ -1,4 +1,4 @@
-import type { Player, PlayerAttributes, PlayerPersonality, Position } from './types'
+import type { CoachStyle, Player, PlayerAttributes, PlayerPersonality, Position } from './types'
 
 type ShotKind = 'close' | 'mid' | 'three'
 
@@ -19,6 +19,9 @@ export const BADGES: BadgeInfo[] = [
   { id: 'glass_cleaner', name: 'Glass cleaner', group: 'skill', effect: 'Grabs more rebounds.' },
   { id: 'clutch', name: 'Clutch', group: 'skill', effect: 'Makes about 2% more shots in the last 3 minutes.' },
   { id: 'iron_man', name: 'Iron man', group: 'skill', effect: 'Fatigue builds 30% slower.' },
+  { id: 'slasher', name: 'Slasher', group: 'skill', effect: 'Makes about 3% more shots at the rim on the drive.' },
+  { id: 'rim_protector', name: 'Rim protector', group: 'skill', effect: 'Blocks a few more shots at the rim.' },
+  { id: 'pick_pocket', name: 'Pick pocket', group: 'skill', effect: 'Comes up with more steals.' },
   { id: 'leader', name: 'Leader', group: 'personality', effect: 'Teammates shoot a hair better with him on the floor, and a loss stings the locker room less.' },
   { id: 'competitor', name: 'Competitor', group: 'personality', effect: 'Rises after a win, hates sitting, and is a little better in the 4th.' },
   { id: 'hothead', name: 'Hothead', group: 'personality', effect: 'Picks up more fouls. A loss hits his morale hard, and a bad mood costs him the ball.' },
@@ -52,15 +55,18 @@ export function assignBadges(
   const m = attrs.mental
   const skill: string[] = []
   if (t.threePoint >= 84) skill.push('sharpshooter')
+  if ((position === 'PG' || position === 'SG' || position === 'SF') && t.finishing >= 84) skill.push('slasher')
+  if ((position === 'PF' || position === 'C') && t.closeShot >= 82 && p.strength >= 78) skill.push('post_beast')
+  if ((position === 'PF' || position === 'C') && t.block >= 82) skill.push('rim_protector')
   if ((position === 'PG' || position === 'SG' || position === 'SF') && t.perimeterDefense >= 82) skill.push('lockdown')
   if ((position === 'PF' || position === 'C') && t.interiorDefense >= 82 && t.block >= 76) skill.push('lockdown')
+  if (t.steal >= 84) skill.push('pick_pocket')
   if (t.passingVision >= 82 && t.passingAccuracy >= 78) skill.push('playmaker')
-  if ((position === 'PF' || position === 'C') && t.closeShot >= 82 && p.strength >= 78) skill.push('post_beast')
   if (t.defRebound >= 82 || t.offRebound >= 80) skill.push('glass_cleaner')
   if (m.composure >= 86) skill.push('clutch')
   if (p.stamina >= 86) skill.push('iron_man')
 
-  const badges = skill.slice(0, 2)
+  const badges = skill.slice(0, 3)
   const personalityBadge = personality ? pickPersonality(personality, m.leadership, m.teamwork, m.workRate, m.composure) : null
   if (personalityBadge) badges.push(personalityBadge)
   return badges
@@ -87,6 +93,7 @@ export function shootingBoost(player: Player, kind: ShotKind, quarter: number, s
   let boost = 0
   if (hasBadge(player, 'sharpshooter') && kind === 'three') boost += 0.03
   if (hasBadge(player, 'post_beast') && kind === 'close') boost += 0.03
+  if (hasBadge(player, 'slasher') && kind === 'close') boost += 0.03
   if (hasBadge(player, 'clutch') && quarter >= 4 && secondsLeft < 180) boost += 0.02
   if (hasBadge(player, 'competitor') && quarter >= 4) boost += 0.008
   if (hasBadge(player, 'fragile') && player.morale < 55) boost -= 0.01
@@ -107,6 +114,26 @@ export function turnoverBoost(player: Player): number {
 
 export function contestBoost(defender: Player): number {
   return hasBadge(defender, 'lockdown') ? 0.02 : 0
+}
+
+export function blockMultiplier(player: Player): number {
+  return hasBadge(player, 'rim_protector') ? 1.18 : 1
+}
+
+export function stealBoost(player: Player): number {
+  return hasBadge(player, 'pick_pocket') ? 0.06 : 0
+}
+
+/** Short tag for the play-by-play when a badge is actually in the shot. */
+export function shotCallout(player: Player, kind: ShotKind, quarter: number, secondsLeft: number): string {
+  const tags: string[] = []
+  if (hasBadge(player, 'sharpshooter') && kind === 'three') tags.push('Sharpshooter')
+  if (hasBadge(player, 'post_beast') && kind === 'close') tags.push('Post scorer')
+  if (hasBadge(player, 'slasher') && kind === 'close') tags.push('Slasher')
+  if (hasBadge(player, 'clutch') && quarter >= 4 && secondsLeft < 180) tags.push('Clutch')
+  if (hasBadge(player, 'fragile') && player.morale < 55) tags.push('Fragile')
+  if (hasBadge(player, 'diva') && player.morale < 50) tags.push('Diva')
+  return tags.length ? ` ${tags.join(', ')}.` : ''
 }
 
 export function foulBoost(defender: Player): number {
@@ -138,13 +165,16 @@ export function salaryBadgeMultiplier(player: Player): number {
   return 1
 }
 
-export function moraleAfterGame(player: Player, minutes: number, won: boolean, leaderPlayed: boolean): number {
+export function moraleAfterGame(player: Player, minutes: number, won: boolean, leaderPlayed: boolean, coachStyle?: CoachStyle): number {
   let delta = won ? 2 : -2
   if (hasBadge(player, 'competitor')) delta = won ? 4 : -1
   if (hasBadge(player, 'hothead') && !won) delta = -5
   if (hasBadge(player, 'fragile')) delta = won ? 1 : -4
   if (hasBadge(player, 'loyal')) delta = won ? 3 : -1
   if (hasBadge(player, 'gym_rat')) delta = Math.round(delta * 0.5)
+  if (coachStyle === 'players-coach' && won) delta += 1
+  if (coachStyle === 'disciplinarian' && hasBadge(player, 'hothead')) delta += 1
+  if (coachStyle === 'disciplinarian' && hasBadge(player, 'fragile')) delta -= 1
 
   const wantsBall = player.personality.usageExpectation > 20
   if (hasBadge(player, 'diva') && minutes > 0 && minutes < 28) delta -= 3
@@ -158,9 +188,9 @@ export function moraleAfterGame(player: Player, minutes: number, won: boolean, l
   return clamp(player.morale + delta, 0, 100)
 }
 
-export function settleTeamMorale(roster: Player[], minutesOf: (player: Player) => number, won: boolean) {
+export function settleTeamMorale(roster: Player[], minutesOf: (player: Player) => number, won: boolean, coachStyle?: CoachStyle) {
   const leaderPlayed = roster.some(player => hasBadge(player, 'leader') && minutesOf(player) >= 15)
   for (const player of roster) {
-    player.morale = moraleAfterGame(player, minutesOf(player), won, leaderPlayed)
+    player.morale = moraleAfterGame(player, minutesOf(player), won, leaderPlayed, coachStyle)
   }
 }

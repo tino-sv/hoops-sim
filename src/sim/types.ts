@@ -3,6 +3,8 @@ export type Position = 'PG' | 'SG' | 'SF' | 'PF' | 'C';
 export const POSITIONS: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
 
 export type Conference = 'East' | 'West';
+export type Division = 'Atlantic' | 'Central' | 'Southeast' | 'Northwest' | 'Pacific' | 'Southwest';
+export type CoachStyle = 'players-coach' | 'tactician' | 'disciplinarian';
 export type SeasonPhase = 'regular' | 'offseason';
 export type OffseasonStep = 'draft' | 'free-agency';
 
@@ -109,6 +111,8 @@ export interface Player {
   potential: number;          // Ceiling the offseason development roll can reach
   careerStats: Record<string, BoxScoreStats>; // Season index -> Cumulative Stats
   traits: string[];
+  /** Seasons already played in the league. Zero is a rookie. */
+  experience: number;
 }
 
 export interface CapExceptions {
@@ -141,6 +145,36 @@ export interface TeamFinances {
   /** Set when a team uses the full mid-level or the bi-annual. Null if uncapped. */
   hardCap: number | null;
   exceptions: CapExceptions;
+  /** Cash outside the cap. Gate receipts land here. Payroll leaves here. */
+  cash: number;
+  seasonRevenue: number;
+  seasonExpenses: number;
+}
+
+export interface Coach {
+  name: string;
+  style: CoachStyle;
+}
+
+export interface Owner {
+  name: string;
+  goalWins: number;
+  patience: number;
+}
+
+export interface SeasonAwards {
+  mvpId: string;
+  dpoyId: string;
+  royId: string | null;
+  sixthId: string | null;
+  mipId: string | null;
+  allNbaIds: string[];
+}
+
+export interface AllStarWeekend {
+  announced: boolean;
+  eastIds: string[];
+  westIds: string[];
 }
 
 export interface Team {
@@ -148,7 +182,10 @@ export interface Team {
   name: string;
   city: string;
   conference: Conference;
+  division: Division;
   color: string;
+  coach: Coach;
+  owner: Owner;
   roster: Player[];
   depthChart: Record<Position, string[]>; // Position -> Ordered array of Player IDs
   tactics: TeamTactics;
@@ -156,6 +193,8 @@ export interface Team {
   wins: number;
   losses: number;
   pointDiff: number;
+  cupWins: number;
+  cupLosses: number;
   history: {
     season: number;
     wins: number;

@@ -1,4 +1,5 @@
 import { fatigueMultiplier } from './badges'
+import { coachFatigueFactor } from './office'
 import { PossessionEngine, type PossessionResult } from './possessionEngine'
 import { POSITIONS, type BoxScoreStats, type Player, type Team, type TeamTactics } from './types'
 
@@ -291,7 +292,8 @@ export class GameSession {
     for (const player of [...this.onCourtHome, ...this.onCourtAway]) {
       const bag = this.statsHome[player.id] ? this.statsHome : this.statsAway
       if (bag[player.id]) bag[player.id].minutes += minutes
-      player.fatigue = Math.min(100, player.fatigue + fatigueDelta(player, elapsed))
+      const style = this.home.roster.includes(player) ? this.home.coach?.style : this.away.coach?.style
+      player.fatigue = Math.min(100, player.fatigue + fatigueDelta(player, elapsed) * coachFatigueFactor(style))
     }
     for (const player of [...this.home.roster, ...this.away.roster]) {
       const onCourt = this.onCourtHome.includes(player) || this.onCourtAway.includes(player)
