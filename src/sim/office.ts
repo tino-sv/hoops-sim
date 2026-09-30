@@ -23,10 +23,22 @@ export function sponsorAnnual(tier: MarketDeal): number {
   return NBA_RULES.SPONSOR_PARTNER
 }
 
+const TV_RANK: Record<MarketDeal, number> = { local: 0, partner: 1, national: 2 }
+
 export function tvCheck(team: Team): number {
-  const tier = team.finances.tvDeal ?? 'partner'
+  return tvCheckFor(team.finances.tvDeal ?? 'partner')
+}
+
+export function tvCheckFor(tier: MarketDeal): number {
   const scale = tier === 'national' ? NBA_RULES.TV_NATIONAL : tier === 'local' ? NBA_RULES.TV_LOCAL : 1
   return Math.round(NBA_RULES.TV_SHARE * scale)
+}
+
+export function tvUpgradeCost(from: MarketDeal, to: MarketDeal): number {
+  const steps = TV_RANK[to] - TV_RANK[from]
+  if (steps <= 0) return 0
+  if (steps === 2) return NBA_RULES.TV_BUYOUT_PARTNER + NBA_RULES.TV_BUYOUT_NATIONAL
+  return to === 'national' ? NBA_RULES.TV_BUYOUT_NATIONAL : NBA_RULES.TV_BUYOUT_PARTNER
 }
 
 export function ensureCommercials(team: Team, index = 0): void {

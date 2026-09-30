@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { luxuryTaxBill, tvCheck } from '../sim/office';
+  import { luxuryTaxBill, tvCheck, tvCheckFor, tvUpgradeCost } from '../sim/office';
   import { NBA_RULES } from '../sim/rules';
-  import type { CoachStyle, Team, TeamTactics } from '../sim/types';
+  import type { OfferVerdict } from '../sim/cba';
+  import type { CoachStyle, MarketDeal, Team, TeamTactics } from '../sim/types';
 
-  let { team, onSave }: {
+  let { team, onSave, onTvDeal }: {
     team: Team
     onSave: (
       name: string,
@@ -12,7 +13,25 @@
       offense: TeamTactics['offensiveStyle'],
       coverage: TeamTactics['defensiveCoverage']
     ) => void
+    onTvDeal: (tier: MarketDeal) => OfferVerdict
   } = $props();
+
+  const tiers: MarketDeal[] = ['local', 'partner', 'national'];
+  let dealError = $state('');
+  const currentDeal = $derived<MarketDeal>(team.finances.tvDeal ?? 'partner');
+
+  const signDeal = (tier: MarketDeal) => {
+    dealError = '';
+    const result = onTvDeal(tier);
+    if (!result.allowed) dealError = result.reason;
+  };
+
+  const dealPrice = (tier: MarketDeal) => {
+    if (tier === currentDeal) return 'Signed';
+    const cost = tvUpgradeCost(currentDeal, tier);
+    if (cost === 0) return `Switch · ${millions(tvCheckFor(tier))} a game`;
+    return `Buy out ${millions(cost)} · ${millions(tvCheckFor(tier))} a game`;
+  };
 
   let name = $state(team.coach.name);
   let style = $state<CoachStyle>(team.coach.style);
@@ -92,7 +111,16 @@
       <p>Gate and TV {millions(team.finances.seasonRevenue)}</p>
       <p>Spent {millions(team.finances.seasonExpenses)}</p>
       <p>Payroll {millions(team.finances.salariesTotal)}</p>
-      <p>TV deal {team.finances.tvDeal ?? 'partner'}. Each game pays {millions(tvCheck(team))}.</p>
+      <p>TV deal {currentDeal}. Each game pays {millions(tvCheck(team))}.</p>
+      <div class="deal-row">
+        {#each tiers as tier}
+          <button class="btn btn-secondary" disabled={tier === currentDeal} onclick={() => signDeal(tier)}>
+            {tier} · {dealPrice(tier)}
+          </button>
+        {/each}
+      </div>
+      {#if dealError}<p style="color: var(--danger);">{dealError}</p>{/if}
+      <p style="color: var(--text-secondary);">A higher tier is a cash buyout. Dropping a tier does not pay you back.</p>
       <p>Sponsor {team.finances.sponsor ? `${team.finances.sponsor.name}, ${millions(team.finances.sponsor.annual)} a year` : 'none yet'}.</p>
       <p style="color: var(--text-secondary);">
         {#if tax > 0}
@@ -133,5 +161,14 @@
     display: block;
     height: 100%;
     background: var(--primary);
+  }
+  .deal-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 8px 0;
+  }
+  .deal-row .btn {
+    text-transform: capitalize;
   }
 </style>

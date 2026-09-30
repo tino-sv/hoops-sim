@@ -29,6 +29,9 @@ export const NBA_RULES = {
   TV_SHARE: 2_100_000,
   TV_LOCAL: 0.7,
   TV_NATIONAL: 1.4,
+  /** Cash to buy the next tier up. Local to national pays both. A downgrade is free and does not refund this. */
+  TV_BUYOUT_PARTNER: 25_000_000,
+  TV_BUYOUT_NATIONAL: 45_000_000,
   SPONSOR_LOCAL: 7_000_000,
   SPONSOR_PARTNER: 12_000_000,
   SPONSOR_NATIONAL: 18_000_000,

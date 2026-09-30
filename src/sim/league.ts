@@ -1,13 +1,13 @@
 import { settleTeamMorale } from './badges'
 import { birdFromYears, CBASimulator, type OfferVerdict } from './cba'
 import { MatchEngine } from './matchEngine'
-import { bookGameMoney, ensureCommercials, findPlayer, luxuryTaxBill, pickAllStars, pickAwards } from './office'
+import { bookGameMoney, ensureCommercials, findPlayer, luxuryTaxBill, pickAllStars, pickAwards, tvCheck, tvUpgradeCost } from './office'
 import { createPlayer, createProspect, playerFromProspect } from './players'
 import { deriveTraits, developPlayer } from './ratings'
 import { NBA_RULES } from './rules'
 import { addToDepthChart, rebuildDepthChart, waivePlayer } from './roster'
 import { buildSeason, type ScheduleTeam } from './schedule'
-import type { AllStarWeekend, BoxScoreStats, CoachStyle, Conference, Division, DraftPick, DraftProspect, OfficeNote, OffseasonStep, Player, Position, SeasonAwards, SeasonPhase, Team, TeamTactics } from './types'
+import type { AllStarWeekend, BoxScoreStats, CoachStyle, Conference, Division, DraftPick, DraftProspect, MarketDeal, OfficeNote, OffseasonStep, Player, Position, SeasonAwards, SeasonPhase, Team, TeamTactics } from './types'
 import { POSITIONS } from './types'
 
 const TEAM_TEMPLATES: { city: string; name: string; color: string; conference: Conference; division: Division; coach: string; owner: string }[] = [
@@ -95,6 +95,14 @@ function outlookFor(index: number): TeamQuality {
   if (index % 5 === 0) return 'contender'
   if (index % 5 === 4) return 'rebuild'
   return 'middle'
+}
+
+export interface HiredCoach {
+  name: string
+  style: CoachStyle
+  tempo: TeamTactics['tempo']
+  offense: TeamTactics['offensiveStyle']
+  coverage: TeamTactics['defensiveCoverage']
 }
 
 export interface CareerChoice {
@@ -279,10 +287,20 @@ export class LeagueManager {
     }
   }
 
-  initializeLeague(teamId?: string): void {
+  initializeLeague(teamId?: string, coach?: HiredCoach): void {
     const names = new Set<string>()
     this.teams = TEAM_TEMPLATES.map((template, index) => this.buildTeam(template, index, names))
     this.userTeamId = this.teams.find(team => team.id === teamId)?.id ?? this.teams[0].id
+    if (coach?.name.trim()) {
+      const hired = this.userTeam()
+      hired.coach = { name: coach.name.trim(), style: coach.style }
+      hired.tactics = {
+        ...hired.tactics,
+        tempo: coach.tempo,
+        offensiveStyle: coach.offense,
+        defensiveCoverage: coach.coverage
+      }
+    }
     this.generateSchedule()
     this.generateFreeAgents(names)
     this.generateDraftProspects(names)
@@ -299,7 +317,7 @@ export class LeagueManager {
     this.note(
       'Owner',
       `${user.owner.goalWins} wins`,
-      `${user.owner.name} wants ${user.owner.goalWins} wins. Patience starts at ${user.owner.patience}. Cash is separate from the cap. ${user.coach.name} runs the bench, and you can change the scheme from the front office.`
+      `${user.owner.name} wants ${user.owner.goalWins} wins. Patience starts at ${user.owner.patience}. Cash is separate from the cap. ${user.coach.name} (${user.coach.style}) runs the bench.`
     )
     this.saveToLocalStorage()
   }
@@ -386,17 +404,17 @@ export class LeagueManager {
 
   private targetOverall(quality: TeamQuality, depth: number, franchise: boolean): number {
     if (franchise) {
-      if (quality === 'contender') return between(90, 95)
-      if (quality === 'rebuild') return between(78, 82)
-      return between(84, 88)
+      if (quality === 'contender') return between(97, 99)
+      if (quality === 'rebuild') return between(74, 80)
+      return between(86, 90)
     }
     if (depth === 0) {
-      if (quality === 'contender') return between(81, 86)
-      if (quality === 'rebuild') return between(73, 77)
-      return between(78, 83)
+      if (quality === 'contender') return between(78, 83)
+      if (quality === 'rebuild') return between(70, 75)
+      return between(76, 81)
     }
-    if (depth === 1) return quality === 'rebuild' ? between(68, 73) : between(72, 77)
-    return quality === 'rebuild' ? between(62, 67) : between(64, 70)
+    if (depth === 1) return quality === 'rebuild' ? between(64, 69) : between(70, 75)
+    return quality === 'rebuild' ? between(58, 63) : between(62, 68)
   }
 
   private targetAge(quality: TeamQuality, franchise: boolean, depth: number): number {
@@ -459,7 +477,8 @@ export class LeagueManager {
 
   private generateDraftProspects(names: Set<string>): void {
     const plan: { overall: [number, number]; count: number }[] = [
-      { overall: [74, 78], count: 5 },
+      { overall: [80, 86], count: 2 },
+      { overall: [74, 78], count: 3 },
       { overall: [70, 73], count: 10 },
       { overall: [64, 69], count: 20 },
       { overall: [58, 63], count: 25 }
@@ -535,6 +554,27 @@ export class LeagueManager {
     team.tactics = { ...team.tactics, tempo, offensiveStyle: offense, defensiveCoverage: coverage }
     this.note('Front Office', 'Coach updated', `${team.coach.name} is the head coach. Style: ${style}.`)
     this.saveToLocalStorage()
+  }
+
+  setTvDeal(tier: MarketDeal): OfferVerdict {
+    const team = this.userTeam()
+    const current = team.finances.tvDeal ?? 'partner'
+    if (current === tier) return deny('That deal is already signed.')
+    const cost = tvUpgradeCost(current, tier)
+    if (team.finances.cash < cost) {
+      return deny(`The buyout is $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
+    }
+    team.finances.cash -= cost
+    team.finances.seasonExpenses += cost
+    team.finances.tvDeal = tier
+    const check = tvCheck(team)
+    this.note(
+      'Front Office',
+      cost > 0 ? 'TV deal bought up' : 'TV deal dropped',
+      `${current} is now ${tier}. Each game pays $${(check / 1_000_000).toFixed(1)}M.${cost > 0 ? ` The buyout was $${(cost / 1_000_000).toFixed(0)}M, and it does not come back if you drop the tier.` : ' Dropping a tier does not refund the buyout.'}`
+    )
+    this.saveToLocalStorage()
+    return { allowed: true, exceptionUsed: 'TV', reason: `The ${tier} deal is signed.`, consumes: null, setsHardCap: null }
   }
 
   simulateRegularSeason(): { wins: number, losses: number } {

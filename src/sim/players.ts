@@ -7,9 +7,9 @@ import type { DraftProspect, Player, PlayerContract, Position } from './types'
 const AGENTS: PlayerContract['agentType'][] = ['hardball', 'reasonable', 'ring-chaser', 'team-first']
 
 function potentialFor(overall: number, age: number): number {
-  if (age <= 22) return Math.min(95, overall + 4 + Math.floor(Math.random() * 10))
-  if (age <= 25) return Math.min(93, overall + Math.floor(Math.random() * 6))
-  if (age <= 29) return Math.min(92, overall + Math.floor(Math.random() * 3))
+  if (age <= 22) return Math.min(99, overall + 4 + Math.floor(Math.random() * 8))
+  if (age <= 25) return Math.min(99, overall + Math.floor(Math.random() * 5))
+  if (age <= 29) return Math.min(99, overall + Math.floor(Math.random() * 2))
   return overall
 }
 
@@ -41,7 +41,7 @@ export function createPlayer(options: {
     greed: Math.round(30 + Math.random() * 60),
     morale: 80,
     chemistry: 75,
-    usageExpectation: overallRating >= 86 ? 28 : overallRating >= 78 ? 22 : overallRating >= 72 ? 16 : 12
+    usageExpectation: overallRating >= 94 ? 32 : overallRating >= 86 ? 28 : overallRating >= 78 ? 22 : overallRating >= 72 ? 16 : 12
   }
 
   const traits = deriveTraits(attributes, position, personality)
@@ -144,7 +144,7 @@ export function createProspect(position: Position, targetOverall: number, usedNa
   const overallRating = computeOverall(attributes, position)
   const age = 18 + Math.floor(Math.random() * 3)
   const upside = 8 + Math.floor(Math.random() * 12)
-  const potentialRating = Math.min(95, overallRating + upside)
+  const potentialRating = Math.min(99, overallRating + upside)
   const notes = scoutingNotes(attributes)
 
   return {

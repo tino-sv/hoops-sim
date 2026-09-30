@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { LeagueManager, type PlayoffSeries } from './sim/league';
+  import { LeagueManager, type HiredCoach, type PlayoffSeries } from './sim/league';
   import Dashboard from './pages/Dashboard.svelte';
   import RosterCBA from './pages/RosterCBA.svelte';
   import Chalkboard from './components/Chalkboard.svelte';
@@ -14,7 +14,7 @@
   import Honors from './pages/Honors.svelte';
   import Playoffs from './pages/Playoffs.svelte';
   import TeamSelect from './pages/TeamSelect.svelte';
-  import type { CoachStyle, DefensiveCoverage, OffensiveStyle, TeamTactics } from './sim/types';
+  import type { CoachStyle, DefensiveCoverage, MarketDeal, OffensiveStyle, TeamTactics } from './sim/types';
 
   // Instantiate League Manager
   let league = $state(new LeagueManager());
@@ -90,8 +90,8 @@
   let pickingTeam = $state(league.teams.length === 0);
   let userIndex = $derived(teams.findIndex(team => team.id === userTeamId));
 
-  const startCareer = (teamId: string) => {
-    league.initializeLeague(teamId);
+  const startCareer = (teamId: string, coach: HiredCoach) => {
+    league.initializeLeague(teamId, coach);
     refreshLeagueState();
     activeTab = 'dashboard';
     activeMatchId = null;
@@ -197,6 +197,12 @@
   const handleSaveCoach = (name: string, style: CoachStyle, tempo: TeamTactics['tempo'], offense: OffensiveStyle, coverage: DefensiveCoverage) => {
     league.setCoach(name, style, tempo, offense, coverage);
     refreshLeagueState();
+  };
+
+  const handleTvDeal = (tier: MarketDeal) => {
+    const result = league.setTvDeal(tier);
+    refreshLeagueState();
+    return result;
   };
 
   const handleEnterOffseason = () => {
@@ -484,6 +490,7 @@
       <FrontOffice
         team={userTeam}
         onSave={handleSaveCoach}
+        onTvDeal={handleTvDeal}
       />
     {:else if activeTab === 'honors'}
       <Honors
