@@ -80,23 +80,23 @@ export function createPlayer(options: {
     overallRating,
     potential: potentialFor(overallRating, age),
     careerStats: {},
-    traits
+    traits,
+    experience: Math.max(0, age - 19)
   }
 }
 
 export function rookieFirstYear(overallPick: number): number {
-  if (overallPick <= 12) {
-    const t = (overallPick - 1) / 11
-    return Math.round((12_000_000 + (3_200_000 - 12_000_000) * t) / 10_000) * 10_000
+  if (overallPick <= 30) {
+    const t = (overallPick - 1) / 29
+    return Math.round((12_400_000 + (2_400_000 - 12_400_000) * t) / 10_000) * 10_000
   }
-  const t = Math.min(1, (overallPick - 13) / 11)
-  return Math.round((2_200_000 + (NBA_RULES.MINIMUM_SALARY - 2_200_000) * t) / 10_000) * 10_000
+  return NBA_RULES.MINIMUM_SALARY
 }
 
 export function playerFromProspect(prospect: DraftProspect, overallPick: number | null): Player {
   const attributes = prospect.hiddenAttributes ?? generateAttributes(prospect.position, prospect.overallRating)
   const overallRating = computeOverall(attributes, prospect.position)
-  const years = overallPick != null && overallPick <= 12 ? 3 : overallPick != null ? 2 : 1
+  const years = overallPick == null ? 1 : overallPick <= 30 ? 3 : 2
   const salary = overallPick == null ? NBA_RULES.MINIMUM_SALARY : rookieFirstYear(overallPick)
 
   const personality = {
@@ -128,7 +128,8 @@ export function playerFromProspect(prospect: DraftProspect, overallPick: number 
     overallRating,
     potential: prospect.potentialRating,
     careerStats: {},
-    traits: deriveTraits(attributes, prospect.position, personality)
+    traits: deriveTraits(attributes, prospect.position, personality),
+    experience: 0
   }
 }
 

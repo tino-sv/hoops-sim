@@ -13,10 +13,17 @@ function must<T>(value: T | undefined | null, message: string): T {
 }
 
 const league = new LeagueManager()
-assert(league.teams.length === 12, '12 teams')
+assert(league.teams.length === 30, '30 teams')
 assert(league.teams.every(team => team.roster.length === NBA_RULES.ROSTER_MAX), 'every roster is 15')
-assert(league.teams.filter(team => team.conference === 'East').length === 6, 'east')
-assert(league.teams.filter(team => team.conference === 'West').length === 6, 'west')
+assert(league.teams.filter(team => team.conference === 'East').length === 15, 'east')
+assert(league.teams.filter(team => team.conference === 'West').length === 15, 'west')
+for (const division of ['Atlantic', 'Central', 'Southeast', 'Northwest', 'Pacific', 'Southwest'] as const) {
+  assert(league.teams.filter(team => team.division === division).length === 5, `${division} has five clubs`)
+}
+for (const team of league.teams) {
+  const games = league.schedule.filter(match => match.homeTeamId === team.id || match.awayTeamId === team.id).length
+  assert(games === NBA_RULES.SEASON_GAMES, `${team.city} plays ${games}`)
+}
 
 for (const team of league.teams) {
   const hit = CBASimulator.capHit(team)
@@ -87,7 +94,7 @@ for (const conference of ['East', 'West'] as const) {
 }
 const firstRound = league.draftOrder.filter(pick => pick.round === 1)
 const lotteryIds = firstRound.slice(0, league.teams.length - playoffIds.size).map(pick => pick.teamId)
-assert(lotteryIds.length === 4, 'four lottery teams')
+assert(lotteryIds.length === 14, 'fourteen lottery teams')
 assert(lotteryIds.every(id => !playoffIds.has(id)), 'playoff teams stay out of the lottery')
 const secondRound = league.draftOrder.filter(pick => pick.round === 2).map(pick => pick.teamId)
 assert(firstRound.map(pick => pick.teamId).join() === secondRound.join(), 'draft order repeats, it does not snake')
@@ -125,7 +132,7 @@ assert(league.season === 2027, 'season rolled')
 assert(league.phase === 'regular', 'back to regular season')
 assert(user.wins === 0 && user.losses === 0, 'record reset')
 assert(user.roster.length >= NBA_RULES.ROSTER_MIN && user.roster.length <= NBA_RULES.ROSTER_MAX, 'legal opening roster')
-assert(league.draftProspects.length === 24, 'next class is scoutable')
+assert(league.draftProspects.length === 60, 'next class is scoutable')
 assert(league.scoutingTokens === NBA_RULES.SCOUTING_TOKENS, 'tokens refill')
 
 console.log('systems ok')

@@ -1,0 +1,18 @@
+---
+description: Keep the Hoops Manager plan sheet current when work is requested or finished
+alwaysApply: true
+---
+
+# Plan sheet
+
+`PLAN.md` at the repo root is the only tracker. Do not create another plan, roadmap, or todo file.
+
+When the user asks for a feature, a change, or a follow-up, add it to the Backlog in `PLAN.md` in the same turn, before or while you do the work. If it is already listed, update that line. Do not drop it because it also lives in the chat.
+
+When a chunk of work lands, change its status in `PLAN.md` to `in progress` or `done` and add one short line under "In the game" if it shipped. Status words are `not started`, `in progress`, and `done`.
+
+Keep entries to one line. No design writeups in the sheet.
+
+```markdown
+8. Trade deadline with rival offers. `not started`
+```

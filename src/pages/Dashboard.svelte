@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { OfficeNote, OffseasonStep, Player, SeasonPhase, Team } from '../sim/types';
   import type { ScheduledMatch } from '../sim/league';
+  import { formatSlateDate } from '../sim/schedule';
   import type { OfferVerdict } from '../sim/cba';
 
   let { 
@@ -39,7 +40,7 @@
     onGoToMatchCenter: (matchId: string) => void,
     onEnterOffseason: () => OfferVerdict,
     onStartSeason: () => OfferVerdict,
-    onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster') => void,
+    onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster' | 'office' | 'calendar') => void,
     onNewsRead: () => void
   } = $props();
 
@@ -63,15 +64,21 @@
 
   // Find next match for the user's team
   let nextUserMatch = $derived(
-    schedule.find(m => m.round === currentRound && (m.homeTeamId === team.id || m.awayTeamId === team.id))
+    schedule.find(m => !m.cupKnockout && !m.simulated && m.round >= currentRound && (m.homeTeamId === team.id || m.awayTeamId === team.id))
   );
+  let cupMatch = $derived(
+    schedule.find(m => m.cupKnockout && !m.simulated && (m.homeTeamId === team.id || m.awayTeamId === team.id))
+  );
+  let featuredMatch = $derived(cupMatch ?? nextUserMatch);
 
   let nextOpponent = $derived.by(() => {
-    if (!nextUserMatch) return null;
-    const isHome = nextUserMatch.homeTeamId === team.id;
-    const oppId = isHome ? nextUserMatch.awayTeamId : nextUserMatch.homeTeamId;
+    if (!featuredMatch) return null;
+    const isHome = featuredMatch.homeTeamId === team.id;
+    const oppId = isHome ? featuredMatch.awayTeamId : featuredMatch.homeTeamId;
     return allTeams.find(t => t.id === oppId) || null;
   });
+  let featuredHome = $derived(featuredMatch?.homeTeamId === team.id);
+  let playableNow = $derived(!!cupMatch || (!!nextUserMatch && nextUserMatch.round === currentRound));
 
   let activeLeaderTab = $state<'pts' | 'ast' | 'reb' | 'stl' | 'blk'>('pts');
 
@@ -105,8 +112,8 @@
 
   const advanceDay = () => {
     if (phase !== 'regular' || seasonComplete) return;
-    if (nextUserMatch && !nextUserMatch.simulated) {
-      onGoToMatchCenter(nextUserMatch.id);
+    if (featuredMatch && !featuredMatch.simulated && (featuredMatch === cupMatch || featuredMatch.round === currentRound)) {
+      onGoToMatchCenter(featuredMatch.id);
     } else {
       onAdvanceRound();
     }
@@ -143,12 +150,14 @@
         <button class="btn btn-primary" onclick={startSeason}>Open {season + 1}</button>
       {:else if seasonComplete}
         <button class="btn btn-primary" onclick={enterOffseason}>Enter Offseason</button>
-      {:else if nextUserMatch && !nextUserMatch.simulated}
-        <button class="btn btn-secondary" onclick={onInstantSim}>
-          ⚡ Instant Sim
-        </button>
+      {:else if playableNow}
+        {#if !cupMatch}
+          <button class="btn btn-secondary" onclick={onInstantSim}>
+            ⚡ Instant Sim
+          </button>
+        {/if}
         <button class="btn btn-primary" onclick={advanceDay}>
-          🏀 Play Game vs {nextOpponent?.name}
+          🏀 {cupMatch ? 'Cup game' : 'Play'} vs {nextOpponent?.name}
         </button>
       {:else}
         <button class="btn btn-primary" onclick={advanceDay}>
@@ -178,22 +187,25 @@
         </div>
       </div>
 
-      <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px; display: flex; justify-content: space-between; font-size: 0.85rem;">
-        <div><b>Point differential:</b> <span style="color: {team.pointDiff >= 0 ? 'var(--primary)' : 'var(--danger)'}">{team.pointDiff > 0 ? '+' : ''}{team.pointDiff}</span></div>
-        <div><b>Salaries:</b> ${(team.finances.salariesTotal / 1000000).toFixed(1)}M</div>
+      <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;">
+        <div style="display: flex; justify-content: space-between;">
+          <div><b>Point differential:</b> <span style="color: {team.pointDiff >= 0 ? 'var(--primary)' : 'var(--danger)'}">{team.pointDiff > 0 ? '+' : ''}{team.pointDiff}</span></div>
+          <div><b>Cash:</b> ${(team.finances.cash / 1000000).toFixed(1)}M</div>
+        </div>
+        <div style="color: var(--text-secondary);">{team.owner.name} wants {team.owner.goalWins} wins. Patience {team.owner.patience}.</div>
       </div>
     </div>
 
     <!-- Next Match Card -->
     <div class="card" style="grid-column: span 4; display: flex; flex-direction: column; justify-content: space-between;">
       <div>
-        <h3 class="card-title">Next game <span class="badge badge-primary">ROUND {currentRound}</span></h3>
+        <h3 class="card-title">Next game <span class="badge badge-primary">{cupMatch ? 'CUP' : formatSlateDate(featuredMatch?.date ?? '')}</span> <button class="btn btn-secondary" style="margin-left: 8px;" onclick={() => onOpenTab('calendar')}>Calendar</button></h3>
         
         {#if nextOpponent}
           <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px;">
             <div style="text-align: center; flex: 1;">
               <div style="font-size: 1.5rem; font-weight: 800;">{team.name}</div>
-              <div style="font-size: 0.8rem; color: var(--text-secondary);">Home</div>
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">{featuredHome ? 'Home' : 'Road'}</div>
             </div>
             <div style="font-size: 1.25rem; font-weight: 800; color: var(--text-muted);">VS</div>
             <div style="text-align: center; flex: 1;">
@@ -217,12 +229,18 @@
           <button class="btn btn-primary" style="width: 100%;" onclick={enterOffseason}>
             Season complete. Enter offseason
           </button>
-        {:else if nextUserMatch && !nextUserMatch.simulated}
-          <button class="btn btn-secondary" style="flex: 1;" onclick={onInstantSim}>
-            ⚡ Instant Sim
-          </button>
+        {:else if playableNow}
+          {#if !cupMatch}
+            <button class="btn btn-secondary" style="flex: 1;" onclick={onInstantSim}>
+              ⚡ Instant Sim
+            </button>
+          {/if}
           <button class="btn btn-primary" style="flex: 2;" onclick={advanceDay}>
             🏀 Tip off
+          </button>
+        {:else if !seasonComplete && phase === 'regular'}
+          <button class="btn btn-primary" style="width: 100%;" onclick={advanceDay}>
+            Advance to the next game
           </button>
         {:else}
           <button class="btn btn-secondary" style="width: 100%; cursor: not-allowed;" disabled>

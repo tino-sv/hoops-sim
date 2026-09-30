@@ -52,7 +52,10 @@ export class CBASimulator {
       luxuryTaxApron2: NBA_RULES.SECOND_APRON,
       deadCap,
       hardCap,
-      exceptions
+      exceptions,
+      cash: team.finances?.cash ?? 0,
+      seasonRevenue: team.finances?.seasonRevenue ?? 0,
+      seasonExpenses: team.finances?.seasonExpenses ?? 0
     }
   }
 

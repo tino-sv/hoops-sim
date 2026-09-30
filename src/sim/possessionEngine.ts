@@ -1,4 +1,5 @@
-import { assistBoost, contestBoost, foulBoost, leaderMakeBoost, reboundMultiplier, shootingBoost, turnoverBoost, usageMultiplier } from './badges'
+import { assistBoost, blockMultiplier, contestBoost, foulBoost, hasBadge, leaderMakeBoost, reboundMultiplier, shootingBoost, shotCallout, stealBoost, turnoverBoost, usageMultiplier } from './badges'
+import { coachMakeBoost } from './office'
 import type { Player, Position, Team, TeamTactics } from './types'
 
 export type ShotKind = 'close' | 'mid' | 'three'
@@ -65,6 +66,15 @@ function pickWeighted<T>(entries: { item: T; w: number }[]): T {
 
 function ftProb(rating: number): number {
   return clamp(0.60 + rating * 0.003, 0.62, 0.94)
+}
+
+function schemePhrase(coverage: string, kind: ShotKind, kickout: boolean): string {
+  if (kickout) return ' against the blitz'
+  if (coverage === 'drop' && kind === 'mid') return ' against the drop'
+  if (coverage === 'zone-23' && kind === 'three') return ' over the 2-3'
+  if (coverage === 'zone-32' && kind === 'close') return ' inside the 3-2'
+  if (coverage === 'switch-everything') return ' on the switch'
+  return ''
 }
 
 function emptyResult(seconds: number, logs: string[]): PossessionResult {
@@ -144,12 +154,14 @@ export class PossessionEngine {
       const result = emptyResult(Math.min(seconds, 8), logs)
       result.turnoverPlayerId = handler.id
       result.wasFastBreak = fastBreak
-      const stealChance = clamp(0.55 + (attr(primaryDef, 'technical', 'steal') - 55) * 0.003, 0.40, 0.78)
+      const stealChance = clamp(0.55 + (attr(primaryDef, 'technical', 'steal') - 55) * 0.003 + stealBoost(primaryDef), 0.40, 0.82)
       if (Math.random() < stealChance) {
-        const thief = Math.random() < 0.65 ? primaryDef : pickWeighted(onCourtDef.map(p => ({ item: p, w: attr(p, 'technical', 'steal') })))
+        const thief = Math.random() < 0.65 ? primaryDef : pickWeighted(onCourtDef.map(p => ({ item: p, w: attr(p, 'technical', 'steal') + (stealBoost(p) > 0 ? 30 : 0) })))
         result.stealedById = thief.id
         result.liveBall = true
-        say(`TURNOVER: ${thief.name} steals it from ${handler.name}.`)
+        const pocket = stealBoost(thief) > 0 ? ' Pick pocket.' : ''
+        const mood = hasBadge(handler, 'hothead') && handler.morale < 60 ? ' Hothead.' : ''
+        say(`TURNOVER: ${thief.name} steals it from ${handler.name}.${pocket}${mood}`)
       } else {
         result.liveBall = false
         say(`TURNOVER: ${handler.name} loses the ball.`)
@@ -172,10 +184,10 @@ export class PossessionEngine {
         result.points = made
         result.isShootingFoul = true
         result.keepOffense = false
-        say(`FOUL: ${primaryDef.name} reaches in. Bonus. ${handler.name} makes ${made} of 2.`)
+        say(`FOUL: ${primaryDef.name} reaches in. Bonus. ${handler.name} makes ${made} of 2.${foulBoost(primaryDef) > 0 ? ' Hothead.' : ''}`)
       } else {
         result.keepOffense = true
-        say(`FOUL: ${primaryDef.name} fouls ${handler.name}. Side out.`)
+        say(`FOUL: ${primaryDef.name} fouls ${handler.name}. Side out.${foulBoost(primaryDef) > 0 ? ' Hothead.' : ''}`)
       }
       return [result]
     }
@@ -199,6 +211,7 @@ export class PossessionEngine {
     if (defTactics.defensiveCoverage === 'zone-32' && shot.kind === 'close') contest -= 0.02
     if (defTactics.defensiveCoverage === 'zone-32' && shot.kind === 'three') contest += 0.02
     contest += contestBoost(defender)
+    contest += coachMakeBoost(defense.coach?.style, 'defense')
     if (defTactics.defensiveCoverage === 'switch-everything') {
       const gap = SIZE[defender.position] - SIZE[shooter.position]
       if (gap >= 2) contest -= 0.025
@@ -211,12 +224,14 @@ export class PossessionEngine {
     if (ctx.isHomeOffense) make += 0.008
     make += shootingBoost(shooter, shot.kind, ctx.quarter, ctx.secondsRemaining)
     make += leaderMakeBoost(onCourtOff, shooter.id)
+    make += coachMakeBoost(offense.coach?.style, 'offense')
     make = clamp(make, shot.kind === 'close' ? 0.42 : 0.22, shot.kind === 'close' ? 0.78 : shot.kind === 'three' ? 0.46 : 0.52)
 
     const blockChance = shot.kind === 'close' ? 0.125 : shot.kind === 'mid' ? 0.032 : 0.006
-    const blockMod = attr(rimProtector, 'technical', 'block') / 70
+    const blockMod = (attr(rimProtector, 'technical', 'block') / 70) * blockMultiplier(rimProtector)
     if (Math.random() < blockChance * blockMod * (advantage ? 0.65 : 1)) {
-      const missed = this.missedShot(shooter, shot.kind, seconds, fastBreak, logs, say, `${rimProtector.name} BLOCKED ${shooter.name}.`)
+      const rimTag = blockMultiplier(rimProtector) > 1 ? ' Rim protector.' : ''
+      const missed = this.missedShot(shooter, shot.kind, seconds, fastBreak, logs, say, `${rimProtector.name} BLOCKED ${shooter.name}.${rimTag}`)
       missed.blockedById = rimProtector.id
       this.resolveRebound(missed, offense, defense, onCourtOff, onCourtDef, shot.kind === 'three', say)
       return [missed]
@@ -244,8 +259,10 @@ export class PossessionEngine {
       result.wasFastBreak = fastBreak
       result.keepOffense = false
       if (andOne && shot.assist) result.passerId = shot.passerId
-      say(`FOUL: ${defender.name} fouls ${shooter.name} on the shot. ${made} of ${ftCount} free throws.`)
-      if (andOne) say(`SCORE: ${shooter.name} finishes through the foul.`)
+      const tag = shotCallout(shooter, shot.kind, ctx.quarter, ctx.secondsRemaining)
+      const heat = foulBoost(defender) > 0 ? ' Hothead.' : ''
+      say(`FOUL: ${defender.name} fouls ${shooter.name} on the shot. ${made} of ${ftCount} free throws.${heat}`)
+      if (andOne) say(`SCORE: ${shooter.name} finishes through the foul.${tag}`)
       return [result]
     }
 
@@ -263,11 +280,14 @@ export class PossessionEngine {
       result.liveBall = false
       if (shot.assist && shot.passerId && shot.passerId !== shooter.id) result.passerId = shot.passerId
       const label = shot.kind === 'three' ? 'three' : shot.kind === 'mid' ? 'midrange jumper' : 'layup'
-      say(`SCORE: ${shooter.name} makes the ${label}.`)
+      const tag = shotCallout(shooter, shot.kind, ctx.quarter, ctx.secondsRemaining)
+      say(`SCORE: ${shooter.name} makes the ${label}${schemePhrase(defTactics.defensiveCoverage, shot.kind, shot.kickout)}.${tag}`)
       return [result]
     }
 
-    const missed = this.missedShot(shooter, shot.kind, seconds, fastBreak, logs, say, `${shooter.name} misses the ${shot.kind === 'three' ? 'three' : shot.kind === 'mid' ? 'jumper' : 'layup'}.`)
+    const missLabel = shot.kind === 'three' ? 'three' : shot.kind === 'mid' ? 'jumper' : 'layup'
+    const missTag = shotCallout(shooter, shot.kind, ctx.quarter, ctx.secondsRemaining)
+    const missed = this.missedShot(shooter, shot.kind, seconds, fastBreak, logs, say, `${shooter.name} misses the ${missLabel}${schemePhrase(defTactics.defensiveCoverage, shot.kind, shot.kickout)}.${missTag}`)
     this.resolveRebound(missed, offense, defense, onCourtOff, onCourtDef, shot.kind === 'three', say)
 
     if (missed.offensiveRebound && missed.rebounderId && Math.random() < 0.4) {

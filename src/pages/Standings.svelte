@@ -29,7 +29,7 @@
 
 <div class="standings-container fade-in">
   <p style="color: var(--text-secondary); margin-bottom: 16px;">
-    Twelve-team league on NBA roster and cap rules. Top {NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE} in each conference are in the playoff picture. Playoffs are not simulated yet.
+    Thirty teams, 82 games, six divisions. Top {NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE} in each conference are in the playoff picture. The series is not simulated yet.
   </p>
   {#each conferences as conference}
     {@const table = sortTeams(allTeams.filter(team => team.conference === conference))}
@@ -58,6 +58,7 @@
                   <div style="font-weight: 700; display: flex; align-items: center; gap: 8px;">
                     <span class="team-dot" style="background-color: {team.color};"></span>
                     {team.city} {team.name}
+                    <span style="color: var(--text-muted); font-weight: 600; font-size: 0.75rem;">{team.division}</span>
                     {#if team.id === userTeamId}
                       <span class="badge badge-primary" style="font-size: 0.65rem; padding: 2px 4px;">USER</span>
                     {/if}
