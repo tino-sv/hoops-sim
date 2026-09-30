@@ -1,5 +1,6 @@
 import { CBASimulator } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
+import { tvCheck } from '../office'
 import { createPlayer } from '../players'
 import { NBA_RULES } from '../rules'
 
@@ -14,6 +15,13 @@ function must<T>(value: T | undefined | null, message: string): T {
 
 const league = new LeagueManager()
 assert(league.teams.length === 30, '30 teams')
+const elites = league.teams.flatMap(team => {
+  const ordered = [...team.roster].sort((a, b) => b.overallRating - a.overallRating)
+  if (ordered[0].overallRating < 96) return []
+  assert(ordered[0].overallRating - ordered[1].overallRating >= 10, `${team.city} star is too close to the next player`)
+  return [ordered[0]]
+})
+assert(elites.length === 6, `six players sit above the league, saw ${elites.length}`)
 assert(league.teams.every(team => team.roster.length === NBA_RULES.ROSTER_MAX), 'every roster is 15')
 assert(league.teams.filter(team => team.conference === 'East').length === 15, 'east')
 assert(league.teams.filter(team => team.conference === 'West').length === 15, 'west')
@@ -143,6 +151,18 @@ const picked = new LeagueManager()
 picked.initializeLeague('team_14')
 assert(picked.userTeamId === 'team_14', 'career starts with the chosen team')
 assert(picked.userTeam().city === 'Orlando' && picked.userTeam().owner.name === 'Sofia Marin', 'Orlando keeps its owner')
+assert(picked.userTeam().coach.name === 'Devin Cole', 'skipping a coach keeps the bench coach')
+const hired = new LeagueManager()
+hired.initializeLeague('team_14', {
+  name: 'Amina Cole',
+  style: 'tactician',
+  tempo: 'fast',
+  offense: 'isolation',
+  coverage: 'switch-everything'
+})
+assert(hired.userTeam().coach.name === 'Amina Cole' && hired.userTeam().coach.style === 'tactician', 'the new coach is hired')
+assert(hired.userTeam().tactics.tempo === 'fast' && hired.userTeam().tactics.offensiveStyle === 'isolation', 'the scheme starts with the coach')
+assert(hired.teams.find(team => team.id === 'team_1')?.coach.name === 'Alex Ward', 'other benches keep their coaches')
 
 const bracket = new LeagueManager()
 bracket.initializeLeague('team_1')
@@ -170,6 +190,18 @@ for (const series of bracket.playoffSeries) {
   assert(series.highWins + series.lowWins <= 7, 'no series runs past seven')
 }
 assert(bracket.enterOffseason().allowed, 'offseason opens after the title')
+
+const market = new LeagueManager()
+market.initializeLeague('team_2')
+assert(market.userTeam().finances.tvDeal === 'partner', 'a middle market starts on the partner deal')
+const cash = market.userTeam().finances.cash
+const blocked = market.setTvDeal('national')
+assert(!blocked.allowed, blocked.reason)
+market.userTeam().finances.cash = cash + NBA_RULES.TV_BUYOUT_NATIONAL
+assert(market.setTvDeal('national').allowed, 'national deal signs once the buyout is covered')
+assert(tvCheck(market.userTeam()) === Math.round(NBA_RULES.TV_SHARE * NBA_RULES.TV_NATIONAL), 'national check')
+assert(market.setTvDeal('partner').allowed, 'dropping a tier is free')
+assert(market.userTeam().finances.cash === cash, 'a downgrade does not refund the buyout')
 
 console.log('systems ok')
 console.log(`user payroll $${(CBASimulator.capHit(user) / 1_000_000).toFixed(1)}M, roster ${user.roster.length}, season ${league.season}`)

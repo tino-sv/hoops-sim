@@ -15,8 +15,9 @@ Status: `not started` | `in progress` | `done`
 - Standings show each division, with games behind inside that division. The playoff picture is still the conference top 8. `done`
 - Honors is its own page, with a live award race you can sort and filter. League leaders, the calendar, and the inbox can be filtered too. `done`
 - Screens and news say team, night, and elimination game. The Football Manager words are gone. `done`
-- A new game, and a reset, ask which franchise you run. A save you already have keeps its team. `done`
+- A new game, and a reset, ask which franchise you run, then you name the coach and the scheme. A save you already have keeps its team. `done`
 - Playoffs are a best-of-seven bracket. The higher seed hosts games 1, 2, 5, and 7. Your games can be played. The rest of the night can be simulated. `done`
+- Six contenders have a player in the high 90s. The next player on those teams is at least 10 points lower. A new game is required to see it. `done`
 
 ## Next
 
@@ -24,7 +25,7 @@ Deeper work starts now: finances (1), then social media (5), then the visual red
 
 ## Backlog
 
-1. Deeper finances. Sponsors and a TV tier are on the books and change cash. Moving the team and changing jerseys are still open. `in progress`
+1. Deeper finances. Sponsors are on the books. The TV tier can be bought up for cash, and dropping it does not refund the buyout. Moving the team and changing jerseys are still open. `in progress`
 2. The game should center on an inbox, in the style of Football Manager. `not started`
 3. Scouting past the NBA draft: G League, small regional leagues, overseas leagues, high school. `not started`
 4. Full staff, rival staff, and agents and agencies that change decisions. `not started`

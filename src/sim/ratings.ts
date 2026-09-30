@@ -180,14 +180,20 @@ export function generateAttributes(position: Position, targetOverall: number): P
     writeAttr(attrs, weight.category, weight.key, clamp(current + delta))
   }
 
-  for (let i = 0; i < weights.length * 2; i++) {
+  let stuck = 0
+  for (let i = 0; i < 500 && stuck < weights.length; i++) {
     const overall = computeOverall(attrs, position)
     if (Math.abs(overall - targetOverall) <= 1) break
     const direction = overall < targetOverall ? 1 : -1
     const weight = weights[i % weights.length]
     const current = readAttr(attrs, weight.category, weight.key)
-    if (current >= 99 && direction > 0) continue
-    writeAttr(attrs, weight.category, weight.key, clamp(current + direction))
+    const next = clamp(current + direction)
+    if (next === current) {
+      stuck++
+      continue
+    }
+    stuck = 0
+    writeAttr(attrs, weight.category, weight.key, next)
   }
   return attrs
 }
