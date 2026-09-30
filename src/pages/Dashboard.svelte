@@ -18,6 +18,7 @@
     clockLabel,
     onAdvanceRound, 
     onInstantSim,
+    onSimSeason,
     onGoToMatchCenter,
     onEnterOffseason,
     onStartSeason,
@@ -37,6 +38,7 @@
     clockLabel: string,
     onAdvanceRound: () => void, 
     onInstantSim: () => void,
+    onSimSeason: () => void,
     onGoToMatchCenter: (matchId: string) => void,
     onEnterOffseason: () => OfferVerdict,
     onStartSeason: () => OfferVerdict,
@@ -80,7 +82,8 @@
   let featuredHome = $derived(featuredMatch?.homeTeamId === team.id);
   let playableNow = $derived(!!cupMatch || (!!nextUserMatch && nextUserMatch.round === currentRound));
 
-  let activeLeaderTab = $state<'pts' | 'ast' | 'reb' | 'stl' | 'blk'>('pts');
+  const leaderTabs = ['pts', 'ast', 'reb', 'stl', 'blk'] as const;
+  let activeLeaderTab = $state<(typeof leaderTabs)[number]>('pts');
 
   // Derived top players in the league based on selected tab
   let leagueLeaders = $derived.by(() => {
@@ -133,14 +136,16 @@
 </script>
 
 <div class="dashboard-page fade-in">
-  <!-- Top Welcome / Quick Stats -->
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+  <div class="page-head">
     <div>
       <h2 style="font-size: 1.8rem; font-weight: 800;">Welcome, General Manager</h2>
-      <p style="color: var(--text-secondary);">Season {season} • {phase === 'offseason' ? `Offseason · ${offseasonStep === 'draft' ? 'Draft' : 'Free agency'}` : `Round ${currentRound} of ${totalRounds}`}</p>
+      <p>Season {season} · {phase === 'offseason' ? `Offseason · ${offseasonStep === 'draft' ? 'Draft' : 'Free agency'}` : `Night ${currentRound} of ${totalRounds}`}</p>
     </div>
     
-    <div style="display: flex; gap: 12px;">
+    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+      {#if phase === 'regular' && !seasonComplete}
+        <button class="btn btn-secondary" onclick={onSimSeason}>Sim rest of season</button>
+      {/if}
       {#if phase === 'offseason' && offseasonStep === 'draft'}
         <button class="btn btn-primary" onclick={() => onOpenTab('scouting')}>
           🧭 Draft ({clockLabel})
@@ -172,12 +177,15 @@
 
   <div class="dashboard-grid">
     <!-- Team Summary Card -->
-    <div class="card" style="grid-column: span 4; display: flex; flex-direction: column; justify-content: space-between;">
+    <div class="card span-4" style="display: flex; flex-direction: column; justify-content: space-between;">
       <div>
         <h3 style="color: var(--primary); margin-bottom: 4px;">{team.city} {team.name}</h3>
         <span class="badge badge-secondary">Rank #{userRank} in League</span>
+        <div class="season-meter" title="{team.wins + team.losses} of 82 games">
+          <span style="width: {Math.min(100, ((team.wins + team.losses) / 82) * 100)}%"></span>
+        </div>
         
-        <div style="margin-top: 24px; display: flex; align-items: baseline; gap: 12px;">
+        <div style="margin-top: 16px; display: flex; align-items: baseline; gap: 12px;">
           <span style="font-size: 3rem; font-family: var(--font-display); font-weight: 900; line-height: 1;">
             {team.wins} - {team.losses}
           </span>
@@ -197,9 +205,9 @@
     </div>
 
     <!-- Next Match Card -->
-    <div class="card" style="grid-column: span 4; display: flex; flex-direction: column; justify-content: space-between;">
+    <div class="card span-4" style="display: flex; flex-direction: column; justify-content: space-between;">
       <div>
-        <h3 class="card-title">Next game <span class="badge badge-primary">{cupMatch ? 'CUP' : formatSlateDate(featuredMatch?.date ?? '')}</span> <button class="btn btn-secondary" style="margin-left: 8px;" onclick={() => onOpenTab('calendar')}>Calendar</button></h3>
+        <h3 class="card-title">Next game <span class="badge badge-primary">{cupMatch ? 'CUP' : formatSlateDate(featuredMatch?.date ?? '')}</span> <button class="text-btn" onclick={() => onOpenTab('calendar')}>Calendar</button></h3>
         
         {#if nextOpponent}
           <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px;">
@@ -251,15 +259,13 @@
     </div>
 
     <!-- League Leaders Card -->
-    <div class="card" style="grid-column: span 4;">
+    <div class="card span-4">
       <h3 class="card-title" style="margin-bottom: 8px;">League Leaders</h3>
       
-      <div style="display: flex; gap: 4px; margin-bottom: 12px; font-size: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; width: 100%; justify-content: space-between;">
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'pts' ? '800' : '400'}; color: {activeLeaderTab === 'pts' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'pts' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'pts'}>PTS</button>
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'ast' ? '800' : '400'}; color: {activeLeaderTab === 'ast' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'ast' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'ast'}>AST</button>
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'reb' ? '800' : '400'}; color: {activeLeaderTab === 'reb' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'reb' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'reb'}>REB</button>
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'stl' ? '800' : '400'}; color: {activeLeaderTab === 'stl' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'stl' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'stl'}>STL</button>
-        <button style="background: none; border: none; cursor: pointer; font-family: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: {activeLeaderTab === 'blk' ? '800' : '400'}; color: {activeLeaderTab === 'blk' ? 'var(--primary)' : 'var(--text-secondary)'}; background-color: {activeLeaderTab === 'blk' ? 'var(--primary-glow)' : 'transparent'};" onclick={() => activeLeaderTab = 'blk'}>BLK</button>
+      <div class="stat-tabs">
+        {#each leaderTabs as stat}
+          <button class:on={activeLeaderTab === stat} onclick={() => activeLeaderTab = stat}>{stat.toUpperCase()}</button>
+        {/each}
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
@@ -291,7 +297,7 @@
     </div>
 
     <!-- Inbox & Mail Card -->
-    <div class="card" style="grid-column: span 6; display: flex; flex-direction: column; gap: 16px;">
+    <div class="card span-6" style="display: flex; flex-direction: column; gap: 16px;">
       <h3 class="card-title">Office Inbox</h3>
       
       <div style="display: flex; gap: 16px; height: 260px;">
@@ -330,7 +336,7 @@
     </div>
 
     <!-- Standings Card -->
-    <div class="card" style="grid-column: span 6;">
+    <div class="card span-6">
       <h3 class="card-title">League Standings</h3>
       
       <div class="table-container" style="max-height: 260px; overflow-y: auto;">
@@ -347,7 +353,7 @@
           <tbody>
             {#each standings as t, idx}
               <tr class:user-row={t.id === team.id}>
-                <td><span style="font-weight: 800; color: {idx < 8 ? 'var(--primary)' : 'var(--text-muted)'}">{idx + 1}</span></td>
+                <td><span style="font-weight: 800; color: var(--text-muted)">{idx + 1}</span></td>
                 <td style="font-weight: 700;">{t.city} {t.name}</td>
                 <td>{t.wins}</td>
                 <td>{t.losses}</td>
@@ -391,5 +397,54 @@
 
   .user-row {
     background-color: var(--secondary-glow) !important;
+  }
+
+  .season-meter {
+    margin-top: 12px;
+    height: 6px;
+    border-radius: 99px;
+    background: var(--border-color);
+    overflow: hidden;
+  }
+
+  .season-meter span {
+    display: block;
+    height: 100%;
+    background: var(--primary);
+  }
+
+  .text-btn {
+    background: none;
+    border: none;
+    color: var(--secondary);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .stat-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+  }
+
+  .stat-tabs button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+  }
+
+  .stat-tabs button.on {
+    font-weight: 800;
+    color: var(--primary);
+    background: var(--primary-glow);
   }
 </style>

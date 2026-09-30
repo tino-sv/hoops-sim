@@ -463,7 +463,25 @@ export class LeagueManager {
     this.saveToLocalStorage()
   }
 
-  simulateRound(userTeamId: string | null = null, onUserGameDone?: (res: any) => void): void {
+  simulateRegularSeason(): { wins: number, losses: number } {
+    let guard = 0
+    while (this.phase === 'regular' && !this.seasonComplete && guard++ < 250) {
+      const cup = this.userCupGame()
+      if (cup) {
+        this.simKnockout(cup)
+        this.maybeCup()
+        continue
+      }
+      const round = this.currentRound
+      this.simulateRound(null, undefined, false)
+      if (!this.seasonComplete && this.currentRound === round && !this.userCupGame()) break
+    }
+    this.saveToLocalStorage()
+    const team = this.userTeam()
+    return { wins: team.wins, losses: team.losses }
+  }
+
+  simulateRound(userTeamId: string | null = null, onUserGameDone?: (res: any) => void, save = true): void {
     if (this.phase !== 'regular' || this.seasonComplete) return
     if (userTeamId && this.userCupGame()) return
 
@@ -491,7 +509,7 @@ export class LeagueManager {
       this.handAwards()
     } else this.currentRound++
     this.touchOwner()
-    this.saveToLocalStorage()
+    if (save) this.saveToLocalStorage()
   }
 
   bookWatchedGame(matchId: string, homeWon: boolean) {

@@ -31,6 +31,47 @@
   let capSpace = $derived(CBA_CONSTANTS.SALARY_CAP - totalSalaries);
   let apron1Margin = $derived(CBA_CONSTANTS.FIRST_APRON - totalSalaries);
   let apron2Margin = $derived(CBA_CONSTANTS.SECOND_APRON - totalSalaries);
+  let rosterQuery = $state('');
+  let rosterPos = $state('ALL');
+  type RosterKey = 'name' | 'pos' | 'age' | 'ovr' | 'salary' | 'morale';
+  let rosterSort = $state<RosterKey>('ovr');
+  let rosterAsc = $state(false);
+
+  const posOrder: Record<string, number> = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+
+  let shownRoster = $derived.by(() => {
+    const value = (player: Player): string | number => {
+      if (rosterSort === 'name') return player.name;
+      if (rosterSort === 'pos') return posOrder[player.position] ?? 9;
+      if (rosterSort === 'age') return player.age;
+      if (rosterSort === 'salary') return player.contract.salaries[0] ?? 0;
+      if (rosterSort === 'morale') return player.morale;
+      return player.overallRating;
+    };
+    return team.roster
+      .filter(player =>
+        (rosterPos === 'ALL' || player.position === rosterPos) &&
+        player.name.toLowerCase().includes(rosterQuery.toLowerCase())
+      )
+      .sort((a, b) => {
+        const left = value(a);
+        const right = value(b);
+        if (typeof left === 'string' && typeof right === 'string') {
+          return rosterAsc ? left.localeCompare(right) : right.localeCompare(left);
+        }
+        return rosterAsc ? Number(left) - Number(right) : Number(right) - Number(left);
+      });
+  });
+
+  const toggleRoster = (key: RosterKey) => {
+    if (rosterSort === key) rosterAsc = !rosterAsc;
+    else {
+      rosterSort = key;
+      rosterAsc = key === 'name' || key === 'pos';
+    }
+  };
+
+  const rosterMark = (key: RosterKey) => rosterSort === key ? (rosterAsc ? '▲' : '▼') : '';
 
   const formatNumber = (num: number) => {
     return '$' + Math.round(num).toLocaleString();
@@ -266,24 +307,35 @@
   <div class="dashboard-grid">
     <!-- Main Roster Spreadsheet -->
     <div class="card" style="grid-column: span {selectedPlayer ? '7' : '12'};">
-      <h3 class="card-title">Roster Sheet <span class="badge badge-secondary">{team.roster.length} Players</span></h3>
+      <h3 class="card-title">Roster Sheet <span class="badge badge-secondary">{shownRoster.length} Players</span></h3>
+      <div class="list-tools">
+        <input class="form-input" type="text" placeholder="Search name" bind:value={rosterQuery} />
+        <select class="tactics-select" bind:value={rosterPos}>
+          <option value="ALL">All positions</option>
+          <option value="PG">PG</option>
+          <option value="SG">SG</option>
+          <option value="SF">SF</option>
+          <option value="PF">PF</option>
+          <option value="C">C</option>
+        </select>
+      </div>
       
       <div class="table-container">
         <table class="sim-table">
           <thead>
             <tr>
-              <th>Player Name</th>
-              <th>Pos</th>
-              <th>Age</th>
-              <th>OVR</th>
-              <th>Y1 Salary</th>
+              <th class="sortable" onclick={() => toggleRoster('name')}>Player Name {rosterMark('name')}</th>
+              <th class="sortable" onclick={() => toggleRoster('pos')}>Pos {rosterMark('pos')}</th>
+              <th class="sortable" onclick={() => toggleRoster('age')}>Age {rosterMark('age')}</th>
+              <th class="sortable" onclick={() => toggleRoster('ovr')}>OVR {rosterMark('ovr')}</th>
+              <th class="sortable" onclick={() => toggleRoster('salary')}>Y1 Salary {rosterMark('salary')}</th>
               <th>Y2 Salary</th>
               <th>Bird Tier</th>
-              <th>Morale</th>
+              <th class="sortable" onclick={() => toggleRoster('morale')}>Morale {rosterMark('morale')}</th>
             </tr>
           </thead>
           <tbody>
-            {#each team.roster as player}
+            {#each shownRoster as player}
               <tr class="roster-row" class:active={selectedPlayer?.id === player.id} onclick={() => selectPlayer(player)}>
                 <td>
                   <div style="font-weight: 700;">{player.name}</div>

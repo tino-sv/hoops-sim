@@ -1,14 +1,10 @@
 <script lang="ts">
-  import { findPlayer, luxuryTaxBill } from '../sim/office';
+  import { luxuryTaxBill } from '../sim/office';
   import { NBA_RULES } from '../sim/rules';
-  import type { AllStarWeekend, CoachStyle, SeasonAwards, Team, TeamTactics } from '../sim/types';
+  import type { CoachStyle, Team, TeamTactics } from '../sim/types';
 
-  let { team, allTeams, awards, allStar, cupChampionId, onSave }: {
+  let { team, onSave }: {
     team: Team
-    allTeams: Team[]
-    awards: SeasonAwards | null
-    allStar: AllStarWeekend
-    cupChampionId: string | null
     onSave: (
       name: string,
       style: CoachStyle,
@@ -38,29 +34,24 @@
   const tax = $derived(luxuryTaxBill(team));
 
   const save = () => onSave(name, style, tempo, offense, coverage);
-  const playerName = (id: string | null | undefined) => findPlayer(allTeams, id)?.name ?? '—';
-  const clubName = (id: string | null) => {
-    const club = allTeams.find(item => item.id === id);
-    return club ? `${club.city} ${club.name}` : '—';
-  };
 </script>
 
-<div class="fade-in" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px;">
+<div class="fade-in office-grid">
   <div class="card">
     <h2 style="margin-bottom: 8px;">Coach</h2>
     <p style="color: var(--text-secondary); margin-bottom: 16px;">
       The scheme is what the games use. A tactician helps your offense finish. A disciplinarian contests more and tires the roster slower, and he wears on fragile players. A players' coach adds a point of morale after a win.
     </p>
-    <label>Name <input bind:value={name} /></label>
+    <label>Name <input class="form-input" bind:value={name} /></label>
     <label>Style
-      <select bind:value={style}>
+      <select class="form-input" bind:value={style}>
         <option value="players-coach">Players' coach</option>
         <option value="tactician">Tactician</option>
         <option value="disciplinarian">Disciplinarian</option>
       </select>
     </label>
     <label>Offense
-      <select bind:value={offense}>
+      <select class="form-input" bind:value={offense}>
         <option value="pace-and-space">Pace and space</option>
         <option value="pick-and-roll">Pick-and-roll</option>
         <option value="motion">Motion</option>
@@ -69,14 +60,14 @@
       </select>
     </label>
     <label>Pace
-      <select bind:value={tempo}>
+      <select class="form-input" bind:value={tempo}>
         <option value="slow">Slow it down</option>
         <option value="balanced">Balanced</option>
         <option value="fast">Push in transition</option>
       </select>
     </label>
     <label>Pick-and-roll coverage
-      <select bind:value={coverage}>
+      <select class="form-input" bind:value={coverage}>
         <option value="drop">Drop</option>
         <option value="blitz">Blitz the handler</option>
         <option value="switch-everything">Switch everything</option>
@@ -94,22 +85,6 @@
       <p style="color: var(--text-secondary);">Goal is {team.owner.goalWins} wins. Pace is {played ? pace : '—'}.</p>
       <p>Patience {team.owner.patience}</p>
       <div class="bar"><span style="width: {team.owner.patience}%;"></span></div>
-    </div>
-    <div class="card">
-      <h2 style="margin-bottom: 8px;">Honors</h2>
-      {#if awards}
-        <p>MVP {playerName(awards.mvpId)}. Defense {playerName(awards.dpoyId)}. Rookie {playerName(awards.royId)}. Sixth man {playerName(awards.sixthId)}.{awards.mipId ? ` Most improved ${playerName(awards.mipId)}.` : ''}</p>
-      {:else}
-        <p style="color: var(--text-secondary);">Awards are named after the last game.</p>
-      {/if}
-      {#if allStar.announced}
-        <p style="margin-top: 8px;">All-Star East: {allStar.eastIds.map(id => playerName(id)).join(', ')}</p>
-        <p>All-Star West: {allStar.westIds.map(id => playerName(id)).join(', ')}</p>
-      {/if}
-      {#if cupChampionId}
-        <p style="margin-top: 8px;">Cup champion: {clubName(cupChampionId)}</p>
-      {/if}
-      <p style="margin-top: 8px; color: var(--text-secondary);">Cup group record {team.cupWins}-{team.cupLosses}. Quarters and semis count in the standings. The final does not.</p>
     </div>
     <div class="card">
       <h2 style="margin-bottom: 8px;">Money</h2>
@@ -137,13 +112,14 @@
     font-size: 0.85rem;
     font-weight: 700;
   }
-  input, select {
-    font: inherit;
-    padding: 8px;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-    background: transparent;
-    color: inherit;
+  .office-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  @media (max-width: 960px) {
+    .office-grid { grid-template-columns: 1fr; }
   }
   .bar {
     height: 8px;

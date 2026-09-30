@@ -7,8 +7,22 @@
 
   // Selected Team ID state (defaults to the first opposing team, team_2, or team_1)
   let selectedTeamId = $state(allTeams[0]?.id || "");
+  let teamConference = $state<'ALL' | 'East' | 'West'>('ALL');
+  let teamDivision = $state('ALL');
+  let rosterPos = $state('ALL');
+  let rosterSort = $state<'overall' | 'age' | 'salary' | 'name'>('overall');
+
+  let listedTeams = $derived(allTeams.filter(team =>
+    (teamConference === 'ALL' || team.conference === teamConference) &&
+    (teamDivision === 'ALL' || team.division === teamDivision)
+  ));
+  let divisionOptions = $derived([...new Set(
+    allTeams
+      .filter(team => teamConference === 'ALL' || team.conference === teamConference)
+      .map(team => team.division)
+  )]);
   let selectedTeam = $derived(
-    allTeams.find((t) => t.id === selectedTeamId) || allTeams[0],
+    allTeams.find((t) => t.id === selectedTeamId) || listedTeams[0] || allTeams[0],
   );
 
   // Selected Player Profile Modal inside Directory
@@ -82,7 +96,18 @@
   });
 
   // Sort roster of selected team by overall
-  let sortedRoster = $derived(selectedTeam ? [...selectedTeam.roster].sort((a, b) => b.overallRating - a.overallRating) : []);
+  let sortedRoster = $derived.by(() => {
+    if (!selectedTeam) return [];
+    const posOrder: Record<string, number> = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+    return [...selectedTeam.roster]
+      .filter(player => rosterPos === 'ALL' || player.position === rosterPos)
+      .sort((a, b) => {
+        if (rosterSort === 'name') return a.name.localeCompare(b.name);
+        if (rosterSort === 'age') return a.age - b.age;
+        if (rosterSort === 'salary') return (b.contract.salaries[0] ?? 0) - (a.contract.salaries[0] ?? 0);
+        return b.overallRating - a.overallRating || posOrder[a.position] - posOrder[b.position];
+      });
+  });
 </script>
 
 <div class="team-directory-container fade-in">
@@ -100,14 +125,25 @@
         </p>
       </div>
     </div>
-    <div class="setting-group" style="width: 250px; margin: 0;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+      <select class="tactics-select" bind:value={teamConference} style="padding: 10px;">
+        <option value="ALL">Both conferences</option>
+        <option value="East">East</option>
+        <option value="West">West</option>
+      </select>
+      <select class="tactics-select" bind:value={teamDivision} style="padding: 10px;">
+        <option value="ALL">All divisions</option>
+        {#each divisionOptions as division}
+          <option value={division}>{division}</option>
+        {/each}
+      </select>
       <select
         id="team-selector"
         class="tactics-select"
         bind:value={selectedTeamId}
-        style="padding: 10px; width: 100%;"
+        style="padding: 10px; min-width: 220px;"
       >
-        {#each allTeams as t}
+        {#each listedTeams as t}
           <option value={t.id}
             >{t.city} {t.name} {t.id === allTeams[0].id ? "(USER)" : ""}</option
           >
@@ -187,6 +223,22 @@
             >{sortedRoster.length} Players</span
           >
         </h3>
+        <div class="list-tools">
+          <select class="tactics-select" bind:value={rosterPos}>
+            <option value="ALL">All positions</option>
+            <option value="PG">PG</option>
+            <option value="SG">SG</option>
+            <option value="SF">SF</option>
+            <option value="PF">PF</option>
+            <option value="C">C</option>
+          </select>
+          <select class="tactics-select" bind:value={rosterSort}>
+            <option value="overall">Sort: overall</option>
+            <option value="age">Sort: age</option>
+            <option value="salary">Sort: salary</option>
+            <option value="name">Sort: name</option>
+          </select>
+        </div>
 
         <div class="table-container">
           <table class="sim-table">

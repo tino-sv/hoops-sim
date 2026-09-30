@@ -25,6 +25,31 @@
   let selectedProspect = $state<DraftProspect | null>(null);
   let draftMessage = $state('');
   let draftMessageType = $state<'success' | 'error' | ''>('');
+  let boardPos = $state('ALL');
+  let boardRange = $state('ALL');
+  let boardSort = $state<'range' | 'age' | 'name'>('range');
+
+  const rangeRank: Record<DraftProspect['projectedRange'], number> = {
+    'Top 3': 0,
+    Lottery: 1,
+    'First Round': 2,
+    'Second Round': 3
+  };
+
+  let board = $derived.by(() => {
+    return draftProspects
+      .filter(prospect =>
+        (boardPos === 'ALL' || prospect.position === boardPos) &&
+        (boardRange === 'ALL' || prospect.projectedRange === boardRange)
+      )
+      .sort((a, b) => {
+        if (boardSort === 'name') return a.name.localeCompare(b.name);
+        if (boardSort === 'age') return a.age - b.age;
+        const left = a.scouted ? -a.overallRating : rangeRank[a.projectedRange];
+        const right = b.scouted ? -b.overallRating : rangeRank[b.projectedRange];
+        return left - right;
+      });
+  });
 
   const scoutPlayer = (prospect: DraftProspect) => {
     if (scoutingTokens <= 0 || prospect.scouted) return;
@@ -128,10 +153,32 @@
   <div class="dashboard-grid">
     <!-- Prospects Grid -->
     <div class="card" style="grid-column: span {selectedProspect ? '8' : '12'}; transition: all 0.3s ease;">
-      <h3 class="card-title">Draft Prospects Pool <span class="badge badge-secondary">{draftProspects.length} Available</span></h3>
+      <h3 class="card-title">Draft Prospects Pool <span class="badge badge-secondary">{board.length} Available</span></h3>
+      <div class="list-tools">
+        <select class="tactics-select" bind:value={boardPos}>
+          <option value="ALL">All positions</option>
+          <option value="PG">PG</option>
+          <option value="SG">SG</option>
+          <option value="SF">SF</option>
+          <option value="PF">PF</option>
+          <option value="C">C</option>
+        </select>
+        <select class="tactics-select" bind:value={boardRange}>
+          <option value="ALL">All ranges</option>
+          <option value="Top 3">Top 3</option>
+          <option value="Lottery">Lottery</option>
+          <option value="First Round">First Round</option>
+          <option value="Second Round">Second Round</option>
+        </select>
+        <select class="tactics-select" bind:value={boardSort}>
+          <option value="range">Sort: board</option>
+          <option value="age">Sort: age</option>
+          <option value="name">Sort: name</option>
+        </select>
+      </div>
       
       <div class="prospects-grid">
-        {#each draftProspects as prospect}
+        {#each board as prospect}
           <button 
             type="button"
             class="prospect-card" 

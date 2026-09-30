@@ -11,6 +11,7 @@
   import TeamDirectory from './pages/TeamDirectory.svelte';
   import Calendar from './pages/Calendar.svelte';
   import FrontOffice from './pages/FrontOffice.svelte';
+  import Honors from './pages/Honors.svelte';
   import type { CoachStyle, DefensiveCoverage, OffensiveStyle, TeamTactics } from './sim/types';
 
   // Instantiate League Manager
@@ -45,7 +46,7 @@
   });
 
   // Routing State
-  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'calendar'>('dashboard');
+  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'honors' | 'calendar'>('dashboard');
   let awards = $state(league.awards);
   let allStar = $state(league.allStar);
   let cupChampionId = $state(league.cupChampionId);
@@ -102,6 +103,13 @@
   const handleAdvanceRound = () => {
     skipByes();
     refreshLeagueState();
+  };
+
+  const handleSimSeason = () => {
+    if (!confirm('Sim every remaining regular-season game, including yours? Awards and the Cup resolve at the end. This is for testing.')) return;
+    const summary = league.simulateRegularSeason();
+    refreshLeagueState();
+    alert(`${userTeam.city} ${userTeam.name} finished ${summary.wins}-${summary.losses}.`);
   };
 
   const handleInstantSim = () => {
@@ -207,7 +215,8 @@
       </div>
     </div>
 
-    <ul class="sidebar-menu" style="overflow-y: auto;">
+    <ul class="sidebar-menu">
+      <li class="nav-label">Club</li>
       <li class="menu-item">
         <button 
           class="menu-link" 
@@ -235,6 +244,7 @@
           📋 Lineups
         </button>
       </li>
+      <li class="nav-label">League</li>
       <li class="menu-item">
         <button 
           class="menu-link" 
@@ -280,6 +290,7 @@
           🏢 Teams
         </button>
       </li>
+      <li class="nav-label">Desk</li>
       <li class="menu-item">
         <button 
           class="menu-link" 
@@ -287,6 +298,15 @@
           onclick={() => { activeTab = 'office'; activeMatchId = null; }}
         >
           💼 Office
+        </button>
+      </li>
+      <li class="menu-item">
+        <button
+          class="menu-link"
+          class:active={activeTab === 'honors' && !activeMatchId}
+          onclick={() => { activeTab = 'honors'; activeMatchId = null; }}
+        >
+          🏆 Honors
         </button>
       </li>
       <li class="menu-item">
@@ -301,7 +321,7 @@
     </ul>
 
     <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 12px;">
-      <div class="user-team-badge">
+      <div class="user-team-badge" style="border-left-color: {userTeam.color}">
         <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Managing</div>
         <div style="color: var(--primary); font-weight: 800;">{userTeam.city} {userTeam.name}</div>
         <div style="font-size: 0.8rem; font-weight: 700; margin-top: 2px;">{userTeam.wins} - {userTeam.losses}</div>
@@ -340,6 +360,7 @@
         clockLabel={clockLabel}
         onAdvanceRound={handleAdvanceRound}
         onInstantSim={handleInstantSim}
+        onSimSeason={handleSimSeason}
         onGoToMatchCenter={handleGoToMatchCenter}
         onEnterOffseason={handleEnterOffseason}
         onStartSeason={handleStartSeason}
@@ -392,11 +413,15 @@
     {:else if activeTab === 'office'}
       <FrontOffice
         team={userTeam}
+        onSave={handleSaveCoach}
+      />
+    {:else if activeTab === 'honors'}
+      <Honors
         allTeams={teams}
         {awards}
         {allStar}
         {cupChampionId}
-        onSave={handleSaveCoach}
+        {userTeam}
       />
     {:else if activeTab === 'calendar'}
       <Calendar
