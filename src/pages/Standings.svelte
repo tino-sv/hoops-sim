@@ -24,14 +24,21 @@
   const byRecord = (teams: Team[]) => [...teams].sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins;
     if (a.losses !== b.losses) return a.losses - b.losses;
-    return b.pointDiff - a.pointDiff;
-  });
-
-  const displaySort = (teams: Team[]) => [...teams].sort((a, b) => {
-    const diff = metric(a) - metric(b);
-    if (diff !== 0) return sortAsc ? diff : -diff;
+    if (b.pointDiff !== a.pointDiff) return b.pointDiff - a.pointDiff;
     return a.city.localeCompare(b.city);
   });
+
+  const displaySort = (teams: Team[]) => {
+    if (sortKey === 'wins') {
+      const ordered = byRecord(teams);
+      return sortAsc ? ordered.slice().reverse() : ordered;
+    }
+    return [...teams].sort((a, b) => {
+      const diff = metric(a) - metric(b);
+      if (diff !== 0) return sortAsc ? diff : -diff;
+      return a.city.localeCompare(b.city);
+    });
+  };
 
   const toggle = (key: StandingsKey) => {
     if (sortKey === key) sortAsc = !sortAsc;
@@ -58,13 +65,15 @@
   };
 </script>
 
-{#snippet table(teams: Team[], leader: Team | undefined, picture: boolean)}
+{#snippet table(teams: Team[], leader: Team | undefined, picture: boolean, ranked: Team[])}
+  {@const playoffIds = new Set(byRecord(ranked).slice(0, NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE).map(team => team.id))}
   <div class="table-container">
     <table class="sim-table">
       <thead>
         <tr>
           <th style="width: 52px; text-align: center;">Rank</th>
           <th>Team</th>
+          {#if picture}<th>Division</th>{/if}
           <th class="sortable" style="text-align: center;" onclick={() => toggle('wins')}>W {mark('wins')}</th>
           <th class="sortable" style="text-align: center;" onclick={() => toggle('losses')}>L {mark('losses')}</th>
           <th class="sortable" style="text-align: center;" onclick={() => toggle('pct')}>PCT {mark('pct')}</th>
@@ -86,6 +95,7 @@
                 {/if}
               </div>
             </td>
+            {#if picture}<td style="color: var(--text-secondary);">{team.division}</td>{/if}
             <td style="text-align: center; font-weight: 700; color: var(--primary);">{team.wins}</td>
             <td style="text-align: center; font-weight: 700; color: var(--text-secondary);">{team.losses}</td>
             <td style="text-align: center; font-weight: 600; font-family: monospace; font-size: 0.95rem;">{winPct(team)}</td>
@@ -95,7 +105,7 @@
             </td>
             {#if picture}
               <td style="text-align: center;">
-                {#if idx < NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE}
+                {#if playoffIds.has(team.id)}
                   <span class="badge badge-primary">Playoff</span>
                 {:else}
                   <span class="badge badge-danger">Out</span>
@@ -113,38 +123,41 @@
   <div class="page-head" style="margin-bottom: 16px;">
     <div>
       <h2 style="font-size: 1.6rem; font-weight: 800;">Standings</h2>
-      <p>Games behind in a division are against that division's leader. The playoff line is the top {NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE} in each conference. The series is not played yet.</p>
+      <p>Divisions come first. Games behind in those tables are against that division's leader. The conference table is the playoff picture, and it stays blank until a game is played. The series is not played yet.</p>
     </div>
   </div>
   {#each conferences as conference}
     {@const pool = allTeams.filter(team => team.conference === conference.name)}
+    {@const started = pool.some(team => team.wins + team.losses > 0)}
     <div class="card" style="margin-bottom: 20px;">
       <h3 style="color: var(--primary); font-size: 1.3rem; margin-bottom: 16px;">{conference.name} Conference</h3>
-      {@render table(displaySort(pool), byRecord(pool)[0], true)}
-      <div class="division-grid">
-        {#each conference.divisions as division}
-          {@const divisionPool = allTeams.filter(team => team.division === division)}
-          <section>
-            <h4>{division}</h4>
-            {@render table(displaySort(divisionPool), byRecord(divisionPool)[0], false)}
-          </section>
-        {/each}
-      </div>
+      {#each conference.divisions as division}
+        {@const divisionPool = allTeams.filter(team => team.division === division)}
+        <section class="division-block">
+          <h4>{division}</h4>
+          {@render table(displaySort(divisionPool), byRecord(divisionPool)[0], false, divisionPool)}
+        </section>
+      {/each}
+      <section class="division-block">
+        <h4>Conference</h4>
+        {@render table(displaySort(pool), byRecord(pool)[0], started, pool)}
+      </section>
     </div>
   {/each}
 </div>
 
 <style>
-  .division-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-    margin-top: 20px;
+  .division-block {
+    margin-top: 22px;
+  }
+
+  h3 + .division-block {
+    margin-top: 0;
   }
 
   h4 {
     margin-bottom: 8px;
-    font-size: 0.95rem;
+    font-size: 1rem;
   }
 
   .sortable {
@@ -168,9 +181,4 @@
     flex-shrink: 0;
   }
 
-  @media (max-width: 1100px) {
-    .division-grid {
-      grid-template-columns: 1fr;
-    }
-  }
 </style>

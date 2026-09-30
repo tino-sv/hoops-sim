@@ -42,12 +42,14 @@
     onGoToMatchCenter: (matchId: string) => void,
     onEnterOffseason: () => OfferVerdict,
     onStartSeason: () => OfferVerdict,
-    onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster' | 'office' | 'calendar') => void,
+    onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster' | 'office' | 'calendar' | 'standings') => void,
     onNewsRead: () => void
   } = $props();
 
   let selectedMessage = $state<OfficeNote | null>(null);
   let actionError = $state('');
+  let unreadOnly = $state(false);
+  let inbox = $derived(unreadOnly ? news.filter(note => !note.read) : news);
 
   $effect(() => {
     if (!selectedMessage && news.length > 0) selectedMessage = news[0];
@@ -63,6 +65,20 @@
 
   // User team rank
   let userRank = $derived(standings.findIndex(t => t.id === team.id) + 1);
+
+  let divisionTable = $derived(
+    [...allTeams.filter(club => club.division === team.division)].sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (a.losses !== b.losses) return a.losses - b.losses;
+      return b.pointDiff - a.pointDiff;
+    })
+  );
+
+  const gamesBehind = (club: Team, leader: Team) => {
+    if (club.id === leader.id) return '—';
+    const gb = ((leader.wins - club.wins) + (club.losses - leader.losses)) / 2;
+    return gb === 0 ? '0.0' : gb.toFixed(1);
+  };
 
   // Find next match for the user's team
   let nextUserMatch = $derived(
@@ -166,7 +182,7 @@
         </button>
       {:else}
         <button class="btn btn-primary" onclick={advanceDay}>
-          ⏩ Advance Round ({currentRound}/{totalRounds})
+          ⏩ Sim the night ({currentRound}/{totalRounds})
         </button>
       {/if}
     </div>
@@ -298,12 +314,12 @@
 
     <!-- Inbox & Mail Card -->
     <div class="card span-6" style="display: flex; flex-direction: column; gap: 16px;">
-      <h3 class="card-title">Office Inbox</h3>
+      <h3 class="card-title">Office Inbox <button class="text-btn" onclick={() => unreadOnly = !unreadOnly}>{unreadOnly ? 'Show all' : `Unread ${news.filter(note => !note.read).length}`}</button></h3>
       
       <div style="display: flex; gap: 16px; height: 260px;">
         <!-- Mail List -->
         <div style="width: 35%; border-right: 1px solid var(--border-color); overflow-y: auto; padding-right: 8px; display: flex; flex-direction: column; gap: 6px;">
-          {#each news as msg}
+          {#each inbox as msg}
             <button 
               class="mail-item-btn" 
               class:active={selectedMessage?.id === msg.id}
@@ -337,9 +353,9 @@
 
     <!-- Standings Card -->
     <div class="card span-6">
-      <h3 class="card-title">League Standings</h3>
+      <h3 class="card-title">{team.division} <button class="text-btn" onclick={() => onOpenTab('standings')}>All standings</button></h3>
       
-      <div class="table-container" style="max-height: 260px; overflow-y: auto;">
+      <div class="table-container">
         <table class="sim-table">
           <thead>
             <tr>
@@ -347,19 +363,17 @@
               <th>Team</th>
               <th>W</th>
               <th>L</th>
-              <th>PD</th>
+              <th>GB</th>
             </tr>
           </thead>
           <tbody>
-            {#each standings as t, idx}
-              <tr class:user-row={t.id === team.id}>
+            {#each divisionTable as club, idx}
+              <tr class:user-row={club.id === team.id}>
                 <td><span style="font-weight: 800; color: var(--text-muted)">{idx + 1}</span></td>
-                <td style="font-weight: 700;">{t.city} {t.name}</td>
-                <td>{t.wins}</td>
-                <td>{t.losses}</td>
-                <td style="color: {t.pointDiff >= 0 ? 'var(--primary)' : 'var(--danger)'}">
-                  {t.pointDiff > 0 ? '+' : ''}{t.pointDiff}
-                </td>
+                <td style="font-weight: 700;">{club.city} {club.name}</td>
+                <td>{club.wins}</td>
+                <td>{club.losses}</td>
+                <td>{divisionTable[0] ? gamesBehind(club, divisionTable[0]) : '—'}</td>
               </tr>
             {/each}
           </tbody>

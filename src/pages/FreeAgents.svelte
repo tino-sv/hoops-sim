@@ -520,7 +520,7 @@
           <div style="display: flex; flex-direction: column; gap: 14px; text-align: center;">
             <div style="font-size: 1.1rem; color: var(--danger); font-weight: 700;">Negotiations Terminated</div>
             <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">The agent has walked away and refuses to negotiate further at this time.</p>
-            <button class="btn btn-secondary" onclick={() => negotiatingPlayer = null} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Close Table</button>
+            <button class="btn btn-secondary" onclick={() => negotiatingPlayer = null} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Close</button>
           </div>
         {/if}
       </div>

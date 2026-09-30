@@ -187,8 +187,58 @@ h1, h2, h3, h4, h5, h6 {
   padding-top: 16px;
   border-top: 1px solid var(--border-color);
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 12px;
+}
+
+@media (max-width: 800px) {
+  .shell-container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    padding: 12px 12px 10px;
+    border-right: none;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .sidebar-logo {
+    padding-bottom: 8px;
+  }
+
+  .sidebar-menu {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    flex-grow: 0;
+    gap: 4px;
+    overflow-x: auto;
+  }
+
+  .nav-label {
+    display: none;
+  }
+
+  .menu-item {
+    width: auto;
+  }
+
+  .menu-link {
+    width: auto;
+    white-space: nowrap;
+  }
+
+  .user-team-badge {
+    display: none;
+  }
+
+  .sidebar-footer {
+    flex-direction: row;
+    align-items: center;
+    padding-top: 8px;
+  }
 }
 
 .user-team-badge {
@@ -270,6 +320,18 @@ h1, h2, h3, h4, h5, h6 {
 .form-input:focus {
   outline: 2px solid var(--primary-glow);
   border-color: var(--primary);
+}
+
+.list-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
 }
 
 .card-title {

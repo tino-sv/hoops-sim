@@ -12,6 +12,7 @@
   import Calendar from './pages/Calendar.svelte';
   import FrontOffice from './pages/FrontOffice.svelte';
   import Honors from './pages/Honors.svelte';
+  import TeamSelect from './pages/TeamSelect.svelte';
   import type { CoachStyle, DefensiveCoverage, OffensiveStyle, TeamTactics } from './sim/types';
 
   // Instantiate League Manager
@@ -81,12 +82,23 @@
   };
 
   let showResetConfirm = $state(false);
+  let pickingTeam = $state(league.teams.length === 0);
+  let userIndex = $derived(teams.findIndex(team => team.id === userTeamId));
+
+  const startCareer = (teamId: string) => {
+    league.initializeLeague(teamId);
+    refreshLeagueState();
+    activeTab = 'dashboard';
+    activeMatchId = null;
+    pickingTeam = false;
+  };
 
   const executeResetLeague = () => {
     league.clearLocalStorage();
     league = new LeagueManager();
-    refreshLeagueState();
     showResetConfirm = false;
+    activeMatchId = null;
+    pickingTeam = true;
   };
 
   const skipByes = () => {
@@ -204,6 +216,9 @@
   };
 </script>
 
+{#if pickingTeam}
+  <TeamSelect onStart={startCareer} />
+{:else}
 <div class="shell-container">
   <!-- Sidebar Navigation -->
   <aside class="sidebar">
@@ -216,7 +231,7 @@
     </div>
 
     <ul class="sidebar-menu">
-      <li class="nav-label">Club</li>
+      <li class="nav-label">Team</li>
       <li class="menu-item">
         <button 
           class="menu-link" 
@@ -264,6 +279,15 @@
         </button>
       </li>
       <li class="menu-item">
+        <button
+          class="menu-link"
+          class:active={activeTab === 'honors' && !activeMatchId}
+          onclick={() => { activeTab = 'honors'; activeMatchId = null; }}
+        >
+          🥇 Honors
+        </button>
+      </li>
+      <li class="menu-item">
         <button 
           class="menu-link" 
           class:active={activeTab === 'scouting' && !activeMatchId}
@@ -301,15 +325,6 @@
         </button>
       </li>
       <li class="menu-item">
-        <button
-          class="menu-link"
-          class:active={activeTab === 'honors' && !activeMatchId}
-          onclick={() => { activeTab = 'honors'; activeMatchId = null; }}
-        >
-          🏆 Honors
-        </button>
-      </li>
-      <li class="menu-item">
         <button 
           class="menu-link" 
           class:active={activeTab === 'calendar' && !activeMatchId}
@@ -320,9 +335,9 @@
       </li>
     </ul>
 
-    <div class="sidebar-footer" style="display: flex; flex-direction: column; gap: 12px;">
+    <div class="sidebar-footer">
       <div class="user-team-badge" style="border-left-color: {userTeam.color}">
-        <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Managing</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Your team</div>
         <div style="color: var(--primary); font-weight: 800;">{userTeam.city} {userTeam.name}</div>
         <div style="font-size: 0.8rem; font-weight: 700; margin-top: 2px;">{userTeam.wins} - {userTeam.losses}</div>
       </div>
@@ -375,7 +390,7 @@
       />
     {:else if activeTab === 'tactics'}
       <Chalkboard 
-        bind:team={league.teams[0]} 
+        bind:team={league.teams[userIndex]} 
         onTacticsChanged={refreshLeagueState}
       />
     {:else if activeTab === 'standings'}
@@ -408,7 +423,8 @@
       />
     {:else if activeTab === 'directory'}
       <TeamDirectory 
-        allTeams={teams} 
+        allTeams={teams}
+        {userTeamId}
       />
     {:else if activeTab === 'office'}
       <FrontOffice
@@ -440,13 +456,14 @@
   <div class="confirm-overlay">
     <div class="confirm-modal">
       <h3>⚠️ Reset League</h3>
-      <p>Are you sure you want to reset the league? This wipes the schedule, the records, and the stats, and starts a fresh 2026 season.</p>
+      <p>This wipes the schedule, the records, and the stats. You pick a franchise again.</p>
       <div class="confirm-actions">
         <button class="btn btn-secondary" onclick={() => showResetConfirm = false}>Cancel</button>
         <button class="btn btn-danger" onclick={executeResetLeague}>Confirm Reset</button>
       </div>
     </div>
   </div>
+{/if}
 {/if}
 
 <style>

@@ -10,37 +10,37 @@ import { buildSeason, type ScheduleTeam } from './schedule'
 import type { AllStarWeekend, BoxScoreStats, CoachStyle, Conference, Division, DraftPick, DraftProspect, OfficeNote, OffseasonStep, Player, Position, SeasonAwards, SeasonPhase, Team, TeamTactics } from './types'
 import { POSITIONS } from './types'
 
-const TEAM_TEMPLATES: { city: string; name: string; color: string; conference: Conference; division: Division }[] = [
-  { city: 'Boston', name: 'Shamrocks', color: '#008348', conference: 'East', division: 'Atlantic' },
-  { city: 'New York', name: 'Skyscrapers', color: '#F58426', conference: 'East', division: 'Atlantic' },
-  { city: 'Philadelphia', name: 'Phantoms', color: '#006BB6', conference: 'East', division: 'Atlantic' },
-  { city: 'Toronto', name: 'Dinos', color: '#E31837', conference: 'East', division: 'Atlantic' },
-  { city: 'Brooklyn', name: 'Bridges', color: '#000000', conference: 'East', division: 'Atlantic' },
-  { city: 'Chicago', name: 'Wind', color: '#CE1141', conference: 'East', division: 'Central' },
-  { city: 'Milwaukee', name: 'Stags', color: '#00471B', conference: 'East', division: 'Central' },
-  { city: 'Detroit', name: 'Motors', color: '#1D42BA', conference: 'East', division: 'Central' },
-  { city: 'Cleveland', name: 'Rocks', color: '#860038', conference: 'East', division: 'Central' },
-  { city: 'Indianapolis', name: 'Steam', color: '#002D62', conference: 'East', division: 'Central' },
-  { city: 'Miami', name: 'Heatwave', color: '#98002E', conference: 'East', division: 'Southeast' },
-  { city: 'Atlanta', name: 'Embers', color: '#E03A3E', conference: 'East', division: 'Southeast' },
-  { city: 'Charlotte', name: 'Queens', color: '#1D1160', conference: 'East', division: 'Southeast' },
-  { city: 'Orlando', name: 'Surf', color: '#0077C0', conference: 'East', division: 'Southeast' },
-  { city: 'Washington', name: 'Monuments', color: '#002B5C', conference: 'East', division: 'Southeast' },
-  { city: 'Denver', name: 'Peaks', color: '#0E2240', conference: 'West', division: 'Northwest' },
-  { city: 'Seattle', name: 'Jetstreams', color: '#006241', conference: 'West', division: 'Northwest' },
-  { city: 'Minneapolis', name: 'Lakes', color: '#0C2340', conference: 'West', division: 'Northwest' },
-  { city: 'Portland', name: 'Pines', color: '#E03A3E', conference: 'West', division: 'Northwest' },
-  { city: 'Salt Lake', name: 'Granite', color: '#002B5C', conference: 'West', division: 'Northwest' },
-  { city: 'Los Angeles', name: 'Breakers', color: '#552583', conference: 'West', division: 'Pacific' },
-  { city: 'Golden State', name: 'Waves', color: '#1D428A', conference: 'West', division: 'Pacific' },
-  { city: 'Phoenix', name: 'Flares', color: '#E56020', conference: 'West', division: 'Pacific' },
-  { city: 'Sacramento', name: 'Rivers', color: '#5A2D81', conference: 'West', division: 'Pacific' },
-  { city: 'Las Vegas', name: 'Neon', color: '#000000', conference: 'West', division: 'Pacific' },
-  { city: 'Dallas', name: 'Stallions', color: '#00538C', conference: 'West', division: 'Southwest' },
-  { city: 'Houston', name: 'Gulf', color: '#CE1141', conference: 'West', division: 'Southwest' },
-  { city: 'San Antonio', name: 'Bells', color: '#C4CED4', conference: 'West', division: 'Southwest' },
-  { city: 'New Orleans', name: 'Bayou', color: '#0C2340', conference: 'West', division: 'Southwest' },
-  { city: 'Oklahoma City', name: 'Range', color: '#007AC1', conference: 'West', division: 'Southwest' }
+const TEAM_TEMPLATES: { city: string; name: string; color: string; conference: Conference; division: Division; coach: string; owner: string }[] = [
+  { city: 'Boston', name: 'Shamrocks', color: '#008348', conference: 'East', division: 'Atlantic', coach: 'Alex Ward', owner: 'Helen Cho' },
+  { city: 'New York', name: 'Skyscrapers', color: '#F58426', conference: 'East', division: 'Atlantic', coach: 'Marcus Hale', owner: 'Diane Voss' },
+  { city: 'Philadelphia', name: 'Phantoms', color: '#006BB6', conference: 'East', division: 'Atlantic', coach: 'Andre Pell', owner: 'Ruth Keene' },
+  { city: 'Toronto', name: 'Dinos', color: '#E31837', conference: 'East', division: 'Atlantic', coach: 'Samir Patel', owner: 'Nora Lind' },
+  { city: 'Brooklyn', name: 'Bridges', color: '#000000', conference: 'East', division: 'Atlantic', coach: 'Chris Adeyemi', owner: 'Paul Okonkwo' },
+  { city: 'Chicago', name: 'Wind', color: '#CE1141', conference: 'East', division: 'Central', coach: 'Elena Brooks', owner: 'Frank Iverson' },
+  { city: 'Milwaukee', name: 'Stags', color: '#00471B', conference: 'East', division: 'Central', coach: 'Owen Hart', owner: 'Maya Solis' },
+  { city: 'Detroit', name: 'Motors', color: '#1D42BA', conference: 'East', division: 'Central', coach: 'Luis Ortega', owner: 'Beth Calder' },
+  { city: 'Cleveland', name: 'Rocks', color: '#860038', conference: 'East', division: 'Central', coach: 'Nina Petrova', owner: 'George Lam' },
+  { city: 'Indianapolis', name: 'Steam', color: '#002D62', conference: 'East', division: 'Central', coach: 'Theo Marsh', owner: 'Alice Nguyen' },
+  { city: 'Miami', name: 'Heatwave', color: '#98002E', conference: 'East', division: 'Southeast', coach: 'Camila Reyes', owner: 'Victor Lang' },
+  { city: 'Atlanta', name: 'Embers', color: '#E03A3E', conference: 'East', division: 'Southeast', coach: 'Jordan Ellis', owner: 'Priya Shah' },
+  { city: 'Charlotte', name: 'Queens', color: '#1D1160', conference: 'East', division: 'Southeast', coach: 'Miles Grant', owner: 'Hannah Crowe' },
+  { city: 'Orlando', name: 'Surf', color: '#0077C0', conference: 'East', division: 'Southeast', coach: 'Devin Cole', owner: 'Sofia Marin' },
+  { city: 'Washington', name: 'Monuments', color: '#002B5C', conference: 'East', division: 'Southeast', coach: 'Amina Diallo', owner: 'Robert Chen' },
+  { city: 'Denver', name: 'Peaks', color: '#0E2240', conference: 'West', division: 'Northwest', coach: 'Caleb Frost', owner: 'June Harlow' },
+  { city: 'Seattle', name: 'Jetstreams', color: '#006241', conference: 'West', division: 'Northwest', coach: 'Naomi Park', owner: 'Erik Soren' },
+  { city: 'Minneapolis', name: 'Lakes', color: '#0C2340', conference: 'West', division: 'Northwest', coach: 'Wes Gallagher', owner: 'Linda Berg' },
+  { city: 'Portland', name: 'Pines', color: '#E03A3E', conference: 'West', division: 'Northwest', coach: 'Isaac Romero', owner: 'Claire Dunn' },
+  { city: 'Salt Lake', name: 'Granite', color: '#002B5C', conference: 'West', division: 'Northwest', coach: 'Noah Briggs', owner: 'Esther Cole' },
+  { city: 'Los Angeles', name: 'Breakers', color: '#552583', conference: 'West', division: 'Pacific', coach: 'Malik Benton', owner: 'Grace Yoo' },
+  { city: 'Golden State', name: 'Waves', color: '#1D428A', conference: 'West', division: 'Pacific', coach: 'Riley Santos', owner: 'Howard Peck' },
+  { city: 'Phoenix', name: 'Flares', color: '#E56020', conference: 'West', division: 'Pacific', coach: 'Diego Alvarez', owner: 'Kim Tran' },
+  { city: 'Sacramento', name: 'Rivers', color: '#5A2D81', conference: 'West', division: 'Pacific', coach: 'Jonah Blake', owner: 'Patricia Ng' },
+  { city: 'Las Vegas', name: 'Neon', color: '#000000', conference: 'West', division: 'Pacific', coach: 'Felix Moore', owner: 'Asha Bennett' },
+  { city: 'Dallas', name: 'Stallions', color: '#00538C', conference: 'West', division: 'Southwest', coach: 'Grant Wheeler', owner: 'Monica Ruiz' },
+  { city: 'Houston', name: 'Gulf', color: '#CE1141', conference: 'West', division: 'Southwest', coach: 'Tanya Okada', owner: 'Bill Mercer' },
+  { city: 'San Antonio', name: 'Bells', color: '#C4CED4', conference: 'West', division: 'Southwest', coach: 'Mateo Cruz', owner: 'Irene Vasquez' },
+  { city: 'New Orleans', name: 'Bayou', color: '#0C2340', conference: 'West', division: 'Southwest', coach: 'Lucien Baptiste', owner: 'Marie Landry' },
+  { city: 'Oklahoma City', name: 'Range', color: '#007AC1', conference: 'West', division: 'Southwest', coach: 'Seth Walker', owner: 'Dana Iqbal' }
 ]
 
 const COACH_STYLES: CoachStyle[] = ['players-coach', 'tactician', 'disciplinarian']
@@ -63,6 +63,45 @@ export interface ScheduledMatch {
 }
 
 type TeamQuality = 'contender' | 'middle' | 'rebuild'
+
+const GOAL_WINS: Record<TeamQuality, number> = { contender: 50, middle: 40, rebuild: 30 }
+
+function outlookFor(index: number): TeamQuality {
+  if (index % 5 === 0) return 'contender'
+  if (index % 5 === 4) return 'rebuild'
+  return 'middle'
+}
+
+export interface CareerChoice {
+  id: string
+  city: string
+  name: string
+  color: string
+  conference: Conference
+  division: Division
+  outlook: TeamQuality
+  goalWins: number
+  coach: string
+  owner: string
+}
+
+export function careerChoices(): CareerChoice[] {
+  return TEAM_TEMPLATES.map((template, index) => {
+    const outlook = outlookFor(index)
+    return {
+      id: `team_${index + 1}`,
+      city: template.city,
+      name: template.name,
+      color: template.color,
+      conference: template.conference,
+      division: template.division,
+      outlook,
+      goalWins: GOAL_WINS[outlook],
+      coach: template.coach,
+      owner: template.owner
+    }
+  })
+}
 
 function deny(reason: string): OfferVerdict {
   return { allowed: false, exceptionUsed: 'None', reason, consumes: null, setsHardCap: null }
@@ -98,7 +137,8 @@ export class LeagueManager {
   awards: SeasonAwards | null = null
 
   constructor() {
-    if (!this.loadFromLocalStorage()) this.initializeLeague()
+    if (this.loadFromLocalStorage()) return
+    if (typeof window === 'undefined') this.initializeLeague()
   }
 
   userTeam(): Team {
@@ -130,7 +170,7 @@ export class LeagueManager {
   }
 
   saveToLocalStorage(): void {
-    if (typeof window === 'undefined' || !window.localStorage) return
+    if (typeof window === 'undefined' || !window.localStorage || this.teams.length === 0) return
     window.localStorage.setItem('hoops_sim_league_data', JSON.stringify({
       schemaVersion: NBA_RULES.SCHEMA_VERSION,
       teams: this.teams,
@@ -165,6 +205,7 @@ export class LeagueManager {
     try {
       const data = JSON.parse(saved)
       if (data.schemaVersion !== NBA_RULES.SCHEMA_VERSION) return false
+      if (!Array.isArray(data.teams) || data.teams.length === 0 || !data.userTeamId) return false
       this.teams = data.teams
       this.schedule = data.schedule
       this.currentRound = data.currentRound
@@ -206,10 +247,10 @@ export class LeagueManager {
     }
   }
 
-  initializeLeague(): void {
+  initializeLeague(teamId?: string): void {
     const names = new Set<string>()
     this.teams = TEAM_TEMPLATES.map((template, index) => this.buildTeam(template, index, names))
-    this.userTeamId = this.teams[0].id
+    this.userTeamId = this.teams.find(team => team.id === teamId)?.id ?? this.teams[0].id
     this.generateSchedule()
     this.generateFreeAgents(names)
     this.generateDraftProspects(names)
@@ -232,9 +273,7 @@ export class LeagueManager {
   }
 
   private qualityFor(index: number): TeamQuality {
-    if (index % 5 === 0) return 'contender'
-    if (index % 5 === 4) return 'rebuild'
-    return 'middle'
+    return outlookFor(index)
   }
 
   private buildTeam(
@@ -277,12 +316,12 @@ export class LeagueManager {
       division: template.division,
       color: template.color,
       coach: {
-        name: index === 0 ? 'Alex Ward' : `${template.city} bench`,
+        name: template.coach,
         style: COACH_STYLES[index % COACH_STYLES.length]
       },
       owner: {
-        name: index === 0 ? 'Helen Cho' : `${template.city} ownership`,
-        goalWins: quality === 'contender' ? 50 : quality === 'rebuild' ? 30 : 40,
+        name: template.owner,
+        goalWins: GOAL_WINS[quality],
         patience: 70
       },
       roster,
@@ -564,7 +603,7 @@ export class LeagueManager {
     this.note(
       'League office',
       'All-Star weekend',
-      `The break is ${this.allStarDate}. Twelve from the East, twelve from the West.${yours.length ? ` Your side: ${yours.join(', ')}.` : ' Nobody from your roster made it.'}`
+      `The break is ${this.allStarDate}. Twelve from the East, twelve from the West.${yours.length ? ` From your team: ${yours.join(', ')}.` : ' Nobody from your roster made it.'}`
     )
   }
 
@@ -666,8 +705,8 @@ export class LeagueManager {
         'League office',
         'Cup quarterfinals',
         yours
-          ? `Group games are done. You are in. Knockout games pay the gate and do not change the regular-season record.`
-          : 'Group games are done. Your club missed the knockout.'
+          ? `Group games are done. You are in. Elimination games pay the gate and do not change the regular-season record.`
+          : 'Group games are done. Your team missed the elimination round.'
       )
     }
     const stages = ['quarter', 'semi', 'final'] as const
@@ -688,7 +727,7 @@ export class LeagueManager {
         if (winner) {
           winner.finances.cash += NBA_RULES.CUP_PURSE
           winner.finances.seasonRevenue += NBA_RULES.CUP_PURSE
-          this.note('League office', 'Cup champion', `${winner.city} ${winner.name} won the Cup. $${(NBA_RULES.CUP_PURSE / 1_000_000).toFixed(0)}M goes to the club, not the cap.`)
+          this.note('League office', 'Cup champion', `${winner.city} ${winner.name} won the Cup. $${(NBA_RULES.CUP_PURSE / 1_000_000).toFixed(0)}M goes to the team, not the cap.`)
         }
         return
       }

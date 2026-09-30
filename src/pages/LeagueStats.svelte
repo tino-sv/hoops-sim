@@ -6,14 +6,18 @@
 
   let searchQuery = $state('');
   let filterTeam = $state('ALL');
+  let filterConference = $state('ALL');
   let filterPosition = $state('ALL');
+  let playedOnly = $state(true);
   type SortKey = 'gp' | 'min' | 'pts' | 'reb' | 'ast' | 'stl' | 'blk' | 'tov' | 'fgPct' | 'tpPct' | 'ftPct' | 'efgPct' | 'plusMinus';
   let sortBy = $state<SortKey>('pts');
   let sortAscending = $state(false);
 
   interface FlatPlayerStats extends SeasonLine {
     player: Player;
+    teamId: string;
     teamName: string;
+    conference: string;
   }
 
   let playersData = $derived.by(() => {
@@ -22,7 +26,9 @@
       for (const player of club.roster) {
         list.push({
           player,
-          teamName: club.name,
+          teamId: club.id,
+          teamName: `${club.city} ${club.name}`,
+          conference: club.conference,
           ...seasonLine(player.careerStats['season'])
         });
       }
@@ -35,9 +41,11 @@
     return playersData
       .filter(item => {
         const matchesSearch = item.player.name.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesTeam = filterTeam === 'ALL' || item.teamName === filterTeam;
+        const matchesTeam = filterTeam === 'ALL' || item.teamId === filterTeam;
+        const matchesConference = filterConference === 'ALL' || item.conference === filterConference;
         const matchesPos = filterPosition === 'ALL' || item.player.position === filterPosition;
-        return matchesSearch && matchesTeam && matchesPos;
+        const matchesPlayed = !playedOnly || item.gp > 0;
+        return matchesSearch && matchesTeam && matchesConference && matchesPos && matchesPlayed;
       })
       .sort((a, b) => {
         let valA = a[sortBy];
@@ -61,7 +69,7 @@
 
 <div class="league-stats-container fade-in">
   <!-- Filter Controls -->
-  <div class="card" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: end;">
+  <div class="card filter-bar">
     <div class="setting-group">
       <label for="stat-search">Search Player</label>
       <input 
@@ -78,8 +86,17 @@
       <select id="stat-team" class="tactics-select" bind:value={filterTeam} style="padding: 10px;">
         <option value="ALL">All Teams</option>
         {#each allTeams as t}
-          <option value={t.name}>{t.city} {t.name}</option>
+          <option value={t.id}>{t.city} {t.name}</option>
         {/each}
+      </select>
+    </div>
+
+    <div class="setting-group">
+      <label for="stat-conf">Conference</label>
+      <select id="stat-conf" class="form-input" bind:value={filterConference}>
+        <option value="ALL">Both</option>
+        <option value="East">East</option>
+        <option value="West">West</option>
       </select>
     </div>
 
@@ -95,6 +112,7 @@
       </select>
     </div>
 
+    <label class="played-only"><input type="checkbox" bind:checked={playedOnly} /> Played this season</label>
     <div style="font-size: 0.85rem; color: var(--text-muted); padding-bottom: 12px; font-weight: 500;">
       Showing {filteredPlayers.length} players
     </div>
@@ -143,7 +161,13 @@
             </tr>
           {:else}
             <tr>
-              <td colspan="16" style="text-align: center; color: var(--text-muted); padding: 40px 0;">No players match that search.</td>
+              <td colspan="16" style="text-align: center; color: var(--text-muted); padding: 40px 0;">
+                {#if playedOnly && playersData.every(player => player.gp === 0)}
+                  No games yet. Uncheck “Played this season” to browse the league.
+                {:else}
+                  No players match those filters.
+                {/if}
+              </td>
             </tr>
           {/each}
         </tbody>
@@ -153,6 +177,21 @@
 </div>
 
 <style>
+  .filter-bar {
+    margin-bottom: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: end;
+  }
+  .played-only {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding-bottom: 10px;
+  }
   .stats-row {
     transition: background-color 0.15s;
   }

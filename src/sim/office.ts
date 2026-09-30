@@ -36,15 +36,32 @@ function isReserve(team: Team, player: Player): boolean {
   return index > 0
 }
 
+export interface AwardCandidate {
+  player: Player
+  team: Team
+  mvp: number
+  defense: number
+  reserve: boolean
+}
+
+export function awardRace(teams: Team[]): AwardCandidate[] {
+  return teams.flatMap(team => team.roster.map(player => {
+    const line = seasonLine(player.careerStats['season'])
+    return {
+      player,
+      team,
+      mvp: mvpScore(player, team),
+      defense: line.stl + line.blk * 1.4 + line.dreb * 0.25,
+      reserve: isReserve(team, player)
+    }
+  }))
+}
+
 export function pickAwards(teams: Team[]): SeasonAwards {
-  const pool = teams.flatMap(team => team.roster.map(player => ({ player, team })))
-  const ranked = [...pool].sort((a, b) => mvpScore(b.player, b.team) - mvpScore(a.player, a.team))
+  const pool = awardRace(teams)
+  const ranked = [...pool].sort((a, b) => b.mvp - a.mvp)
   const mvp = ranked[0]?.player
-  const defense = [...pool].sort((a, b) => {
-    const lineA = seasonLine(a.player.careerStats['season'])
-    const lineB = seasonLine(b.player.careerStats['season'])
-    return (lineB.stl + lineB.blk * 1.4 + lineB.dreb * 0.25) - (lineA.stl + lineA.blk * 1.4 + lineA.dreb * 0.25)
-  })
+  const defense = [...pool].sort((a, b) => b.defense - a.defense)
   const rookies = pool.filter(item => item.player.experience === 0)
   const royPool = rookies.length ? rookies : pool
   const roy = [...royPool].sort((a, b) => mvpScore(b.player, b.team) - mvpScore(a.player, a.team))[0]?.player

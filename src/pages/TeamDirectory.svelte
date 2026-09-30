@@ -1,14 +1,14 @@
 <script lang="ts">
   import { badgeById } from "../sim/badges";
   import { seasonLine } from "../sim/seasonStats";
-  import type { Team, Player, Position } from "../sim/types";
+  import type { Division, Team, Player, Position } from "../sim/types";
 
-  let { allTeams }: { allTeams: Team[] } = $props();
+  let { allTeams, userTeamId }: { allTeams: Team[], userTeamId: string } = $props();
 
   // Selected Team ID state (defaults to the first opposing team, team_2, or team_1)
   let selectedTeamId = $state(allTeams[0]?.id || "");
   let teamConference = $state<'ALL' | 'East' | 'West'>('ALL');
-  let teamDivision = $state('ALL');
+  let teamDivision = $state<'ALL' | Division>('ALL');
   let rosterPos = $state('ALL');
   let rosterSort = $state<'overall' | 'age' | 'salary' | 'name'>('overall');
 
@@ -24,6 +24,15 @@
   let selectedTeam = $derived(
     allTeams.find((t) => t.id === selectedTeamId) || listedTeams[0] || allTeams[0],
   );
+
+  $effect(() => {
+    if (teamDivision !== 'ALL' && !divisionOptions.includes(teamDivision)) {
+      teamDivision = 'ALL';
+    }
+    if (listedTeams.length && !listedTeams.some(team => team.id === selectedTeamId)) {
+      selectedTeamId = listedTeams[0].id;
+    }
+  });
 
   // Selected Player Profile Modal inside Directory
   let selectedPlayer = $state<Player | null>(null);
@@ -145,7 +154,7 @@
       >
         {#each listedTeams as t}
           <option value={t.id}
-            >{t.city} {t.name} {t.id === allTeams[0].id ? "(USER)" : ""}</option
+            >{t.city} {t.name} {t.id === userTeamId ? "(You)" : ""}</option
           >
         {/each}
       </select>
@@ -156,9 +165,8 @@
     <!-- Team Info Banner -->
     <div
       class="card team-banner-card"
-      style="margin-bottom: 24px; border-left: 4px solid {selectedTeam.id ===
-      'team_1'
-        ? '#008348'
+      style="margin-bottom: 24px; border-left: 4px solid {selectedTeam.id === userTeamId
+        ? selectedTeam.color
         : '#3b82f6'};"
     >
       <div

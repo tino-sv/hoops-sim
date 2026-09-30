@@ -182,7 +182,7 @@
       if (negotiationRounds <= 0) {
         negotiationStage = 'walked_away';
         agentMood = 'furious';
-        agentText = `That is enough. We've tried to find middle ground, but your offers are simply not valuation-aligned. We are walking away from the table and will test free agency next season.`;
+        agentText = `That is enough. We've tried to find middle ground, but your offers are simply not valuation-aligned. We are done talking and will test free agency next season.`;
         extensionErrorMessage = `❌ Negotiations stalled: Agent walked away.`;
       } else {
         if (agentType === 'hardball') {
@@ -649,8 +649,8 @@
           <!-- Stalled / walked away -->
           <div style="display: flex; flex-direction: column; gap: 14px; text-align: center;">
             <div style="font-size: 1.1rem; color: var(--danger); font-weight: 700;">Negotiations Stalled</div>
-            <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">The agent has walked away from the bargaining table. Negotiations are closed for this round.</p>
-            <button class="btn btn-secondary" onclick={() => { negotiatingPlayer = null; }} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Close Table</button>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">The agent walked away. Talks are closed for now.</p>
+            <button class="btn btn-secondary" onclick={() => { negotiatingPlayer = null; }} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Close</button>
           </div>
         {/if}
       </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { awardRace } from '../sim/office';
   import { seasonLine } from '../sim/seasonStats';
   import type { AllStarWeekend, Player, SeasonAwards, Team } from '../sim/types';
 
@@ -36,6 +37,47 @@
     return `${player.position} · ${line.pts.toFixed(1)} PTS, ${line.reb.toFixed(1)} REB, ${line.ast.toFixed(1)} AST`;
   };
 
+  type Race = 'mvp' | 'defense' | 'rookie' | 'sixth';
+  type RaceSort = 'score' | 'pts' | 'reb' | 'ast';
+  let race = $state<Race>('mvp');
+  let raceSort = $state<RaceSort>('score');
+  let raceAsc = $state(false);
+  let query = $state('');
+  let conference = $state<'ALL' | 'East' | 'West'>('ALL');
+  let position = $state('ALL');
+  let mineOnly = $state(false);
+
+  const scoreOf = (row: ReturnType<typeof awardRace>[number]) => {
+    const line = seasonLine(row.player.careerStats['season']);
+    if (raceSort === 'pts') return line.pts;
+    if (raceSort === 'reb') return line.reb;
+    if (raceSort === 'ast') return line.ast;
+    if (race === 'defense') return row.defense;
+    return row.mvp;
+  };
+
+  let raceRows = $derived.by(() => {
+    return awardRace(allTeams)
+      .filter(row => {
+        if (conference !== 'ALL' && row.team.conference !== conference) return false;
+        if (position !== 'ALL' && row.player.position !== position) return false;
+        if (mineOnly && row.team.id !== userTeam.id) return false;
+        if (race === 'rookie' && row.player.experience !== 0) return false;
+        if (race === 'sixth' && !row.reserve) return false;
+        return row.player.name.toLowerCase().includes(query.toLowerCase());
+      })
+      .sort((a, b) => raceAsc ? scoreOf(a) - scoreOf(b) : scoreOf(b) - scoreOf(a))
+      .slice(0, 20);
+  });
+
+  const setRaceSort = (key: RaceSort) => {
+    if (raceSort === key) raceAsc = !raceAsc;
+    else {
+      raceSort = key;
+      raceAsc = false;
+    }
+  };
+
   const major = $derived(awards ? [
     ['MVP', awards.mvpId],
     ['Defensive player', awards.dpoyId],
@@ -49,15 +91,75 @@
   <div class="page-head" style="margin-bottom: 16px;">
     <div>
       <h2 style="font-size: 1.6rem; font-weight: 800;">Honors</h2>
-      <p>Awards, the All-Star teams, and the Cup.</p>
+      <p>The race updates with the season. Named awards, All-Star teams, and the Cup stay on this page.</p>
     </div>
   </div>
 
-  {#if !awards && !allStar.announced && !cupChampionId}
-    <div class="card">
-      <p style="color: var(--text-secondary);">Nothing is named yet. The All-Star teams come out at the break. Awards and the Cup champion come after the schedule.</p>
+  <div class="card filter-bar">
+    <label>Race
+      <select class="form-input" bind:value={race} onchange={() => { raceSort = 'score'; raceAsc = false; }}>
+        <option value="mvp">MVP</option>
+        <option value="defense">Defense</option>
+        <option value="rookie">Rookie</option>
+        <option value="sixth">Sixth man</option>
+      </select>
+    </label>
+    <label>Search
+      <input class="form-input" placeholder="Name" bind:value={query} />
+    </label>
+    <label>Conference
+      <select class="form-input" bind:value={conference}>
+        <option value="ALL">Both</option>
+        <option value="East">East</option>
+        <option value="West">West</option>
+      </select>
+    </label>
+    <label>Position
+      <select class="form-input" bind:value={position}>
+        <option value="ALL">All</option>
+        <option value="PG">PG</option>
+        <option value="SG">SG</option>
+        <option value="SF">SF</option>
+        <option value="PF">PF</option>
+        <option value="C">C</option>
+      </select>
+    </label>
+    <label class="check"><input type="checkbox" bind:checked={mineOnly} /> My team</label>
+  </div>
+
+  <div class="card" style="margin: 16px 0;">
+    <div class="table-container">
+      <table class="sim-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Player</th>
+            <th>Team</th>
+            <th class="sortable" onclick={() => setRaceSort('pts')}>PTS {raceSort === 'pts' ? (raceAsc ? '▲' : '▼') : ''}</th>
+            <th class="sortable" onclick={() => setRaceSort('reb')}>REB {raceSort === 'reb' ? (raceAsc ? '▲' : '▼') : ''}</th>
+            <th class="sortable" onclick={() => setRaceSort('ast')}>AST {raceSort === 'ast' ? (raceAsc ? '▲' : '▼') : ''}</th>
+            <th class="sortable" onclick={() => setRaceSort('score')}>Score {raceSort === 'score' ? (raceAsc ? '▲' : '▼') : ''}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each raceRows as row, index}
+            {@const line = seasonLine(row.player.careerStats['season'])}
+            <tr class:mine={row.team.id === userTeam.id}>
+              <td style="color: var(--text-muted); font-weight: 800;">{index + 1}</td>
+              <td style="font-weight: 700;">{row.player.name} <span style="color: var(--text-muted); font-weight: 600;">{row.player.position}</span></td>
+              <td>{row.team.city}</td>
+              <td>{line.pts.toFixed(1)}</td>
+              <td>{line.reb.toFixed(1)}</td>
+              <td>{line.ast.toFixed(1)}</td>
+              <td style="font-weight: 700;">{scoreOf(row).toFixed(1)}</td>
+            </tr>
+          {:else}
+            <tr><td colspan="7" style="color: var(--text-muted);">No players match those filters.</td></tr>
+          {/each}
+        </tbody>
+      </table>
     </div>
-  {/if}
+  </div>
 
   {#if awards}
     <div class="award-grid">
@@ -121,12 +223,34 @@
 
   <div class="card" style="margin-top: 16px;">
     <h3 style="margin-bottom: 8px;">Cup</h3>
-    <p>{cupChampionId ? `${clubName(cupChampionId)} won the Cup.` : 'The knockout has not been decided.'}</p>
-    <p style="color: var(--text-secondary); margin-top: 6px;">Your group record is {userTeam.cupWins}-{userTeam.cupLosses}. Quarters and semis count in the standings. The final does not.</p>
+    <p>{cupChampionId ? `${clubName(cupChampionId)} won the Cup.` : 'The elimination games are not finished.'}</p>
+    <p style="color: var(--text-secondary); margin-top: 6px;">Your group record is {userTeam.cupWins}-{userTeam.cupLosses}. Elimination games pay the gate and do not change the regular-season record.</p>
   </div>
 </div>
 
 <style>
+  .filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+  }
+  .filter-bar label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+  .check {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 8px;
+  }
+  .sortable { cursor: pointer; user-select: none; }
+  tr.mine td { background: rgba(16, 185, 129, 0.08); }
   .award-grid, .star-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

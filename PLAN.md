@@ -10,15 +10,17 @@ Status: `not started` | `in progress` | `done`
 - NBA-style roster, cap, aprons, draft, free agency, offseason. `done`
 - 30 fictional teams, 6 divisions, 82-game calendar with off days. `done`
 - Front office: coach scheme, owner win goal, patience, cash separate from the cap, luxury tax. `done`
-- All-Star rosters, end-of-season awards, Cup group games plus a short knockout. `done`
+- All-Star rosters, end-of-season awards, Cup group games plus a short elimination bracket. `done`
 - Home screen can sim the rest of the regular season, including your games, for testing. `done`
 - Standings show each division, with games behind inside that division. The playoff picture is still the conference top 8. `done`
-- Honors is its own page. Roster, standings, free agency, the draft board, and team lists can be sorted and filtered. `done`
+- Honors is its own page, with a live award race you can sort and filter. League leaders, the calendar, and the inbox can be filtered too. `done`
+- Screens and news say team, night, and elimination game. The Football Manager words are gone. `done`
+- A new game, and a reset, ask which franchise you run. A save you already have keeps its team. `done`
 - Playoffs are a standings picture only. They are not simulated. `not started`
 
 ## Next
 
-Confirm the current screens. Then simulate the playoffs. After that, backlog 1 (finances) and 5 (social media).
+Simulate the playoffs next. Deeper work waits until that is in: finances (1), social media (5), and the visual redesign (11).
 
 ## Backlog
 
@@ -32,3 +34,5 @@ Confirm the current screens. Then simulate the playoffs. After that, backlog 1 (
 8. Cleaner UI across the shell, home screen, calendar, and office. `done`
 9. Sim the rest of the regular season from the home screen, for testing. `done`
 10. Honors on its own page, plus sort and filter controls on the main lists. `done`
+11. Redesign the look of the UI. The current screens are not good enough. `not started`
+12. Choose your team when a game starts. `done`
