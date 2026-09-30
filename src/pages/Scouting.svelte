@@ -99,7 +99,7 @@
         <span class="compass-icon">🧭</span>
       </div>
       <div>
-        <h2>College Scouting Center</h2>
+        <h2>Draft Board</h2>
         <p>
           {#if phase === 'offseason' && offseasonStep === 'draft'}
             {clockLabel}. {onTheClock ? 'You are on the clock.' : 'Another team is picking.'}

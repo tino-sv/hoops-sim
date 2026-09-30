@@ -1,4 +1,5 @@
-import type { MentalAttributes, PhysicalAttributes, Player, PlayerAttributes, Position, TechnicalAttributes } from './types'
+import { assignBadges } from './badges'
+import type { MentalAttributes, PhysicalAttributes, Player, PlayerAttributes, PlayerPersonality, Position, TechnicalAttributes } from './types'
 
 type Category = 'technical' | 'physical' | 'mental'
 
@@ -191,20 +192,8 @@ export function generateAttributes(position: Position, targetOverall: number): P
   return attrs
 }
 
-export function deriveTraits(attrs: PlayerAttributes, position: Position): string[] {
-  const t = attrs.technical
-  const p = attrs.physical
-  const m = attrs.mental
-  const traits: string[] = []
-  if (t.threePoint >= 84) traits.push('sharpshooter')
-  if ((position === 'PG' || position === 'SG' || position === 'SF') && t.perimeterDefense >= 82) traits.push('lockdown')
-  if ((position === 'PF' || position === 'C') && t.interiorDefense >= 82 && t.block >= 76) traits.push('lockdown')
-  if (t.passingVision >= 82 && t.passingAccuracy >= 78) traits.push('playmaker')
-  if ((position === 'PF' || position === 'C') && t.closeShot >= 82 && p.strength >= 78) traits.push('post_beast')
-  if (t.defRebound >= 82 || t.offRebound >= 80) traits.push('glass_cleaner')
-  if (m.composure >= 86) traits.push('clutch')
-  if (p.stamina >= 86) traits.push('iron_man')
-  return traits.slice(0, 2)
+export function deriveTraits(attrs: PlayerAttributes, position: Position, personality?: PlayerPersonality): string[] {
+  return assignBadges(attrs, position, personality)
 }
 
 export function scoutingNotes(attrs: PlayerAttributes): { strengths: string[]; weaknesses: string[] } {
@@ -272,6 +261,6 @@ export function developPlayer(player: Player): number {
 
   player.overallRating = computeOverall(player.attributes, player.position)
   if (player.overallRating > player.potential) player.potential = player.overallRating
-  player.traits = deriveTraits(player.attributes, player.position)
+  player.traits = deriveTraits(player.attributes, player.position, player.personality)
   return player.overallRating - before
 }

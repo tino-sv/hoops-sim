@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { badgeById } from '../sim/badges';
   import type { Team, Player } from '../sim/types';
   import { CBASimulator, CBA_CONSTANTS, type OfferVerdict } from '../sim/cba';
 
@@ -7,51 +8,6 @@
     onWaive: (playerId: string) => OfferVerdict,
     onExtend: (playerId: string, salary: number, years: number) => OfferVerdict
   } = $props();
-
-  const TRAIT_META: Record<string, { name: string; desc: string; icon: string; style: string }> = {
-    sharpshooter: {
-      name: 'Sharpshooter',
-      desc: 'Makes about 3% more of his threes.',
-      icon: '🎯',
-      style: 'border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.1); color: #f87171;'
-    },
-    lockdown: {
-      name: 'Lockdown',
-      desc: 'Contests shots a little harder (+2% contest).',
-      icon: '🛡️',
-      style: 'border: 1px solid rgba(59, 130, 246, 0.4); background: rgba(59, 130, 246, 0.1); color: #60a5fa;'
-    },
-    playmaker: {
-      name: 'Floor General',
-      desc: 'A few more of his passes turn into assists.',
-      icon: '🪄',
-      style: 'border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.1); color: #c084fc;'
-    },
-    post_beast: {
-      name: 'Post Beast',
-      desc: 'Makes about 3% more shots at the rim.',
-      icon: '🦁',
-      style: 'border: 1px solid rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1); color: #fbbf24;'
-    },
-    glass_cleaner: {
-      name: 'Glass Cleaner',
-      desc: 'Grabs more rebounds (weight ×1.2).',
-      icon: '🧼',
-      style: 'border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1); color: #34d399;'
-    },
-    clutch: {
-      name: 'Clutch',
-      desc: 'Makes about 2% more shots in the last 3 minutes of the 4th.',
-      icon: '⏱️',
-      style: 'border: 1px solid rgba(236, 72, 153, 0.4); background: rgba(236, 72, 153, 0.1); color: #f472b6;'
-    },
-    iron_man: {
-      name: 'Iron Man',
-      desc: 'Fatigue builds 30% slower.',
-      icon: '🤖',
-      style: 'border: 1px solid rgba(100, 116, 139, 0.4); background: rgba(100, 116, 139, 0.1); color: #94a3b8;'
-    }
-  };
 
   let selectedPlayer: Player | null = $state(null);
   let extensionSuccessMessage = $state('');
@@ -367,13 +323,10 @@
             {#if selectedPlayer.traits && selectedPlayer.traits.length > 0}
               <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
                 {#each selectedPlayer.traits as trait}
-                  {#if TRAIT_META[trait]}
-                    <span 
-                      class="trait-badge" 
-                      style={TRAIT_META[trait].style} 
-                      title={TRAIT_META[trait].desc}
-                    >
-                      {TRAIT_META[trait].icon} {TRAIT_META[trait].name}
+                  {@const badge = badgeById(trait)}
+                  {#if badge}
+                    <span class="trait-badge {badge.group}" title={badge.effect}>
+                      {badge.name}
                     </span>
                   {/if}
                 {/each}
@@ -385,9 +338,9 @@
 
         <!-- Section: Contract Status -->
         <div class="profile-section">
-          <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Contract & CBA Status</h4>
+          <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Contract</h4>
           <div style="background-color: var(--bg-dark); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;">
-            <div><b>Salary Sheet:</b> {selectedPlayer.contract.salaries.map(s => formatNumber(s)).join(' → ')}</div>
+            <div><b>Cap hits:</b> {selectedPlayer.contract.salaries.map(s => formatNumber(s)).join(' → ')}</div>
             <div><b>Option:</b> {selectedPlayer.contract.option.toUpperCase()}</div>
             <div><b>Years with Team:</b> {selectedPlayer.contract.yearsServed} yrs</div>
             <div><b>Bird Rights:</b> {selectedPlayer.contract.birdRights.toUpperCase()}</div>
@@ -397,27 +350,27 @@
 
         <!-- Section: Player Attributes -->
         <div class="profile-section">
-          <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Key Skill Groups</h4>
+          <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Skills</h4>
           <div style="display: flex; flex-direction: column; gap: 8px;">
             <!-- Simple attribute meters -->
             <div>
-              <div class="meter-lbl">🔥 Perimeter Shooting: <span>{selectedPlayer.attributes.technical.threePoint}</span></div>
+              <div class="meter-lbl">Three-point shot: <span>{selectedPlayer.attributes.technical.threePoint}</span></div>
               <div class="meter-container"><div class="meter-bar" style="width: {selectedPlayer.attributes.technical.threePoint}%"></div></div>
             </div>
             <div>
-              <div class="meter-lbl">🏀 Playmaking & Handling: <span>{selectedPlayer.attributes.technical.ballHandling}</span></div>
+              <div class="meter-lbl">Handle: <span>{selectedPlayer.attributes.technical.ballHandling}</span></div>
               <div class="meter-container"><div class="meter-bar" style="width: {selectedPlayer.attributes.technical.ballHandling}%"></div></div>
             </div>
             <div>
-              <div class="meter-lbl">🛡️ Perimeter / Rim Defense: <span>{Math.round((selectedPlayer.attributes.technical.perimeterDefense + selectedPlayer.attributes.technical.interiorDefense)/2)}</span></div>
+              <div class="meter-lbl">Defense: <span>{Math.round((selectedPlayer.attributes.technical.perimeterDefense + selectedPlayer.attributes.technical.interiorDefense)/2)}</span></div>
               <div class="meter-container"><div class="meter-bar" style="width: {Math.round((selectedPlayer.attributes.technical.perimeterDefense + selectedPlayer.attributes.technical.interiorDefense)/2)}%"></div></div>
             </div>
             <div>
-              <div class="meter-lbl">💪 Physical Strength & Speed: <span>{Math.round((selectedPlayer.attributes.physical.speed + selectedPlayer.attributes.physical.strength)/2)}</span></div>
+              <div class="meter-lbl">Athleticism: <span>{Math.round((selectedPlayer.attributes.physical.speed + selectedPlayer.attributes.physical.strength)/2)}</span></div>
               <div class="meter-container"><div class="meter-bar" style="width: {Math.round((selectedPlayer.attributes.physical.speed + selectedPlayer.attributes.physical.strength)/2)}%"></div></div>
             </div>
             <div>
-              <div class="meter-lbl">🧠 Basketball IQ & Composure: <span>{Math.round((selectedPlayer.attributes.mental.iq + selectedPlayer.attributes.mental.composure)/2)}</span></div>
+              <div class="meter-lbl">IQ: <span>{Math.round((selectedPlayer.attributes.mental.iq + selectedPlayer.attributes.mental.composure)/2)}</span></div>
               <div class="meter-container"><div class="meter-bar" style="width: {Math.round((selectedPlayer.attributes.mental.iq + selectedPlayer.attributes.mental.composure)/2)}%"></div></div>
             </div>
           </div>
@@ -425,7 +378,7 @@
 
         <!-- Section: Season Statistics -->
         <div class="profile-section">
-          <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Season Statistics</h4>
+          <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Season</h4>
           {#if selectedPlayer.careerStats['season'] && (selectedPlayer.careerStats['season'].games || 0) > 0}
             {@const stats = selectedPlayer.careerStats['season']}
             {@const played = stats.games || 0}
@@ -460,8 +413,24 @@
                   <div class="stat-mini-val">{(stats.blocks / played).toFixed(1)}</div>
                 </div>
                 <div class="stat-mini-box">
-                  <div class="stat-mini-lbl">TO</div>
+                  <div class="stat-mini-lbl">TOV</div>
                   <div class="stat-mini-val">{(stats.turnovers / played).toFixed(1)}</div>
+                </div>
+                <div class="stat-mini-box">
+                  <div class="stat-mini-lbl">OREB</div>
+                  <div class="stat-mini-val">{(stats.offRebounds / played).toFixed(1)}</div>
+                </div>
+                <div class="stat-mini-box">
+                  <div class="stat-mini-lbl">DREB</div>
+                  <div class="stat-mini-val">{(stats.defRebounds / played).toFixed(1)}</div>
+                </div>
+                <div class="stat-mini-box">
+                  <div class="stat-mini-lbl">PF</div>
+                  <div class="stat-mini-val">{(stats.fouls / played).toFixed(1)}</div>
+                </div>
+                <div class="stat-mini-box">
+                  <div class="stat-mini-lbl">+/-</div>
+                  <div class="stat-mini-val">{(stats.plusMinus / played) > 0 ? '+' : ''}{(stats.plusMinus / played).toFixed(1)}</div>
                 </div>
               </div>
               
@@ -472,7 +441,7 @@
                   <div style="font-size: 0.7rem; color: var(--text-muted);">{stats.fgm}/{stats.fga}</div>
                 </div>
                 <div>
-                  <div class="stat-mini-lbl">3PT%</div>
+                  <div class="stat-mini-lbl">3P%</div>
                   <div style="font-weight: 700; color: var(--text-primary);">{stats.tpa > 0 ? ((stats.tpm / stats.tpa) * 100).toFixed(1) : '0.0'}%</div>
                   <div style="font-size: 0.7rem; color: var(--text-muted);">{stats.tpm}/{stats.tpa}</div>
                 </div>
@@ -485,21 +454,21 @@
             </div>
           {:else}
             <div style="background-color: var(--bg-dark); padding: 16px; border-radius: 8px; text-align: center; color: var(--text-muted); font-size: 0.85rem; border: 1px solid var(--border-color);">
-              No games played this season
+              No games yet
             </div>
           {/if}
         </div>
 
         <!-- Section: Personality & Morale -->
         <div class="profile-section">
-          <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Personality & Dynamics</h4>
+          <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Makeup</h4>
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center; font-size: 0.8rem;">
             <div style="background-color: var(--bg-dark); padding: 8px; border-radius: 6px;">
-              <div>Ego/USG Demand</div>
+              <div>Usage</div>
               <div style="font-weight: 700; font-size: 1rem; color: var(--primary);">{selectedPlayer.personality.ego}</div>
             </div>
             <div style="background-color: var(--bg-dark); padding: 8px; border-radius: 6px;">
-              <div>Greed focus</div>
+              <div>Money</div>
               <div style="font-weight: 700; font-size: 1rem; color: var(--accent);">{selectedPlayer.personality.greed}</div>
             </div>
             <div style="background-color: var(--bg-dark); padding: 8px; border-radius: 6px;">
@@ -523,7 +492,7 @@
             {selectedPlayer.contract.salaries.length === 1 ? 'Re-sign (final year)' : 'Extension locked'}
           </button>
           <button class="btn btn-primary" style="background-color: var(--danger); color: white;" onclick={() => releasePlayer(selectedPlayer!)}>
-            🗑️ Release Player
+            Waive
           </button>
         </div>
       </div>
@@ -886,6 +855,18 @@
   .trait-badge:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  .trait-badge.skill {
+    border: 1px solid rgba(16, 185, 129, 0.45);
+    background: rgba(16, 185, 129, 0.12);
+    color: #6ee7b7;
+  }
+
+  .trait-badge.personality {
+    border: 1px solid rgba(245, 158, 11, 0.45);
+    background: rgba(245, 158, 11, 0.12);
+    color: #fcd34d;
   }
 
   /* Season stats boxes styling */

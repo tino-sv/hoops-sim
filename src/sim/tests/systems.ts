@@ -78,6 +78,20 @@ const opened = league.enterOffseason()
 assert(opened.allowed, opened.reason)
 assert(league.phase === 'offseason', 'phase')
 
+const playoffIds = new Set<string>()
+for (const conference of ['East', 'West'] as const) {
+  const table = league.teams
+    .filter(team => team.conference === conference)
+    .sort((a, b) => a.city.localeCompare(b.city))
+  for (const team of table.slice(0, NBA_RULES.PLAYOFF_SPOTS_PER_CONFERENCE)) playoffIds.add(team.id)
+}
+const firstRound = league.draftOrder.filter(pick => pick.round === 1)
+const lotteryIds = firstRound.slice(0, league.teams.length - playoffIds.size).map(pick => pick.teamId)
+assert(lotteryIds.length === 4, 'four lottery teams')
+assert(lotteryIds.every(id => !playoffIds.has(id)), 'playoff teams stay out of the lottery')
+const secondRound = league.draftOrder.filter(pick => pick.round === 2).map(pick => pick.teamId)
+assert(firstRound.map(pick => pick.teamId).join() === secondRound.join(), 'draft order repeats, it does not snake')
+
 let safety = 0
 while (league.offseasonStep === 'draft') {
   const pick = league.currentPick()
@@ -89,6 +103,12 @@ while (league.offseasonStep === 'draft') {
 }
 assert(league.offseasonStep === 'free-agency', 'free agency follows the draft')
 assert(league.draftProspects.length === 0, 'undrafted players leave the board')
+
+if (user.roster.length >= NBA_RULES.ROSTER_MAX && user.roster.length < NBA_RULES.OFFSEASON_ROSTER_MAX) {
+  const extra = must(league.freeAgents.find(player => player.overallRating < 76), 'camp body for the 16th spot')
+  const overRegularMax = league.signFreeAgent(extra.id, NBA_RULES.MINIMUM_SALARY, 1)
+  assert(overRegularMax.allowed, overRegularMax.reason)
+}
 
 while (user.roster.length < NBA_RULES.ROSTER_MIN) {
   const body = must(league.freeAgents.find(player => player.overallRating < 76), 'camp body available')

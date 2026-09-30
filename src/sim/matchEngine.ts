@@ -1,3 +1,4 @@
+import { fatigueMultiplier } from './badges'
 import { PossessionEngine, type PossessionResult } from './possessionEngine'
 import { POSITIONS, type BoxScoreStats, type Player, type Team, type TeamTactics } from './types'
 
@@ -178,8 +179,7 @@ export function rotateLineup(
 
 function fatigueDelta(player: Player, seconds: number): number {
   const stamina = player.attributes.physical.stamina || 50
-  let delta = seconds * (0.05 - stamina * 0.00032)
-  if (player.traits?.includes('iron_man')) delta *= 0.7
+  const delta = seconds * (0.05 - stamina * 0.00032) * fatigueMultiplier(player)
   return Math.max(0.05, delta)
 }
 

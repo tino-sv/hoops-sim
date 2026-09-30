@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { badgeById } from "../sim/badges";
+  import { seasonLine } from "../sim/seasonStats";
   import type { Team, Player, Position } from "../sim/types";
 
   let { allTeams }: { allTeams: Team[] } = $props();
@@ -11,6 +13,14 @@
 
   // Selected Player Profile Modal inside Directory
   let selectedPlayer = $state<Player | null>(null);
+
+  const OFFENSE_LABEL: Record<string, string> = {
+    "pace-and-space": "Pace and space",
+    "pick-and-roll": "Pick-and-roll",
+    motion: "Motion",
+    "post-up": "Post-up",
+    isolation: "Isolation",
+  };
 
   const formatNumber = (num: number) => {
     return "$" + Math.round(num).toLocaleString();
@@ -84,10 +94,9 @@
     <div style="display: flex; align-items: center; gap: 16px;">
       <span style="font-size: 1.5rem;">🏢</span>
       <div>
-        <h2 style="font-size: 1.25rem; margin: 0;">League Team Directory</h2>
+        <h2 style="font-size: 1.25rem; margin: 0;">Teams</h2>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
-          Inspect rosters, team leaders, and coaching tactics for all league
-          franchises.
+          Rosters, leaders, and schemes.
         </p>
       </div>
     </div>
@@ -153,12 +162,12 @@
             >
           </div>
           <div class="banner-stat">
-            <span class="banner-stat-lbl">Tactical Style</span>
+            <span class="banner-stat-lbl">Offense</span>
             <span
               class="banner-stat-val"
-              style="text-transform: capitalize; color: var(--secondary);"
-              >{selectedTeam.tactics?.offensiveStyle.replace("-", " ") ||
-                "None"}</span
+              style="color: var(--secondary);"
+              >{OFFENSE_LABEL[selectedTeam.tactics?.offensiveStyle] ||
+                "Balanced"}</span
             >
           </div>
         </div>
@@ -174,7 +183,7 @@
           : '9'}; transition: all 0.3s ease;"
       >
         <h3 class="card-title">
-          Roster Roster <span class="badge badge-secondary"
+          Roster <span class="badge badge-secondary"
             >{sortedRoster.length} Players</span
           >
         </h3>
@@ -262,7 +271,7 @@
                     >
                   </div>
                 {:else}
-                  <span class="no-stats">No stats recorded</span>
+                  <span class="no-stats">No games yet</span>
                 {/if}
               </div>
 
@@ -281,7 +290,7 @@
                     >
                   </div>
                 {:else}
-                  <span class="no-stats">No stats recorded</span>
+                  <span class="no-stats">No games yet</span>
                 {/if}
               </div>
 
@@ -300,7 +309,7 @@
                     >
                   </div>
                 {:else}
-                  <span class="no-stats">No stats recorded</span>
+                  <span class="no-stats">No games yet</span>
                 {/if}
               </div>
 
@@ -319,7 +328,7 @@
                     >
                   </div>
                 {:else}
-                  <span class="no-stats">No stats recorded</span>
+                  <span class="no-stats">No games yet</span>
                 {/if}
               </div>
 
@@ -338,7 +347,7 @@
                     >
                   </div>
                 {:else}
-                  <span class="no-stats">No stats recorded</span>
+                  <span class="no-stats">No games yet</span>
                 {/if}
               </div>
             </div>
@@ -349,42 +358,27 @@
             <h3
               style="color: var(--primary); font-size: 1.1rem; margin-bottom: 16px;"
             >
-              Tactical Settings
+              Scheme
             </h3>
 
             <div
               style="display: flex; flex-direction: column; gap: 12px; font-size: 0.85rem;"
             >
               <div class="tactic-spec">
-                <span class="tactic-label">Offensive Style:</span>
-                <span class="tactic-val"
-                  >{selectedTeam.tactics?.offensiveStyle
-                    .replace("-", " ")
-                    .toUpperCase() || "BALANCED"}</span
-                >
+                <span class="tactic-label">Offense</span>
+                <span class="tactic-val">{OFFENSE_LABEL[selectedTeam.tactics?.offensiveStyle] || 'Balanced'}</span>
               </div>
               <div class="tactic-spec">
-                <span class="tactic-label">Tempo / Pace:</span>
-                <span class="tactic-val"
-                  >{selectedTeam.tactics?.tempo.toUpperCase() ||
-                    "BALANCED"}</span
-                >
+                <span class="tactic-label">Pace</span>
+                <span class="tactic-val">{selectedTeam.tactics?.tempo === 'fast' ? 'Push' : selectedTeam.tactics?.tempo === 'slow' ? 'Slow' : 'Balanced'}</span>
               </div>
               <div class="tactic-spec">
-                <span class="tactic-label">Defensive Coverage:</span>
-                <span class="tactic-val"
-                  >{selectedTeam.tactics?.defensiveCoverage
-                    .replace("-", " ")
-                    .toUpperCase() || "DROP"}</span
-                >
+                <span class="tactic-label">Coverage</span>
+                <span class="tactic-val">{selectedTeam.tactics?.defensiveCoverage === 'blitz' ? 'Blitz' : selectedTeam.tactics?.defensiveCoverage === 'switch-everything' ? 'Switch' : selectedTeam.tactics?.defensiveCoverage === 'zone-23' ? '2-3 zone' : selectedTeam.tactics?.defensiveCoverage === 'zone-32' ? '3-2 zone' : 'Drop'}</span>
               </div>
               <div class="tactic-spec">
-                <span class="tactic-label">Double Team Trigger:</span>
-                <span class="tactic-val"
-                  >{selectedTeam.tactics?.doubleTeamTrigger
-                    .replace("-", " ")
-                    .toUpperCase() || "LATE CLOCK"}</span
-                >
+                <span class="tactic-label">Double team</span>
+                <span class="tactic-val">{selectedTeam.tactics?.doubleTeamTrigger === 'always' ? 'Every touch' : selectedTeam.tactics?.doubleTeamTrigger === 'never' ? 'Stay home' : 'Late clock'}</span>
               </div>
             </div>
           </div>
@@ -518,13 +512,14 @@
               <div
                 style="font-weight: 700; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;"
               >
-                Special Traits
+                Badges
               </div>
               <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                 {#each selectedPlayer.traits as trait}
-                  <span class="badge badge-primary" style="font-size: 0.7rem;"
-                    >⭐ {trait.replace("_", " ")}</span
-                  >
+                  {@const badge = badgeById(trait)}
+                  {#if badge}
+                    <span class="badge badge-primary" style="font-size: 0.7rem;" title={badge.effect}>{badge.name}</span>
+                  {/if}
                 {/each}
               </div>
             </div>
@@ -532,50 +527,37 @@
 
           <!-- Season Averages if available -->
           {#if selectedPlayer.careerStats["season"]}
-            {@const stats = selectedPlayer.careerStats["season"]}
-            {@const gp = stats.games || 0}
+            {@const line = seasonLine(selectedPlayer.careerStats["season"])}
             <div
               style="background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);"
             >
               <div
                 style="font-weight: 700; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;"
               >
-                Season Stats ({gp} GP)
+                Season ({line.gp} GP)
               </div>
-              {#if gp > 0}
+              {#if line.gp > 0}
                 <div
                   style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 0.75rem; text-align: center;"
                 >
-                  <div class="stat-mini-box">
-                    <div class="stat-mini-lbl">PTS</div>
-                    <div class="stat-mini-val">
-                      {(stats.points / gp).toFixed(1)}
-                    </div>
-                  </div>
-                  <div class="stat-mini-box">
-                    <div class="stat-mini-lbl">REB</div>
-                    <div class="stat-mini-val">
-                      {(stats.rebounds / gp).toFixed(1)}
-                    </div>
-                  </div>
-                  <div class="stat-mini-box">
-                    <div class="stat-mini-lbl">AST</div>
-                    <div class="stat-mini-val">
-                      {(stats.assists / gp).toFixed(1)}
-                    </div>
-                  </div>
-                  <div class="stat-mini-box">
-                    <div class="stat-mini-lbl">MIN</div>
-                    <div class="stat-mini-val">
-                      {(stats.minutes / gp).toFixed(1)}
-                    </div>
-                  </div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">MIN</div><div class="stat-mini-val">{line.min.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">PTS</div><div class="stat-mini-val">{line.pts.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">REB</div><div class="stat-mini-val">{line.reb.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">AST</div><div class="stat-mini-val">{line.ast.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">STL</div><div class="stat-mini-val">{line.stl.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">BLK</div><div class="stat-mini-val">{line.blk.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">TOV</div><div class="stat-mini-val">{line.tov.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">+/-</div><div class="stat-mini-val">{line.plusMinus > 0 ? '+' : ''}{line.plusMinus.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">FG%</div><div class="stat-mini-val">{line.fgPct.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">3P%</div><div class="stat-mini-val">{line.tpPct.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">FT%</div><div class="stat-mini-val">{line.ftPct.toFixed(1)}</div></div>
+                  <div class="stat-mini-box"><div class="stat-mini-lbl">eFG%</div><div class="stat-mini-val">{line.efgPct.toFixed(1)}</div></div>
                 </div>
               {:else}
                 <div
                   style="font-size: 0.75rem; color: var(--text-muted); text-align: center; padding: 4px;"
                 >
-                  No statistics accumulated yet.
+                  No games yet.
                 </div>
               {/if}
             </div>

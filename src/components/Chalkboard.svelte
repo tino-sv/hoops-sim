@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { Team, TeamTactics, Player, OffensiveRole, Position } from '../sim/types';
+  import { seasonLine } from '../sim/seasonStats';
+  import { POSITIONS, type Team, type OffensiveRole, type Position } from '../sim/types';
 
   // Svelte 5 Props syntax
   let { team = $bindable(), onTacticsChanged }: { team: Team, onTacticsChanged?: () => void } = $props();
@@ -7,54 +8,70 @@
   let tactics = $derived(team.tactics);
   let roster = $derived(team.roster);
 
+  const POSITION_NAME: Record<Position, string> = {
+    PG: 'Point guard',
+    SG: 'Shooting guard',
+    SF: 'Small forward',
+    PF: 'Power forward',
+    C: 'Center'
+  };
+
   const OFF_ROLES: { value: OffensiveRole; label: string }[] = [
-    { value: 'initiator', label: 'Primary Ball Handler / Initiator' },
-    { value: 'secondary-initiator', label: 'Secondary Playmaker' },
-    { value: 'screen-setter', label: 'Screen Setter' },
-    { value: 'spot-up', label: 'Spot-Up Shooter' },
-    { value: 'rim-runner', label: 'Rim Runner / Lob Threat' }
+    { value: 'initiator', label: 'Primary creator' },
+    { value: 'secondary-initiator', label: 'Secondary creator' },
+    { value: 'screen-setter', label: 'Screener' },
+    { value: 'spot-up', label: 'Spot-up' },
+    { value: 'rim-runner', label: 'Roll man' }
   ];
 
+  const SLOT = ['Starter · ~32 min', 'Backup · ~16 min', 'End of bench · ~6 min'];
+
+  let chartTick = $state(0);
+
   let starters = $derived(
-    (['PG', 'SG', 'SF', 'PF', 'C'] as Position[]).map(pos => {
+    POSITIONS.map(pos => {
+      void chartTick;
       const id = team.depthChart[pos]?.[0];
       return roster.find(p => p.id === id) || roster.find(p => p.position === pos) || roster[0];
     })
   );
 
-  const changeStarter = (pos: Position, playerId: string) => {
-    // 1. Prepend to pos depth chart
-    const currentList = [...(team.depthChart[pos] || [])];
-    const index = currentList.indexOf(playerId);
-    if (index !== -1) {
-      currentList.splice(index, 1);
-    }
-    currentList.unshift(playerId);
-    team.depthChart[pos] = currentList;
+  const depthAt = (pos: Position) => {
+    void chartTick;
+    return (team.depthChart[pos] || [])
+      .map(id => roster.find(player => player.id === id))
+      .filter((player): player is NonNullable<typeof player> => !!player);
+  };
 
-    // 2. Remove from starting position of all other positions to avoid duplicates
-    const positions: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
-    positions.forEach(otherPos => {
-      if (otherPos !== pos) {
-        const otherList = [...(team.depthChart[otherPos] || [])];
-        if (otherList[0] === playerId) {
-          const pIndex = otherList.indexOf(playerId);
-          if (pIndex !== -1) otherList.splice(pIndex, 1);
-          otherList.push(playerId); // move to backup
-          team.depthChart[otherPos] = otherList;
-        } else {
-          // Just ensure it's not duplicated as backup either or move to backup
-          const pIndex = otherList.indexOf(playerId);
-          if (pIndex !== -1) {
-            otherList.splice(pIndex, 1);
-            otherList.push(playerId);
-            team.depthChart[otherPos] = otherList;
-          }
-        }
-      }
-    });
-
+  const saveChart = (next: Team['depthChart']) => {
+    team.depthChart = next;
+    chartTick += 1;
     onTacticsChanged?.();
+  };
+
+  const reorder = (pos: Position, index: number, direction: -1 | 1) => {
+    const list = [...(team.depthChart[pos] || [])];
+    const target = index + direction;
+    if (target < 0 || target >= list.length) return;
+    const [id] = list.splice(index, 1);
+    list.splice(target, 0, id);
+    saveChart({ ...team.depthChart, [pos]: list });
+  };
+
+  const slideTo = (pos: Position, playerId: string) => {
+    if (!playerId) return;
+    const next = { ...team.depthChart };
+    for (const position of POSITIONS) {
+      next[position] = (next[position] || []).filter(id => id !== playerId);
+    }
+    next[pos] = [...(next[pos] || []), playerId];
+    saveChart(next);
+  };
+
+  const seasonBlurb = (playerId: string) => {
+    const line = seasonLine(roster.find(player => player.id === playerId)?.careerStats['season']);
+    if (line.gp === 0) return 'No games yet';
+    return `${line.min.toFixed(1)} MIN · ${line.pts.toFixed(1)} PPG`;
   };
 
   // Positions on the court (in percentages: x, y) based on offensive style
@@ -94,88 +111,106 @@
   };
 
   // Get active positions and their coordinates
-  let positions = $derived(['PG', 'SG', 'SF', 'PF', 'C'] as Position[]);
   let coords = $derived(
-    positions.map(pos => {
+    POSITIONS.map(pos => {
+      void chartTick;
       const coord = getCoordinates(pos, tactics.offensiveStyle);
       const starterId = team.depthChart[pos]?.[0];
       const player = roster.find(p => p.id === starterId) || roster.find(p => p.position === pos) || roster[0];
-      return { pos, name: player ? player.name : pos, ...coord };
+      const last = player?.name.split(' ').slice(-1)[0] ?? pos;
+      return { pos, name: player ? player.name : pos, last, ...coord };
     })
   );
 </script>
 
 <div class="chalkboard-container fade-in">
+  <div class="card" style="margin-bottom: 24px;">
+    <h3 style="color: var(--primary); font-size: 1.25rem; margin-bottom: 6px;">Rotation</h3>
+    <p style="margin: 0 0 16px; color: var(--text-secondary); font-size: 0.9rem;">
+      The first name at each spot starts. Move a player up for more minutes. Slide someone over when you want a different look, like a power forward at center.
+    </p>
+    <div class="rotation-grid">
+      {#each POSITIONS as pos}
+        {@const depth = depthAt(pos)}
+        <div class="rotation-col">
+          <div class="rotation-title">
+            <span>{POSITION_NAME[pos]}</span>
+            <span class="badge badge-secondary">{pos}</span>
+          </div>
+          {#each depth as player, index}
+            <div class="rotation-player" class:is-starter={index === 0}>
+              <div class="rotation-slot">{SLOT[index] ?? `Deep reserve · ~6 min`}</div>
+              <div class="rotation-name">{player.name}</div>
+              <div class="rotation-meta">OVR {player.overallRating} · {player.position} · {seasonBlurb(player.id)}</div>
+              <div class="rotation-actions">
+                <button type="button" disabled={index === 0} onclick={() => reorder(pos, index, -1)}>Up</button>
+                <button type="button" disabled={index === depth.length - 1} onclick={() => reorder(pos, index, 1)}>Down</button>
+              </div>
+            </div>
+          {:else}
+            <div class="rotation-empty">Nobody at this spot</div>
+          {/each}
+          <select class="tactics-select slide-select" onchange={(e) => { slideTo(pos, e.currentTarget.value); e.currentTarget.value = ''; }}>
+            <option value="">Slide a player to {pos}</option>
+            {#each roster.filter(player => !(team.depthChart[pos] || []).includes(player.id)) as player}
+              <option value={player.id}>{player.name} ({player.position}, {player.overallRating})</option>
+            {/each}
+          </select>
+        </div>
+      {/each}
+    </div>
+  </div>
+
   <div class="dashboard-grid">
     <!-- Left panel: Tactical adjustments -->
     <div class="card" style="grid-column: span 5; display: flex; flex-direction: column; gap: 20px;">
-      <h3 style="color: var(--primary); font-size: 1.25rem;">Tactical Chalkboard</h3>
-
-      <!-- Starting Lineup Selector -->
-      <div class="setting-group" style="margin-bottom: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 20px;">
-        <h4 style="font-size: 0.95rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Starting Lineup</h4>
-        {#each ['PG', 'SG', 'SF', 'PF', 'C'] as pos}
-          {@const starterId = team.depthChart[pos as Position]?.[0]}
-          <div class="role-row">
-            <span class="role-player-name" style="font-weight: 700;">Starting {pos}</span>
-            <select 
-              class="role-select" 
-              value={starterId} 
-              onchange={(e) => changeStarter(pos as Position, e.currentTarget.value)}
-            >
-              {#each roster as player}
-                <option value={player.id}>{player.name} ({player.position} • OVR {player.overallRating})</option>
-              {/each}
-            </select>
-          </div>
-        {/each}
-      </div>
+      <h3 style="color: var(--primary); font-size: 1.25rem;">Scheme</h3>
 
       <!-- Offensive settings -->
       <div class="setting-group">
-        <label for="off-style">Offensive Style</label>
+        <label for="off-style">Offense</label>
         <select id="off-style" class="tactics-select" bind:value={tactics.offensiveStyle} onchange={() => onTacticsChanged?.()}>
-          <option value="pace-and-space">Pace & Space (5-Out)</option>
-          <option value="pick-and-roll">Pick & Roll heavy</option>
-          <option value="motion">Motion Offense</option>
-          <option value="post-up">Feed the Post</option>
-          <option value="isolation">1-on-1 Isolation</option>
+          <option value="pace-and-space">Pace and space</option>
+          <option value="pick-and-roll">Pick-and-roll</option>
+          <option value="motion">Motion</option>
+          <option value="post-up">Post-up</option>
+          <option value="isolation">Isolation</option>
         </select>
       </div>
 
       <div class="setting-group">
-        <label for="tempo">Game Tempo / Pace</label>
+        <label for="tempo">Pace</label>
         <select id="tempo" class="tactics-select" bind:value={tactics.tempo} onchange={() => onTacticsChanged?.()}>
-          <option value="slow">Slow & Controlled (Stamina conservation)</option>
-          <option value="balanced">Balanced Pace</option>
-          <option value="fast">Fast Break heavy (High fatigue, fast shots)</option>
+          <option value="slow">Slow it down</option>
+          <option value="balanced">Balanced</option>
+          <option value="fast">Push in transition</option>
         </select>
       </div>
 
       <!-- Defensive settings -->
       <div class="setting-group" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-        <label for="def-cov">Defensive P&R Coverage</label>
+        <label for="def-cov">Pick-and-roll coverage</label>
         <select id="def-cov" class="tactics-select" bind:value={tactics.defensiveCoverage} onchange={() => onTacticsChanged?.()}>
-          <option value="drop">Drop Coverage (Protect paint, give up midrange)</option>
-          <option value="blitz">Blitz Handler (Trap PG, high steals/turnovers)</option>
-          <option value="switch-everything">Switch Everything (Prevent open shots, mismatch risk)</option>
-          <option value="zone-23">2-3 Zone (Deny interior, weak to corner 3s)</option>
-          <option value="zone-32">3-2 Zone (Deny perimeter 3s, weak inside)</option>
+          <option value="drop">Drop</option>
+          <option value="blitz">Blitz the handler</option>
+          <option value="switch-everything">Switch everything</option>
+          <option value="zone-23">2-3 zone</option>
+          <option value="zone-32">3-2 zone</option>
         </select>
       </div>
 
       <div class="setting-group">
-        <label for="double-team">Double Team Trigger</label>
+        <label for="double-team">Double team</label>
         <select id="double-team" class="tactics-select" bind:value={tactics.doubleTeamTrigger} onchange={() => onTacticsChanged?.()}>
-          <option value="always">Always (Aggressive pressure)</option>
-          <option value="late-clock">Late in Shot Clock (Fewer exceptions)</option>
-          <option value="never">Never (Stay home on shooters)</option>
+          <option value="always">Every touch</option>
+          <option value="late-clock">Late clock</option>
+          <option value="never">Stay home</option>
         </select>
       </div>
 
       <!-- Role assignment -->
       <div class="setting-group" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-        <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--text-secondary);">Assign Key Offensive Roles</h4>
+        <h4 style="margin-bottom: 12px; font-size: 0.95rem; color: var(--text-secondary);">Starter roles</h4>
         
         {#each starters as player}
           <div class="role-row">
@@ -185,11 +220,8 @@
               bind:value={tactics.offensiveRoles[player.id]}
               onchange={() => onTacticsChanged?.()}
             >
-              <option value="spot-up">Spot-Up Shooter</option>
               {#each OFF_ROLES as role}
-                {#if role.value !== 'spot-up'}
-                  <option value={role.value}>{role.label}</option>
-                {/if}
+                <option value={role.value}>{role.label}</option>
               {/each}
             </select>
           </div>
@@ -199,7 +231,7 @@
 
     <!-- Right panel: Interactive 2D Court -->
     <div class="card" style="grid-column: span 7; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 450px;">
-      <h4 style="margin-bottom: 16px; color: var(--text-secondary); width: 100%; text-align: left;">Spacing Representation (Half-Court Offense)</h4>
+      <h4 style="margin-bottom: 16px; color: var(--text-secondary); width: 100%; text-align: left;">Half-court spacing</h4>
       
       <div class="court-container" style="width: 100%; aspect-ratio: 1 / 1; max-width: 450px;">
         <!-- Beautiful SVG Court Markings -->
@@ -238,13 +270,14 @@
             title="{node.name} - {node.pos}"
           >
             {node.pos}
-            <span class="court-dot-tooltip">{node.name}</span>
+            <span class="court-name">{node.last}</span>
+            <span class="court-dot-tooltip">{node.name} · {node.pos}</span>
           </div>
         {/each}
       </div>
 
       <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 14px; text-align: center;">
-        ℹ️ Adjusting your <b>Offensive Style</b> changes how players space the floor and interact on possessions.
+        The offensive set moves the starters. Pace and space spreads the floor. Post-up puts the big on the block.
       </p>
     </div>
   </div>
@@ -348,5 +381,111 @@
   .court-dot:hover .court-dot-tooltip {
     visibility: visible;
     opacity: 1;
+  }
+
+  .court-name {
+    position: absolute;
+    top: 34px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.68rem;
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--text-primary);
+    text-shadow: 0 1px 2px #000;
+    pointer-events: none;
+  }
+
+  .rotation-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .rotation-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .rotation-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+  }
+
+  .rotation-player {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+
+  .rotation-player.is-starter {
+    border-color: var(--primary);
+  }
+
+  .rotation-slot {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .rotation-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-top: 2px;
+  }
+
+  .rotation-meta {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .rotation-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .rotation-actions button {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 4px;
+    font-size: 0.72rem;
+    padding: 4px 0;
+    cursor: pointer;
+  }
+
+  .rotation-actions button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .rotation-empty {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    padding: 8px 0;
+  }
+
+  .slide-select {
+    padding: 6px 8px;
+    font-size: 0.75rem;
+  }
+
+  @media (max-width: 1100px) {
+    .rotation-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
