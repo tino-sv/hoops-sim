@@ -37,11 +37,12 @@ Status: `not started` | `in progress` | `done`
 - Home is the next game, who cannot play, and one note. Continue stops when a player wants an answer. `done`
 - The roster list is role, shape, and mood. Overall and the cap hit show up when you open him. `done`
 - A player who is not yours is a staff read. The read can miss. The draft board stays a range until you scout him, then a sentence. `done`
-- The morning of a game, the assistant writes one note. After your game, the beat writer asks one question and the day waits. `in progress`
+- The morning of a game, the assistant writes one note. After your game, the beat writer asks one question and the day waits. `done`
+- An owner is impatient, cheap, or hands-off. Impatient wants this year. Cheap blocks the tax and a buyout. Hands-off wants a three-year climb. `done`
 
 ## Next
 
-The morning note and the postgame question are in progress on `feat/press-question` (2, 5). Playbook, scouting fog, and the owner stay behind that.
+Playbook is next (16). Hedge, help, a hunted matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer. Scouting fog stays behind that (3).
 
 ## Backlog
 
@@ -61,7 +62,7 @@ The morning note and the postgame question are in progress on `feat/press-questi
 14. Coach pedigree is in. A player panel says where he is from, what year he is in, and one line from his badges. Hometowns follow the surname. `done`
 15. Role and usage resentment. A promised role against real minutes, and a scorer stuck next to two ball-dominant teammates, changes efficiency, morale, and a trade demand. A contract year plays a little better and feels a loss more. A glue guy steadies a teammate's shot, and the room sags when he sits or is waived. `done`
 16. Playbook. Tempo, pick-and-roll coverage, shot profile, and the glass plan are in. Still open: hedge, help rules, hunting a matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer. `in progress`
-17. Owner archetype. An impatient owner wants wins now. A cheap owner blocks the tax and a buyout. A hands-off owner wants a three-year climb and stays out of the deals. `not started`
+17. Owner archetype. An impatient owner wants wins now. A cheap owner blocks the tax and a buyout. A hands-off owner wants a three-year climb and stays out of the deals. `done`
 18. Rotation board. Minute targets that add to 240, a closing five, and stagger so two handlers are not both sitting. Lineup ratings wait until those minutes are real. `not started`
 19. Match command. Foul trouble on the floor, a live run, and changes that wait for the next whistle. The court we have stays the view. `not started`
 20. A trade desk. Shop one player, get one offer, accept or refuse. No full trade machine. `not started`

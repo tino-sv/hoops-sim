@@ -7,7 +7,7 @@ import { deriveTraits, developPlayer } from './ratings'
 import { NBA_RULES } from './rules'
 import { addToDepthChart, rebuildDepthChart, scoutRead, waivePlayer } from './roster'
 import { buildSeason, type ScheduleTeam } from './schedule'
-import type { AllStarWeekend, BoxScoreStats, CoachPedigree, CoachSignature, CoachStyle, Conference, Division, DraftPick, DraftProspect, MarketDeal, OfficeNote, OffseasonStep, Player, Position, PressAsk, SeasonAwards, SeasonPhase, Team, TeamTactics, WirePost } from './types'
+import type { AllStarWeekend, BoxScoreStats, CoachPedigree, CoachSignature, CoachStyle, Conference, Division, DraftPick, DraftProspect, MarketDeal, OfficeNote, OffseasonStep, Owner, OwnerKind, Player, Position, PressAsk, SeasonAwards, SeasonPhase, Team, TeamTactics, WirePost } from './types'
 import { POSITIONS } from './types'
 
 const TEAM_TEMPLATES: { city: string; name: string; color: string; conference: Conference; division: Division; coach: string; owner: string }[] = [
@@ -90,6 +90,37 @@ export interface ScheduledMatch {
 type TeamQuality = 'contender' | 'middle' | 'rebuild'
 
 const GOAL_WINS: Record<TeamQuality, number> = { contender: 50, middle: 40, rebuild: 30 }
+const OWNER_KIND: Record<TeamQuality, OwnerKind> = { contender: 'impatient', middle: 'cheap', rebuild: 'hands-off' }
+
+export function ownerKindOf(owner: Owner): OwnerKind {
+  if (owner.kind) return owner.kind
+  if (owner.goalWins >= 50) return 'impatient'
+  if (owner.goalWins <= 30) return 'hands-off'
+  return 'cheap'
+}
+
+export function ownerLine(owner: Owner): string {
+  const kind = ownerKindOf(owner)
+  if (kind === 'impatient') return `${owner.name} wants ${owner.goalWins} wins this year.`
+  if (kind === 'cheap') return `${owner.name} will not pay the tax or a buyout.`
+  return `${owner.name} wants a three-year climb and stays out of the deals.`
+}
+
+/** Patience move every eight games. A hands-off owner does not take it. */
+export function ownerPatienceDelta(owner: Owner, paceGap: number): number {
+  if (ownerKindOf(owner) === 'hands-off') return 0
+  if (paceGap >= 8) return ownerKindOf(owner) === 'impatient' ? -8 : -4
+  if (paceGap <= -4) return 2
+  return 0
+}
+
+export function ownerSeasonDelta(owner: Owner, met: boolean): number {
+  if (met) return 8
+  const kind = ownerKindOf(owner)
+  if (kind === 'impatient') return -22
+  if (kind === 'hands-off') return -6
+  return -15
+}
 
 function outlookFor(index: number): TeamQuality {
   if (index % 5 === 0) return 'contender'
@@ -335,6 +366,7 @@ export class LeagueManager {
         ensureCoach(team, index)
         if (!team.finances.books) team.finances.books = []
         if (!team.trim) team.trim = DEFAULT_TRIM
+        if (!team.owner.kind) team.owner.kind = ownerKindOf(team.owner)
       })
       for (const team of this.teams) for (const player of team.roster) refreshBadges(player)
       for (const player of this.freeAgents) refreshBadges(player)
@@ -407,7 +439,7 @@ export class LeagueManager {
     this.note(
       'Owner',
       `${user.owner.goalWins} wins`,
-      `${user.owner.name} wants ${user.owner.goalWins} wins. Patience starts at ${user.owner.patience}. Cash is separate from the cap. ${user.coach.name} (${user.coach.style}) runs the bench.`
+      `${ownerLine(user.owner)} Patience starts at ${user.owner.patience}. Cash is separate from the cap. ${user.coach.name} (${user.coach.style}) runs the bench.`
     )
     const opened = `Season ${this.season}`
     this.publish({
@@ -539,7 +571,8 @@ export class LeagueManager {
       owner: {
         name: template.owner,
         goalWins: GOAL_WINS[quality],
-        patience: 70
+        patience: 70,
+        kind: OWNER_KIND[quality]
       },
       roster,
       depthChart: { PG: [], SG: [], SF: [], PF: [], C: [] },
@@ -758,6 +791,9 @@ export class LeagueManager {
     const current = team.finances.tvDeal ?? 'partner'
     if (current === tier) return deny('That deal is already signed.')
     const cost = tvUpgradeCost(current, tier)
+    if (cost > 0 && ownerKindOf(team.owner) === 'cheap') {
+      return deny(`${team.owner.name} will not pay a buyout.`)
+    }
     if (team.finances.cash < cost) {
       return deny(`The buyout is $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
     }
@@ -1009,9 +1045,9 @@ export class LeagueManager {
     if (played === 0 || played % 8 !== 0) return
     const pace = Math.round((team.wins / played) * NBA_RULES.SEASON_GAMES)
     const gap = team.owner.goalWins - pace
-    if (gap >= 8) team.owner.patience = Math.max(0, team.owner.patience - 4)
-    else if (gap <= -4) team.owner.patience = Math.min(100, team.owner.patience + 2)
-    if (team.owner.patience <= 30 && gap >= 8) {
+    const delta = ownerPatienceDelta(team.owner, gap)
+    if (delta !== 0) team.owner.patience = Math.max(0, Math.min(100, team.owner.patience + delta))
+    if (ownerKindOf(team.owner) !== 'hands-off' && team.owner.patience <= 30 && gap >= 8) {
       this.note('Owner', 'This is not the season I paid for', `${team.owner.name} wanted ${team.owner.goalWins} wins. The pace is ${pace}. Patience is ${team.owner.patience}.`)
     }
   }
@@ -1478,7 +1514,7 @@ export class LeagueManager {
         if (team.id === user.id) userTax = tax
       }
       const met = team.wins >= team.owner.goalWins
-      team.owner.patience = Math.max(0, Math.min(100, team.owner.patience + (met ? 8 : -15)))
+      team.owner.patience = Math.max(0, Math.min(100, team.owner.patience + ownerSeasonDelta(team.owner, met)))
     }
     for (const team of this.teams) {
       const annual = team.finances.sponsor?.annual ?? 0
@@ -1492,10 +1528,11 @@ export class LeagueManager {
     const metGoal = user.wins >= user.owner.goalWins
     const taxLine = userTax > 0 ? ` Luxury tax is $${(userTax / 1_000_000).toFixed(1)}M.` : ''
     const risk = user.owner.patience < 25 ? ' The job is at risk.' : ''
+    const climb = ownerKindOf(user.owner) === 'hands-off' ? ' The plan is a three-year climb.' : ''
     this.note(
       'Owner',
       metGoal ? `${user.owner.name} is pleased` : `${user.owner.name} wanted more`,
-      `The goal was ${user.owner.goalWins} wins. You finished ${user.wins}-${user.losses}. Patience is ${user.owner.patience}.${taxLine}${risk}`
+      `The goal was ${user.owner.goalWins} wins. You finished ${user.wins}-${user.losses}. Patience is ${user.owner.patience}.${taxLine}${climb}${risk}`
     )
 
     for (const team of this.teams) {
@@ -1727,6 +1764,12 @@ export class LeagueManager {
     }
   }
 
+  private ownerTaxBlock(team: Team, added: number): OfferVerdict | null {
+    if (ownerKindOf(team.owner) !== 'cheap' || added <= NBA_RULES.MINIMUM_SALARY) return null
+    if (CBASimulator.capHit(team) + added <= NBA_RULES.LUXURY_TAX) return null
+    return deny(`${team.owner.name} will not go into the tax.`)
+  }
+
   private signCampBody(team: Team) {
     const player = createPlayer({
       position: this.thinnestPosition(team),
@@ -1753,6 +1796,8 @@ export class LeagueManager {
     const team = this.userTeam()
     const verdict = CBASimulator.evaluateFreeAgent(team, salary, years, this.phase)
     if (!verdict.allowed) return verdict
+    const taxBlock = this.ownerTaxBlock(team, salary)
+    if (taxBlock) return taxBlock
 
     player.contract.salaries = CBASimulator.generateContractSalaries(salary, years, false)
     player.contract.option = 'none'
@@ -1785,6 +1830,8 @@ export class LeagueManager {
     const player = team.roster.find(item => item.id === playerId)
     if (!player) return deny('Player not found.')
     const walking = player.contract.salaries.length === 1
+    const taxBlock = this.ownerTaxBlock(team, salary - (player.contract.salaries[0] ?? 0))
+    if (taxBlock) return taxBlock
     const verdict = CBASimulator.applyExtension(team, player, salary, years)
     if (verdict.allowed) {
       if (walking) player.morale = Math.min(100, player.morale + 2)

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { OPEN_MARKETS, type HiredCoach } from '../sim/league';
+  import { OPEN_MARKETS, ownerLine, type HiredCoach } from '../sim/league';
   import { coachTraits, PEDIGREE_PRESETS, SIGNATURE_PRESETS, skillWord, styleWord, luxuryTaxBill, tvCheck, tvCheckFor, tvUpgradeCost } from '../sim/office';
   import { NBA_RULES } from '../sim/rules';
   import type { OfferVerdict } from '../sim/cba';
@@ -203,7 +203,7 @@
     <div class="card">
       <h2 style="margin-bottom: 8px;">Owner</h2>
       <p style="font-weight: 800;">{team.owner.name}</p>
-      <p style="color: var(--text-secondary);">Goal is {team.owner.goalWins} wins. Pace is {played ? pace : '—'}.</p>
+      <p style="color: var(--text-secondary);">{ownerLine(team.owner)} Pace is {played ? pace : '—'}.</p>
       <p>Patience {team.owner.patience}</p>
       <div class="bar"><span style="width: {team.owner.patience}%;"></span></div>
     </div>

@@ -226,10 +226,14 @@ export interface Coach {
   respect: number;
 }
 
+export type OwnerKind = 'impatient' | 'cheap' | 'hands-off';
+
 export interface Owner {
   name: string;
   goalWins: number;
   patience: number;
+  /** Missing on older saves until the league loads. */
+  kind?: OwnerKind;
 }
 
 export interface SeasonAwards {

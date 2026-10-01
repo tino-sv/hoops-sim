@@ -1,8 +1,8 @@
 import { contractYearMake, contractYearTurnover, crowdedShotPenalty, glueMakeBoost, glueMoraleDelta, inContractYear, isGlue, moraleAfterGame, roleMoraleDelta, settleTeamMorale, unansweredDemand } from '../badges'
 import { capTierLabel, CBASimulator, rosterBlockReason } from '../cba'
-import { careerChoices, LeagueManager, pressCopy } from '../league'
+import { careerChoices, LeagueManager, ownerKindOf, ownerPatienceDelta, ownerSeasonDelta, pressCopy } from '../league'
 import { capLine, lastNightLine, moodWord, roleWord, scoutMiss, scoutRead, shapeWord } from '../roster'
-import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
+import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck, tvUpgradeCost } from '../office'
 import { createPlayer, healPlayer, hurtPlayer, playerOrigin, playerStory } from '../players'
 import { glassOrbBump, shotProfileFactor } from '../possessionEngine'
 import { NBA_RULES } from '../rules'
@@ -302,15 +302,25 @@ assert(bracket.enterOffseason().allowed, 'offseason opens after the title')
 const market = new LeagueManager()
 market.initializeLeague('team_2')
 assert(market.userTeam().finances.tvDeal === 'partner', 'a middle market starts on the partner deal')
+assert(ownerKindOf(market.userTeam().owner) === 'cheap', 'a middle owner is cheap')
 const cash = market.userTeam().finances.cash
-const blocked = market.setTvDeal('national')
-assert(!blocked.allowed, blocked.reason)
 market.userTeam().finances.cash = cash + NBA_RULES.TV_BUYOUT_NATIONAL
-assert(market.setTvDeal('national').allowed, 'national deal signs once the buyout is covered')
-assert(tvCheck(market.userTeam()) === Math.round(NBA_RULES.TV_SHARE * NBA_RULES.TV_NATIONAL), 'national check')
-assert(market.setTvDeal('partner').allowed, 'dropping a tier is free')
-assert(market.userTeam().finances.cash === cash, 'a downgrade does not refund the buyout')
-assert(market.userTeam().finances.books?.some(row => row.buyout === -NBA_RULES.TV_BUYOUT_NATIONAL), 'the TV buyout is its own line')
+const refused = market.setTvDeal('national')
+assert(!refused.allowed && refused.reason.includes('buyout'), refused.reason)
+assert(market.userTeam().finances.tvDeal === 'partner', 'a cheap owner keeps the partner deal')
+assert(market.userTeam().finances.cash === cash + NBA_RULES.TV_BUYOUT_NATIONAL, 'a refused buyout does not spend the cash')
+
+const climber = new LeagueManager()
+climber.initializeLeague('team_5')
+assert(ownerKindOf(climber.userTeam().owner) === 'hands-off', 'a rebuild owner stays hands-off')
+const climbCash = climber.userTeam().finances.cash
+const climbCost = tvUpgradeCost(climber.userTeam().finances.tvDeal ?? 'local', 'national')
+climber.userTeam().finances.cash = climbCash + climbCost
+assert(climber.setTvDeal('national').allowed, 'a hands-off owner stays out of the buyout')
+assert(tvCheck(climber.userTeam()) === Math.round(NBA_RULES.TV_SHARE * NBA_RULES.TV_NATIONAL), 'national check')
+assert(climber.setTvDeal('partner').allowed, 'dropping a tier is free')
+assert(climber.userTeam().finances.cash === climbCash, 'a downgrade does not refund the buyout')
+assert(climber.userTeam().finances.books?.some(row => row.buyout === -climbCost), 'the TV buyout is its own line')
 
 const club = new LeagueManager()
 club.initializeLeague('team_1')
@@ -447,6 +457,21 @@ live.answerPress('room')
 assert(blamed.morale === blamedMorale - 3, 'blaming the room hits the player')
 assert(live.userTeam().owner.patience === patienceAfter - 1, 'the owner noticed')
 assert(live.press === null, 'the question is gone')
+assert(ownerKindOf(league.teams[0].owner) === 'impatient', 'a contender owner wants this year')
+assert(ownerPatienceDelta(league.teams[0].owner, 8) === -8, 'an impatient owner loses patience twice as fast')
+assert(ownerPatienceDelta(league.teams[1].owner, 8) === -4, 'a cheap owner still notices the pace')
+assert(ownerPatienceDelta(league.teams[4].owner, 8) === 0, 'a hands-off owner stays out of the eight-game check')
+assert(ownerSeasonDelta(league.teams[0].owner, false) === -22, 'missing the year hurts an impatient owner')
+assert(ownerSeasonDelta(league.teams[4].owner, false) === -6, 'a missed year is a smaller hit on a climb')
+const taxTeam = new LeagueManager()
+taxTeam.initializeLeague('team_2')
+taxTeam.phase = 'offseason'
+taxTeam.offseasonStep = 'free-agency'
+const payer = taxTeam.userTeam().roster[0]
+payer.contract.salaries[0] += NBA_RULES.LUXURY_TAX - NBA_RULES.MLE + 2_000_000 - CBASimulator.capHit(taxTeam.userTeam())
+const targetAgent = must(taxTeam.freeAgents.find(player => player.overallRating < 76), 'a body to test the tax')
+const taxed = taxTeam.signFreeAgent(targetAgent.id, NBA_RULES.MLE, 2)
+assert(!taxed.allowed && taxed.reason.includes('tax'), taxed.reason)
 
 console.log('systems ok')
 console.log(`user payroll $${(CBASimulator.capHit(user) / 1_000_000).toFixed(1)}M, roster ${user.roster.length}, season ${league.season}`)
