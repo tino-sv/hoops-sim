@@ -25,7 +25,8 @@ Status: `not started` | `in progress` | `done`
 - Steals and blocks sit near the 2024-25 line, about 8 and 5 a game. A 90 steal guard lands near 2.5 a night. An ordinary player stays near 1. A real rim protector is the one who blocks shots. `done`
 - A 97 overall takes a first-option share and scores about 32 a game. The team stays near 113. A new career is required to see the new usage. `done`
 - Books is its own screen. Each month lists gate, TV, merch, salaries, staff, the building, and fines. An arena and a staff market are still open. `in progress`
-- A coach has an age, an origin, a former-player flag, and ratings for offense, defense, teaching, and the locker room. Those ratings change makes and morale. Player biographies are still thin. `in progress`
+- A coach has an age, an origin, a former-player flag, and ratings for offense, defense, teaching, and the locker room. Those ratings change makes and morale. `done`
+- A player panel says where he is from, what year he is in, and one line from his badges. The city follows the surname, weighted like a real roster. Shot profile and the glass plan change the possession. `done`
 - A new coach picks a pedigree and up to two signatures. A former star steadies veterans and weighs on young players. Seven seconds scores more in transition and turns the ball over in the half court. The ratings stay with the pedigree. `done`
 - A starter who plays well under the minutes his spot promises loses morale and can ask out. The wire says so. A scorer next to two other high-usage players makes a slightly worse shot. `done`
 - A player in the last year of his deal makes a few more shots, turns it over a little more, and feels a loss harder. A glue guy helps a teammate's shot. If he sits, or you waive him, the room sags. A new career is required to roll who the glue guys are. `done`
@@ -36,18 +37,15 @@ Status: `not started` | `in progress` | `done`
 
 ## Next
 
-1. A player page: origin, years in the league, and one sentence. Badges stay (14). `not started`
-2. Shop one player. One offer comes back. Accept or refuse. The wire hears about it (5, 20). `not started`
-3. An owner who is impatient, cheap, or hands-off (17). `not started`
-4. Minute targets that add to 240, a closing five, and a stagger. No tactics lab until those minutes are real (18). `not started`
+The player sentence, shot profile, and glass plan are on `feat/player-page`. Hometowns follow the surname on `fix/hometowns` (14, 16). Contract year and glue are in (15). Next in the playbook: hedge, a hunted matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer (16, 19). Then scouting fog, a medical flag, a two-way, and a mentor (3). Then a postgame answer and an owner who is impatient, cheap, or hands-off (5, 17). One offer on the trade desk is still open (20).
 
 ## Backlog
 
 1. Deeper finances. Books shows the year and each month. Still open: incentives, dead money, options, trade kickers, a real repeater tax, apron trade locks, dynamic gate, naming rights, and playoff gate. `in progress`
 2. The game should center on an inbox, in the style of Football Manager. `not started`
-3. Scouting fog past the draft board: hidden ceilings, medical flags, a two-way affiliate, and a veteran mentor who passes a badge. `not started`
+3. Scouting fog. A hidden ceiling, a medical flag, a two-way affiliate, and a veteran who passes a badge. A combine and a private workout come after the ceiling is real. `not started`
 4. Full staff, rival staff, and agents and agencies that change decisions. Scouting, sports science, and the practice building are budget lines with an effect, not sliders. `not started`
-5. The wire reacts to games. Still open: a postgame answer that helps the owner or the player, a leak when you shop someone, and the rest of the press. `in progress`
+5. The wire reacts to games. Still open: a postgame answer that helps the owner or hurts the player, a leak when you shop someone, and the rest of the press. `in progress`
 6. Coaching carousel. Move between high school, college, and the pro league. `not started`
 7. A full college game, with continuity when a coach has worked both levels. `not started`
 8. Shell. A top ribbon with record, next game, cap tier, date, and unread mail. The sim control says simulate the day, go to the match, or blocked. The left nav stays words. Books is a ledger. The office money card is cash, the TV deal, the sponsor, and the tax. `done`
@@ -56,10 +54,10 @@ Status: `not started` | `in progress` | `done`
 11. Redesign the look. Chrome is flat type and team color. The roster shows role, years left, and who wants out. The draft board is a table, and overalls stay hidden until a prospect is scouted. Home lists who cannot play, and the days left. `done`
 12. Choose your team when a game starts. `done`
 13. Precompute the game, then show that script on the court. A sub or a coverage change recalculates from that moment. Steals and blocks sit near the 2024-25 line. A 96-plus player scores like a modern first option, about 26 to 34 a game, and the team stays near 113. `done`
-14. Coach pedigree. Former star, video-room, college mentor, or European tactician sets respect and the ratings the sim already uses. Two signature traits, each with a bonus and a cost. Player biographies are still a name, an age, and badges. `in progress`
+14. Coach pedigree is in. A player panel says where he is from, what year he is in, and one line from his badges. Hometowns follow the surname. `done`
 15. Role and usage resentment. A promised role against real minutes, and a scorer stuck next to two ball-dominant teammates, changes efficiency, morale, and a trade demand. A contract year plays a little better and feels a loss more. A glue guy steadies a teammate's shot, and the room sags when he sits or is waived. `done`
-16. Playbook. Tempo, spacing, shot profile, matchup hunting, and a foul plan on top of the coverages we have. A timeout and foul-trouble subs come before a play drawer. `not started`
-17. Owner archetype. Impatient, cheap, or hands-off, on top of the win goal and patience we already store. `not started`
+16. Playbook. Tempo, pick-and-roll coverage, shot profile, and the glass plan are in. Still open: hedge, help rules, hunting a matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer. `in progress`
+17. Owner archetype. An impatient owner wants wins now. A cheap owner blocks the tax and a buyout. A hands-off owner wants a three-year climb and stays out of the deals. `not started`
 18. Rotation board. Minute targets that add to 240, a closing five, and stagger so two handlers are not both sitting. Lineup ratings wait until those minutes are real. `not started`
 19. Match command. Foul trouble on the floor, a live run, and changes that wait for the next whistle. The court we have stays the view. `not started`
 20. A trade desk. Shop one player, get one offer, accept or refuse. No full trade machine. `not started`

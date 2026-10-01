@@ -3,7 +3,7 @@
   import { coachTraits, PEDIGREE_PRESETS, SIGNATURE_PRESETS, skillWord, styleWord, luxuryTaxBill, tvCheck, tvCheckFor, tvUpgradeCost } from '../sim/office';
   import { NBA_RULES } from '../sim/rules';
   import type { OfferVerdict } from '../sim/cba';
-  import type { CoachPedigree, CoachSignature, MarketDeal, Team, TeamTactics } from '../sim/types';
+  import type { CoachPedigree, CoachSignature, GlassPlan, MarketDeal, ShotProfile, Team, TeamTactics } from '../sim/types';
 
   let { team, onSave, onTvDeal, onJersey, onMove }: {
     team: Team
@@ -44,6 +44,8 @@
   let tempo = $state(team.tactics.tempo);
   let offense = $state(team.tactics.offensiveStyle);
   let coverage = $state(team.tactics.defensiveCoverage);
+  let shotProfile = $state<ShotProfile>(team.tactics.shotProfile ?? 'balanced');
+  let glass = $state<GlassPlan>(team.tactics.glass ?? 'balanced');
 
   $effect(() => {
     name = team.coach.name;
@@ -56,6 +58,8 @@
     tempo = team.tactics.tempo;
     offense = team.tactics.offensiveStyle;
     coverage = team.tactics.defensiveCoverage;
+    shotProfile = team.tactics.shotProfile ?? 'balanced';
+    glass = team.tactics.glass ?? 'balanced';
   });
 
   const played = $derived(team.wins + team.losses);
@@ -80,7 +84,7 @@
   };
 
   const save = () => onSave({
-    name, style: preset.style, tempo, offense, coverage,
+    name, style: preset.style, tempo, offense, coverage, shotProfile, glass,
     age: Number(age),
     origin,
     formerPlayer: preset.formerPlayer,
@@ -175,6 +179,21 @@
         <option value="switch-everything">Switch everything</option>
         <option value="zone-23">2-3 zone</option>
         <option value="zone-32">3-2 zone</option>
+      </select>
+    </label>
+    <label>Shot profile
+      <select class="form-input" bind:value={shotProfile}>
+        <option value="balanced">Balanced</option>
+        <option value="rim-and-three">Rim and three</option>
+        <option value="mid-range">Mid-range</option>
+        <option value="post">Post</option>
+      </select>
+    </label>
+    <label>Glass
+      <select class="form-input" bind:value={glass}>
+        <option value="crash">Crash the glass</option>
+        <option value="balanced">Balanced</option>
+        <option value="get-back">Get back</option>
       </select>
     </label>
     <button class="btn btn-primary" style="margin-top: 12px;" onclick={save}>Save coach</button>

@@ -402,6 +402,17 @@
       <div class="unit-head">
         <span class="pip" style="background: {teamHome.color};"></span>
         <span>On the floor</span>
+        <select class="coverage" value={tacticsHome.shotProfile ?? 'balanced'} onchange={(event) => { tacticsHome.shotProfile = event.currentTarget.value as TeamTactics['shotProfile']; }}>
+          <option value="balanced">Balanced</option>
+          <option value="rim-and-three">Rim and three</option>
+          <option value="mid-range">Mid-range</option>
+          <option value="post">Post</option>
+        </select>
+        <select class="coverage" value={tacticsHome.glass ?? 'balanced'} onchange={(event) => { tacticsHome.glass = event.currentTarget.value as TeamTactics['glass']; }}>
+          <option value="crash">Crash</option>
+          <option value="balanced">Balanced</option>
+          <option value="get-back">Get back</option>
+        </select>
         <select class="coverage" bind:value={tacticsHome.defensiveCoverage}>
           <option value="drop">Drop</option>
           <option value="blitz">Blitz</option>

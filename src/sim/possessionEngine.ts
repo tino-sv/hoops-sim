@@ -1,8 +1,22 @@
 import { assistBoost, blockMultiplier, contestBoost, contractYearMake, contractYearTurnover, crowdedShotPenalty, foulBoost, glueMakeBoost, hasBadge, leaderMakeBoost, reboundMultiplier, shootingBoost, shotCallout, stealBoost, turnoverBoost, usageMultiplier } from './badges'
 import { coachFoulMultiplier, coachMakeBoost, coachShotAdjust, coachTurnoverBump } from './office'
-import type { Player, Position, Team, TeamTactics } from './types'
+import type { GlassPlan, Player, Position, ShotProfile, Team, TeamTactics } from './types'
 
 export type ShotKind = 'close' | 'mid' | 'three'
+
+export function shotProfileFactor(profile: ShotProfile | undefined, kind: ShotKind): number {
+  const plan = profile ?? 'balanced'
+  if (plan === 'rim-and-three') return kind === 'mid' ? 0.45 : kind === 'three' ? 1.45 : 1.15
+  if (plan === 'mid-range') return kind === 'mid' ? 1.8 : kind === 'three' ? 0.8 : 0.85
+  if (plan === 'post') return kind === 'close' ? 1.45 : kind === 'mid' ? 1.2 : 0.7
+  return 1
+}
+
+export function glassOrbBump(glass: GlassPlan | undefined): number {
+  if (glass === 'crash') return 0.04
+  if (glass === 'get-back') return -0.04
+  return 0
+}
 
 export interface PossessionContext {
   isTransition: boolean
@@ -450,6 +464,9 @@ export class PossessionEngine {
     if (fastBreak) { close *= 1.55; three *= 1.05; mid *= 0.55 }
     if (secondChance) { close *= 1.7; three *= 0.45; mid *= 0.45 }
     if (overplayed && shooter.id === handler.id) three *= 0.72
+    three *= shotProfileFactor(tactics.shotProfile, 'three')
+    mid *= shotProfileFactor(tactics.shotProfile, 'mid')
+    close *= shotProfileFactor(tactics.shotProfile, 'close')
 
     const kind = pickWeighted([
       { item: 'three' as ShotKind, w: three },
@@ -515,6 +532,7 @@ export class PossessionEngine {
     const defScore = onCourtDef.reduce((sum, p) => sum + this.reboundWeight(p, false), 0)
     let orb = offScore / (offScore + defScore * 2.55)
     if (isThree) orb += 0.03
+    orb += glassOrbBump(offense.tactics.glass)
     orb = clamp(orb, 0.18, 0.36)
     if (Math.random() < orb) {
       const rebounder = pickWeighted(onCourtOff.map(p => ({ item: p, w: this.reboundWeight(p, true) })))

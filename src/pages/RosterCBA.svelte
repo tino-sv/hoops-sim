@@ -1,5 +1,6 @@
 <script lang="ts">
   import { badgeById, inContractYear, isGlue } from '../sim/badges';
+  import { playerStory } from '../sim/players';
   import type { Team, Player } from '../sim/types';
   import { CBASimulator, CBA_CONSTANTS, type OfferVerdict } from '../sim/cba';
 
@@ -371,6 +372,7 @@
         <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
           <div>
             <h3 style="font-size: 1.3rem; margin-bottom: 4px;">{selectedPlayer.name}</h3>
+            <p class="story">{playerStory(selectedPlayer)}</p>
             <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
               <span class="badge badge-secondary">{selectedPlayer.position}</span>
               <span class="badge badge-primary">Age: {selectedPlayer.age}</span>
@@ -862,6 +864,12 @@
   }
 
   /* Trait Badges styling */
+  .story {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin: 0 0 8px;
+    max-width: 42ch;
+  }
   .trait-badge {
     display: inline-flex;
     align-items: center;

@@ -103,6 +103,8 @@ export interface HiredCoach {
   tempo: TeamTactics['tempo']
   offense: TeamTactics['offensiveStyle']
   coverage: TeamTactics['defensiveCoverage']
+  shotProfile?: TeamTactics['shotProfile']
+  glass?: TeamTactics['glass']
   age?: number
   origin?: string
   formerPlayer?: boolean
@@ -364,7 +366,9 @@ export class LeagueManager {
         ...hired.tactics,
         tempo: coach.tempo,
         offensiveStyle: coach.offense,
-        defensiveCoverage: coach.coverage
+        defensiveCoverage: coach.coverage,
+        shotProfile: coach.shotProfile ?? 'balanced',
+        glass: coach.glass ?? 'balanced'
       }
     }
     this.generateSchedule()
@@ -515,6 +519,8 @@ export class LeagueManager {
       offensiveStyle: styles[index % styles.length],
       offensiveRoles: {},
       defensiveCoverage: 'drop',
+      shotProfile: 'balanced',
+      glass: 'balanced',
       doubleTeamTrigger: 'late-clock',
       targetOverplay: {}
     }
@@ -649,7 +655,14 @@ export class LeagueManager {
       signatures,
       respect: preset.respect
     }
-    const { tempo, offense, coverage } = coach
+    team.tactics = {
+      ...team.tactics,
+      tempo: coach.tempo,
+      offensiveStyle: coach.offense,
+      defensiveCoverage: coach.coverage,
+      shotProfile: coach.shotProfile ?? team.tactics.shotProfile ?? 'balanced',
+      glass: coach.glass ?? team.tactics.glass ?? 'balanced'
+    }
     const marks = signatures.map(id => SIGNATURE_PRESETS.find(item => item.id === id)?.label).filter((label): label is string => !!label)
     this.note('Front Office', 'Coach updated', `${team.coach.name} (${PEDIGREE_PRESETS[pedigree].label}) is the head coach. Style: ${preset.style}.${marks.length ? ` ${marks.join(', ')}.` : ''}`)
     this.saveToLocalStorage()

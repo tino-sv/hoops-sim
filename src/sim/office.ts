@@ -1,3 +1,4 @@
+import { playerOrigin } from './players'
 import { seasonLine } from './seasonStats'
 import type { Coach, CoachPedigree, CoachSignature, CoachStyle, MarketDeal, MonthBook, Player, SeasonAwards, Team, WirePost } from './types'
 import { NBA_RULES } from './rules'
@@ -188,8 +189,6 @@ export function yearBooks(team: Team): MonthBook {
   return total
 }
 
-const ORIGINS = ['Chicago', 'Lagos', 'Manila', 'Belgrade', 'Oakland', 'San Juan', 'Melbourne', 'Athens', 'Dakar', 'Halifax', 'Seoul', 'Lyon']
-
 export interface PedigreePreset {
   label: string
   note: string
@@ -306,7 +305,7 @@ export function rollCoach(name: string, style: CoachStyle, index = 0): Coach {
     name,
     style,
     age: 41 + (index * 3) % 22,
-    origin: ORIGINS[index % ORIGINS.length],
+    origin: playerOrigin(name),
     formerPlayer: index % 3 !== 0,
     pedigree,
     signatures: [],
