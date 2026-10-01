@@ -10,6 +10,13 @@
   let selectedId = $state<string | null>(null);
   let step = $state<'team' | 'coach'>('team');
   let coachName = $state('');
+  let age = $state(46);
+  let origin = $state('');
+  let formerPlayer = $state(false);
+  let offenseSkill = $state(62);
+  let defenseSkill = $state(62);
+  let teaching = $state(62);
+  let manManagement = $state(62);
   let style = $state<CoachStyle>('players-coach');
   let tempo = $state<TeamTactics['tempo']>('balanced');
   let offense = $state<TeamTactics['offensiveStyle']>('pace-and-space');
@@ -50,6 +57,41 @@
     <div class="card coach-form">
       <p style="color: var(--text-secondary); margin-bottom: 12px;">{selected.city} {selected.name}. {selected.owner} wants {selected.goalWins} wins. {selected.coach} is out.</p>
       <label>Name <input class="form-input" bind:value={coachName} placeholder="Your name" /></label>
+      <label>Age <input class="form-input" type="number" min="28" max="78" bind:value={age} /></label>
+      <label>Origin <input class="form-input" bind:value={origin} placeholder="City you are from" /></label>
+      <label class="check"><input type="checkbox" bind:checked={formerPlayer} /> Former player</label>
+      <label>Offense skill
+        <select class="form-input" bind:value={offenseSkill}>
+          <option value={48}>Developing</option>
+          <option value={62}>Solid</option>
+          <option value={76}>Sharp</option>
+          <option value={88}>Elite</option>
+        </select>
+      </label>
+      <label>Defense skill
+        <select class="form-input" bind:value={defenseSkill}>
+          <option value={48}>Developing</option>
+          <option value={62}>Solid</option>
+          <option value={76}>Sharp</option>
+          <option value={88}>Elite</option>
+        </select>
+      </label>
+      <label>Teaching
+        <select class="form-input" bind:value={teaching}>
+          <option value={48}>Developing</option>
+          <option value={62}>Solid</option>
+          <option value={76}>Sharp</option>
+          <option value={88}>Elite</option>
+        </select>
+      </label>
+      <label>Locker room
+        <select class="form-input" bind:value={manManagement}>
+          <option value={48}>Developing</option>
+          <option value={62}>Solid</option>
+          <option value={76}>Sharp</option>
+          <option value={88}>Elite</option>
+        </select>
+      </label>
       <label>Style
         <select class="form-input" bind:value={style}>
           <option value="players-coach">Players' coach</option>
@@ -114,7 +156,12 @@
       <p>{coachName.trim() || 'Name the coach'} takes the {selected.city} job.</p>
       <div class="filters">
         <button class="btn btn-secondary" onclick={() => step = 'team'}>Back</button>
-        <button class="btn btn-primary" disabled={!ready} onclick={() => onStart(selected.id, { name: coachName.trim(), style, tempo, offense, coverage })}>Start career</button>
+        <button class="btn btn-primary" disabled={!ready} onclick={() => onStart(selected.id, {
+          name: coachName.trim(), style, tempo, offense, coverage,
+          age: Number(age), origin, formerPlayer,
+          offenseSkill: Number(offenseSkill), defenseSkill: Number(defenseSkill),
+          teaching: Number(teaching), manManagement: Number(manManagement)
+        })}>Start career</button>
       </div>
     {:else}
       <p>{selected ? `${selected.city} ${selected.name}. ${selected.owner} wants ${selected.goalWins} wins.` : 'Select a team.'}</p>
@@ -192,6 +239,7 @@
     flex-direction: column;
     gap: 8px;
   }
+  .check { display: flex; align-items: center; gap: 8px; }
   .coach-form label {
     display: flex;
     flex-direction: column;

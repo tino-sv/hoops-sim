@@ -1,19 +1,13 @@
 <script lang="ts">
-  import { OPEN_MARKETS } from '../sim/league';
-  import { luxuryTaxBill, tvCheck, tvCheckFor, tvUpgradeCost } from '../sim/office';
+  import { OPEN_MARKETS, type HiredCoach } from '../sim/league';
+  import { coachTraits, luxuryTaxBill, tvCheck, tvCheckFor, tvUpgradeCost } from '../sim/office';
   import { NBA_RULES } from '../sim/rules';
   import type { OfferVerdict } from '../sim/cba';
   import type { CoachStyle, MarketDeal, Team, TeamTactics } from '../sim/types';
 
   let { team, onSave, onTvDeal, onJersey, onMove }: {
     team: Team
-    onSave: (
-      name: string,
-      style: CoachStyle,
-      tempo: TeamTactics['tempo'],
-      offense: TeamTactics['offensiveStyle'],
-      coverage: TeamTactics['defensiveCoverage']
-    ) => void
+    onSave: (coach: HiredCoach) => void
     onTvDeal: (tier: MarketDeal) => OfferVerdict
     onJersey: (color: string, trim: string) => OfferVerdict
     onMove: (city: string) => OfferVerdict
@@ -43,6 +37,13 @@
   };
 
   let name = $state(team.coach.name);
+  let age = $state(team.coach.age ?? 46);
+  let origin = $state(team.coach.origin ?? '');
+  let formerPlayer = $state(!!team.coach.formerPlayer);
+  let offenseSkill = $state(team.coach.offense ?? 62);
+  let defenseSkill = $state(team.coach.defense ?? 62);
+  let teaching = $state(team.coach.teaching ?? 62);
+  let manManagement = $state(team.coach.manManagement ?? 62);
   let style = $state<CoachStyle>(team.coach.style);
   let tempo = $state(team.tactics.tempo);
   let offense = $state(team.tactics.offensiveStyle);
@@ -50,6 +51,13 @@
 
   $effect(() => {
     name = team.coach.name;
+    age = team.coach.age ?? 46;
+    origin = team.coach.origin ?? '';
+    formerPlayer = !!team.coach.formerPlayer;
+    offenseSkill = team.coach.offense ?? 62;
+    defenseSkill = team.coach.defense ?? 62;
+    teaching = team.coach.teaching ?? 62;
+    manManagement = team.coach.manManagement ?? 62;
     primary = team.color;
     trim = team.trim ?? '#E8E4D9';
     style = team.coach.style;
@@ -63,7 +71,22 @@
   const millions = (value: number) => `$${(value / 1_000_000).toFixed(1)}M`;
   const tax = $derived(luxuryTaxBill(team));
 
-  const save = () => onSave(name, style, tempo, offense, coverage);
+  const traits = $derived(coachTraits({
+    name, style, age: Number(age), origin, formerPlayer,
+    offense: Number(offenseSkill), defense: Number(defenseSkill),
+    teaching: Number(teaching), manManagement: Number(manManagement)
+  }));
+
+  const save = () => onSave({
+    name, style, tempo, offense, coverage,
+    age: Number(age),
+    origin,
+    formerPlayer,
+    offenseSkill: Number(offenseSkill),
+    defenseSkill: Number(defenseSkill),
+    teaching: Number(teaching),
+    manManagement: Number(manManagement)
+  });
 
   const orderJersey = () => {
     clubError = '';
@@ -85,6 +108,48 @@
       The scheme is what the games use. A tactician helps your offense finish. A disciplinarian contests more and tires the roster slower, and he wears on fragile players. A players' coach adds a point of morale after a win.
     </p>
     <label>Name <input class="form-input" bind:value={name} /></label>
+    <label>Age <input class="form-input" type="number" min="28" max="78" bind:value={age} /></label>
+    <label>Origin <input class="form-input" bind:value={origin} placeholder="City" /></label>
+    <label class="check"><input type="checkbox" bind:checked={formerPlayer} /> Former player</label>
+    <label>Offense skill
+      <select class="form-input" bind:value={offenseSkill}>
+        <option value={48}>Developing</option>
+        <option value={62}>Solid</option>
+        <option value={76}>Sharp</option>
+        <option value={88}>Elite</option>
+      </select>
+    </label>
+    <label>Defense skill
+      <select class="form-input" bind:value={defenseSkill}>
+        <option value={48}>Developing</option>
+        <option value={62}>Solid</option>
+        <option value={76}>Sharp</option>
+        <option value={88}>Elite</option>
+      </select>
+    </label>
+    <label>Teaching
+      <select class="form-input" bind:value={teaching}>
+        <option value={48}>Developing</option>
+        <option value={62}>Solid</option>
+        <option value={76}>Sharp</option>
+        <option value={88}>Elite</option>
+      </select>
+    </label>
+    <label>Locker room
+      <select class="form-input" bind:value={manManagement}>
+        <option value={48}>Developing</option>
+        <option value={62}>Solid</option>
+        <option value={76}>Sharp</option>
+        <option value={88}>Elite</option>
+      </select>
+    </label>
+    {#if traits.length}
+      <ul class="traits">
+        {#each traits as trait}
+          <li><b>{trait.name}.</b> {trait.effect}</li>
+        {/each}
+      </ul>
+    {/if}
     <label>Style
       <select class="form-input" bind:value={style}>
         <option value="players-coach">Players' coach</option>
@@ -238,6 +303,9 @@
     gap: 6px;
     margin: 6px 0 10px;
   }
+  .check { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  .traits { margin: 8px 0 12px; padding-left: 16px; color: var(--text-secondary); font-size: 0.85rem; }
+  .traits b { color: var(--text-primary); font-weight: 650; }
   .swatch {
     width: 22px;
     height: 22px;

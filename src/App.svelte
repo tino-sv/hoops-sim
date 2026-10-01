@@ -15,6 +15,7 @@
   import Playoffs from './pages/Playoffs.svelte';
   import TeamSelect from './pages/TeamSelect.svelte';
   import Wire from './pages/Wire.svelte';
+  import Finances from './pages/Finances.svelte';
   import type { CoachStyle, DefensiveCoverage, MarketDeal, OffensiveStyle, TeamTactics } from './sim/types';
 
   // Instantiate League Manager
@@ -50,7 +51,7 @@
   });
 
   // Routing State
-  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'playoffs' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'honors' | 'calendar' | 'wire'>('dashboard');
+  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'playoffs' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'honors' | 'calendar' | 'wire' | 'finances'>('dashboard');
   let awards = $state(league.awards);
   let allStar = $state(league.allStar);
   let cupChampionId = $state(league.cupChampionId);
@@ -197,8 +198,8 @@
     refreshLeagueState();
   };
 
-  const handleSaveCoach = (name: string, style: CoachStyle, tempo: TeamTactics['tempo'], offense: OffensiveStyle, coverage: DefensiveCoverage) => {
-    league.setCoach(name, style, tempo, offense, coverage);
+  const handleSaveCoach = (coach: HiredCoach) => {
+    league.setCoach(coach);
     refreshLeagueState();
   };
 
@@ -384,6 +385,15 @@
       <li class="menu-item">
         <button
           class="menu-link"
+          class:active={activeTab === 'finances' && !activeMatchId}
+          onclick={() => { activeTab = 'finances'; activeMatchId = null; }}
+        >
+          Books
+        </button>
+      </li>
+      <li class="menu-item">
+        <button
+          class="menu-link"
           class:active={activeTab === 'wire' && !activeMatchId}
           onclick={() => { activeTab = 'wire'; activeMatchId = null; }}
         >
@@ -516,6 +526,8 @@
         onJersey={handleJersey}
         onMove={handleMove}
       />
+    {:else if activeTab === 'finances'}
+      <Finances team={teams[userIndex]} />
     {:else if activeTab === 'wire'}
       <Wire posts={wire} />
     {:else if activeTab === 'honors'}

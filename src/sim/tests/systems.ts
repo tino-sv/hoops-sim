@@ -1,6 +1,6 @@
 import { CBASimulator } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
-import { tvCheck } from '../office'
+import { bookGameMoney, tvCheck } from '../office'
 import { createPlayer } from '../players'
 import { NBA_RULES } from '../rules'
 
@@ -161,6 +161,12 @@ hired.initializeLeague('team_14', {
   coverage: 'switch-everything'
 })
 assert(hired.userTeam().coach.name === 'Amina Cole' && hired.userTeam().coach.style === 'tactician', 'the new coach is hired')
+assert(hired.userTeam().coach.offense === 76 && hired.userTeam().coach.age > 30, 'the hired coach has a profile')
+const beforeCash = hired.userTeam().finances.cash
+bookGameMoney(hired.userTeam(), true, true, '2026-10-22')
+const october = hired.userTeam().finances.books?.find(row => row.month === '2026-10')
+assert(october && october.gate > 0 && october.tv > 0 && october.merch > 0 && october.salary < 0 && october.staff < 0 && october.stadium < 0, 'october books gate, TV, merch, salary, staff, and the building')
+assert(hired.userTeam().finances.cash !== beforeCash, 'the night moves cash')
 assert(hired.userTeam().tactics.tempo === 'fast' && hired.userTeam().tactics.offensiveStyle === 'isolation', 'the scheme starts with the coach')
 assert(hired.teams.find(team => team.id === 'team_1')?.coach.name === 'Alex Ward', 'other benches keep their coaches')
 

@@ -1,5 +1,5 @@
 import { seasonLine } from './seasonStats'
-import type { CoachStyle, MarketDeal, Player, SeasonAwards, Team, WirePost } from './types'
+import type { Coach, CoachStyle, MarketDeal, MonthBook, Player, SeasonAwards, Team, WirePost } from './types'
 import { NBA_RULES } from './rules'
 import { CBASimulator } from './cba'
 
@@ -97,19 +97,146 @@ export function gamePosts(args: {
   ]
 }
 
-export function bookGameMoney(team: Team, home: boolean, won: boolean) {
-  const gate = home ? (won ? NBA_RULES.HOME_GATE_WIN : NBA_RULES.HOME_GATE_LOSS) : NBA_RULES.AWAY_GATE
-  const tv = tvCheck(team)
-  const payroll = Math.round(CBASimulator.capHit(team) / NBA_RULES.SEASON_GAMES)
-  team.finances.cash += gate + tv - payroll
-  team.finances.seasonRevenue += gate + tv
-  team.finances.seasonExpenses += payroll
+const BOOK_KINDS = ['gate', 'tv', 'merch', 'sponsor', 'stadium', 'salary', 'staff', 'fine', 'other'] as const
+type BookKind = typeof BOOK_KINDS[number]
+
+export function emptyMonth(month: string): MonthBook {
+  return { month, gate: 0, tv: 0, merch: 0, sponsor: 0, stadium: 0, salary: 0, staff: 0, fine: 0, other: 0 }
 }
 
-export function coachMakeBoost(style: CoachStyle | undefined, side: 'offense' | 'defense'): number {
-  if (style === 'tactician' && side === 'offense') return 0.004
-  if (style === 'disciplinarian' && side === 'defense') return 0.004
-  return 0
+export function monthKey(date: string): string {
+  return /^\d{4}-\d{2}/.test(date) ? date.slice(0, 7) : 'preseason'
+}
+
+function monthRow(team: Team, month: string): MonthBook {
+  if (!team.finances.books) team.finances.books = []
+  let row = team.finances.books.find(book => book.month === month)
+  if (!row) {
+    row = emptyMonth(month)
+    team.finances.books.push(row)
+    team.finances.books.sort((a, b) => a.month.localeCompare(b.month))
+  }
+  return row
+}
+
+/** One cash line. Positive is income. The year totals move with it. */
+export function postCash(team: Team, kind: BookKind, amount: number, month: string) {
+  if (!amount) return
+  monthRow(team, month)[kind] += amount
+  team.finances.cash += amount
+  if (amount > 0) team.finances.seasonRevenue += amount
+  else team.finances.seasonExpenses += -amount
+}
+
+export function gateReceipt(home: boolean, won: boolean): number {
+  if (!home) return NBA_RULES.AWAY_GATE
+  return won ? NBA_RULES.HOME_GATE_WIN : NBA_RULES.HOME_GATE_LOSS
+}
+
+export function televisionIncome(team: Team): number {
+  return tvCheck(team)
+}
+
+export function playerPayroll(team: Team): number {
+  return Math.round(CBASimulator.capHit(team) / NBA_RULES.SEASON_GAMES)
+}
+
+export function merchIncome(team: Team): number {
+  const tier = team.finances.tvDeal ?? 'partner'
+  const base = tier === 'national' ? NBA_RULES.MERCH_NATIONAL : tier === 'local' ? NBA_RULES.MERCH_LOCAL : NBA_RULES.MERCH_PARTNER
+  const played = team.wins + team.losses
+  const winRate = played === 0 ? 0.5 : team.wins / played
+  return Math.round(base * (0.8 + winRate * 0.4))
+}
+
+export function stadiumCost(): number {
+  return NBA_RULES.STADIUM_UPKEEP
+}
+
+export function staffPayroll(): number {
+  return NBA_RULES.STAFF_PAYROLL
+}
+
+export function levyFine(team: Team, amount: number, month: string) {
+  postCash(team, 'fine', -Math.abs(amount), month)
+}
+
+/** Shirts, the building, and the staff. Once per calendar month, not once per game. */
+export function closeMonth(team: Team, month: string) {
+  postCash(team, 'merch', merchIncome(team), month)
+  postCash(team, 'stadium', -stadiumCost(), month)
+  postCash(team, 'staff', -staffPayroll(), month)
+}
+
+export function bookGameMoney(team: Team, home: boolean, won: boolean, date = 'preseason') {
+  const month = monthKey(date)
+  if (team.finances.lastBookMonth !== month) {
+    closeMonth(team, month)
+    team.finances.lastBookMonth = month
+  }
+  postCash(team, 'gate', gateReceipt(home, won), month)
+  postCash(team, 'tv', televisionIncome(team), month)
+  postCash(team, 'salary', -playerPayroll(team), month)
+}
+
+export function yearBooks(team: Team): MonthBook {
+  const total = emptyMonth('year')
+  for (const book of team.finances.books ?? []) {
+    for (const kind of BOOK_KINDS) total[kind] += book[kind]
+  }
+  return total
+}
+
+const ORIGINS = ['Chicago', 'Lagos', 'Manila', 'Belgrade', 'Oakland', 'San Juan', 'Melbourne', 'Athens', 'Dakar', 'Halifax', 'Seoul', 'Lyon']
+
+export function rollCoach(name: string, style: CoachStyle, index = 0): Coach {
+  const lean = style === 'tactician'
+    ? { offense: 76, defense: 58, teaching: 62, manManagement: 54 }
+    : style === 'disciplinarian'
+      ? { offense: 56, defense: 78, teaching: 66, manManagement: 46 }
+      : { offense: 64, defense: 60, teaching: 72, manManagement: 76 }
+  return {
+    name,
+    style,
+    age: 41 + (index * 3) % 22,
+    origin: ORIGINS[index % ORIGINS.length],
+    formerPlayer: index % 3 !== 0,
+    ...lean
+  }
+}
+
+export function ensureCoach(team: Team, index = 0) {
+  const coach = team.coach
+  if (!coach?.name) return
+  if (typeof coach.age === 'number' && coach.origin && typeof coach.offense === 'number') return
+  const rolled = rollCoach(coach.name, coach.style ?? 'players-coach', index)
+  team.coach = { ...rolled, name: coach.name, style: coach.style ?? rolled.style }
+}
+
+export interface CoachTrait {
+  name: string
+  effect: string
+}
+
+export function coachTraits(coach: Coach): CoachTrait[] {
+  const list: CoachTrait[] = []
+  if (coach.formerPlayer) list.push({ name: 'Former pro', effect: 'A loss sits lighter in the room.' })
+  if ((coach.offense ?? 0) >= 75) list.push({ name: 'Shot doctor', effect: 'The offense finishes a little more often.' })
+  if ((coach.defense ?? 0) >= 75) list.push({ name: 'Defensive mind', effect: 'Shots are contested a little harder.' })
+  if ((coach.teaching ?? 0) >= 75) list.push({ name: 'Developer', effect: 'Young players leave a win in a better mood.' })
+  if ((coach.manManagement ?? 0) >= 75) list.push({ name: 'Locker room', effect: 'Divas and fragile players take a loss better.' })
+  if ((coach.manManagement ?? 60) <= 42) list.push({ name: 'Cold', effect: 'The room feels a loss more.' })
+  return list
+}
+
+export function coachMakeBoost(coach: Coach | undefined, side: 'offense' | 'defense'): number {
+  if (!coach) return 0
+  let boost = 0
+  if (coach.style === 'tactician' && side === 'offense') boost += 0.004
+  if (coach.style === 'disciplinarian' && side === 'defense') boost += 0.004
+  const skill = side === 'offense' ? coach.offense ?? 60 : coach.defense ?? 60
+  boost += (skill - 60) * 0.00005
+  return boost
 }
 
 export function coachFatigueFactor(style: CoachStyle | undefined): number {
