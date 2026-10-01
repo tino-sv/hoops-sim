@@ -1,6 +1,7 @@
 <script lang="ts">
   import { careerChoices, type CareerChoice, type HiredCoach } from '../sim/league';
-  import type { CoachStyle, Conference, Division, TeamTactics } from '../sim/types';
+  import { PEDIGREE_PRESETS, SIGNATURE_PRESETS, skillWord, styleWord } from '../sim/office';
+  import type { CoachPedigree, CoachSignature, Conference, Division, TeamTactics } from '../sim/types';
 
   let { onStart }: { onStart: (teamId: string, coach: HiredCoach) => void } = $props();
 
@@ -12,12 +13,8 @@
   let coachName = $state('');
   let age = $state(46);
   let origin = $state('');
-  let formerPlayer = $state(false);
-  let offenseSkill = $state(62);
-  let defenseSkill = $state(62);
-  let teaching = $state(62);
-  let manManagement = $state(62);
-  let style = $state<CoachStyle>('players-coach');
+  let pedigree = $state<CoachPedigree>('former-star');
+  let signatures = $state<CoachSignature[]>([]);
   let tempo = $state<TeamTactics['tempo']>('balanced');
   let offense = $state<TeamTactics['offensiveStyle']>('pace-and-space');
   let coverage = $state<TeamTactics['defensiveCoverage']>('drop');
@@ -26,6 +23,17 @@
   const selected = $derived(choices.find(team => team.id === selectedId) ?? null);
   const visibleDivisions = $derived(divisions.filter(division => shown.some(team => team.division === division)));
   const ready = $derived(coachName.trim().length > 0);
+  const pedigreeNote = $derived(PEDIGREE_PRESETS[pedigree].note);
+  const preset = $derived(PEDIGREE_PRESETS[pedigree]);
+
+  const applyPedigree = (next: CoachPedigree) => {
+    pedigree = next;
+  };
+
+  const toggleSignature = (id: CoachSignature) => {
+    if (signatures.includes(id)) signatures = signatures.filter(item => item !== id);
+    else if (signatures.length < 2) signatures = [...signatures, id];
+  };
 
   const outlookLabel: Record<CareerChoice['outlook'], string> = {
     contender: 'Contender',
@@ -40,7 +48,7 @@
   <header>
     <div>
       <h1>{step === 'team' ? 'Pick a franchise' : 'Name your coach'}</h1>
-      <p>{step === 'team' ? 'This is the team you run. Reset the league later if you want a different one.' : 'The style and the scheme are what the games use. You can change them later from the office.'}</p>
+      <p>{step === 'team' ? 'This is the team you run. Reset the league later if you want a different one.' : 'The pedigree sets your ratings. Two signatures change how the games play. You can change them later from the office.'}</p>
     </div>
     {#if step === 'team'}
       <div class="filters">
@@ -56,50 +64,40 @@
   {#if step === 'coach' && selected}
     <div class="card coach-form">
       <p style="color: var(--text-secondary); margin-bottom: 12px;">{selected.city} {selected.name}. {selected.owner} wants {selected.goalWins} wins. {selected.coach} is out.</p>
+      <label>Pedigree
+        <select class="form-input" value={pedigree} onchange={(event) => applyPedigree(event.currentTarget.value as CoachPedigree)}>
+          {#each Object.entries(PEDIGREE_PRESETS) as [id, preset]}
+            <option value={id}>{preset.label}</option>
+          {/each}
+        </select>
+      </label>
+      <p class="hint">{pedigreeNote} Player respect starts at {PEDIGREE_PRESETS[pedigree].respect}.</p>
+      <p class="hint">Signatures, pick two.</p>
+      {#each SIGNATURE_PRESETS as signature}
+        <label class="check">
+          <input
+            type="checkbox"
+            checked={signatures.includes(signature.id)}
+            onchange={(event) => {
+              toggleSignature(signature.id);
+              event.currentTarget.checked = signatures.includes(signature.id);
+            }}
+          />
+          {signature.label}. {signature.effect}
+        </label>
+      {/each}
       <label>Name <input class="form-input" bind:value={coachName} placeholder="Your name" /></label>
       <label>Age <input class="form-input" type="number" min="28" max="78" bind:value={age} /></label>
       <label>Origin <input class="form-input" bind:value={origin} placeholder="City you are from" /></label>
-      <label class="check"><input type="checkbox" bind:checked={formerPlayer} /> Former player</label>
-      <label>Offense skill
-        <select class="form-input" bind:value={offenseSkill}>
-          <option value={48}>Developing</option>
-          <option value={62}>Solid</option>
-          <option value={76}>Sharp</option>
-          <option value={88}>Elite</option>
-        </select>
-      </label>
-      <label>Defense skill
-        <select class="form-input" bind:value={defenseSkill}>
-          <option value={48}>Developing</option>
-          <option value={62}>Solid</option>
-          <option value={76}>Sharp</option>
-          <option value={88}>Elite</option>
-        </select>
-      </label>
-      <label>Teaching
-        <select class="form-input" bind:value={teaching}>
-          <option value={48}>Developing</option>
-          <option value={62}>Solid</option>
-          <option value={76}>Sharp</option>
-          <option value={88}>Elite</option>
-        </select>
-      </label>
-      <label>Locker room
-        <select class="form-input" bind:value={manManagement}>
-          <option value={48}>Developing</option>
-          <option value={62}>Solid</option>
-          <option value={76}>Sharp</option>
-          <option value={88}>Elite</option>
-        </select>
-      </label>
-      <label>Style
-        <select class="form-input" bind:value={style}>
-          <option value="players-coach">Players' coach</option>
-          <option value="tactician">Tactician</option>
-          <option value="disciplinarian">Disciplinarian</option>
-        </select>
-      </label>
-      <p class="hint">A tactician helps the offense finish. A disciplinarian contests more and tires the roster slower, and he wears on fragile players. A players' coach adds a point of morale after a win.</p>
+      <div class="locked">
+        <div><span>Offense</span><b>{skillWord(preset.offense)}</b></div>
+        <div><span>Defense</span><b>{skillWord(preset.defense)}</b></div>
+        <div><span>Teaching</span><b>{skillWord(preset.teaching)}</b></div>
+        <div><span>Locker room</span><b>{skillWord(preset.manManagement)}</b></div>
+        <div><span>Style</span><b>{styleWord(preset.style)}</b></div>
+        <div><span>Former player</span><b>{preset.formerPlayer ? 'Yes' : 'No'}</b></div>
+      </div>
+      <p class="hint">The pedigree sets these. They stay put. A tactician helps the offense finish. A disciplinarian contests more and tires the roster slower. A players' coach adds a point of morale after a win.</p>
       <label>Offense
         <select class="form-input" bind:value={offense}>
           <option value="pace-and-space">Pace and space</option>
@@ -157,10 +155,11 @@
       <div class="filters">
         <button class="btn btn-secondary" onclick={() => step = 'team'}>Back</button>
         <button class="btn btn-primary" disabled={!ready} onclick={() => onStart(selected.id, {
-          name: coachName.trim(), style, tempo, offense, coverage,
-          age: Number(age), origin, formerPlayer,
-          offenseSkill: Number(offenseSkill), defenseSkill: Number(defenseSkill),
-          teaching: Number(teaching), manManagement: Number(manManagement)
+          name: coachName.trim(), style: preset.style, tempo, offense, coverage,
+          age: Number(age), origin, formerPlayer: preset.formerPlayer,
+          offenseSkill: preset.offense, defenseSkill: preset.defense,
+          teaching: preset.teaching, manManagement: preset.manManagement,
+          pedigree, signatures
         })}>Start career</button>
       </div>
     {:else}
@@ -247,5 +246,20 @@
     font-size: 0.85rem;
     font-weight: 700;
   }
+  .coach-form label.check {
+    flex-direction: row;
+    align-items: flex-start;
+    font-weight: 560;
+  }
+  .coach-form label.check input { margin-top: 3px; }
   .hint { color: var(--text-secondary); font-size: 0.85rem; margin: 4px 0 8px; }
+  .locked {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+    margin: 4px 0 8px;
+    font-size: 0.85rem;
+  }
+  .locked div { display: flex; justify-content: space-between; gap: 8px; color: var(--text-secondary); }
+  .locked b { color: var(--text-primary); font-weight: 650; }
 </style>

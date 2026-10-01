@@ -1,13 +1,13 @@
 import { settleTeamMorale } from './badges'
 import { birdFromYears, CBASimulator, type OfferVerdict } from './cba'
 import { MatchEngine } from './matchEngine'
-import { bookGameMoney, ensureCoach, ensureCommercials, findPlayer, gamePosts, levyFine, monthKey, pickAllStars, pickAwards, postCash, rollCoach, luxuryTaxBill, tvCheck, tvUpgradeCost } from './office'
+import { bookGameMoney, clampSignatures, ensureCoach, ensureCommercials, findPlayer, gamePosts, levyFine, monthKey, PEDIGREE_PRESETS, pedigreeForStyle, pickAllStars, pickAwards, postCash, rollCoach, SIGNATURE_PRESETS, luxuryTaxBill, tvCheck, tvUpgradeCost } from './office'
 import { createPlayer, createProspect, playerFromProspect } from './players'
 import { deriveTraits, developPlayer } from './ratings'
 import { NBA_RULES } from './rules'
 import { addToDepthChart, rebuildDepthChart, waivePlayer } from './roster'
 import { buildSeason, type ScheduleTeam } from './schedule'
-import type { AllStarWeekend, BoxScoreStats, CoachStyle, Conference, Division, DraftPick, DraftProspect, MarketDeal, OfficeNote, OffseasonStep, Player, Position, SeasonAwards, SeasonPhase, Team, TeamTactics, WirePost } from './types'
+import type { AllStarWeekend, BoxScoreStats, CoachPedigree, CoachSignature, CoachStyle, Conference, Division, DraftPick, DraftProspect, MarketDeal, OfficeNote, OffseasonStep, Player, Position, SeasonAwards, SeasonPhase, Team, TeamTactics, WirePost } from './types'
 import { POSITIONS } from './types'
 
 const TEAM_TEMPLATES: { city: string; name: string; color: string; conference: Conference; division: Division; coach: string; owner: string }[] = [
@@ -110,6 +110,8 @@ export interface HiredCoach {
   defenseSkill?: number
   teaching?: number
   manManagement?: number
+  pedigree?: CoachPedigree
+  signatures?: CoachSignature[]
 }
 
 export interface CareerChoice {
@@ -336,17 +338,23 @@ export class LeagueManager {
     if (coach?.name.trim()) {
       const hired = this.userTeam()
       const rolled = rollCoach(coach.name.trim(), coach.style, 0)
+      const pedigree = coach.pedigree ?? rolled.pedigree
+      const preset = PEDIGREE_PRESETS[pedigree]
+      const locked = !!coach.pedigree
       hired.coach = {
         ...rolled,
         name: coach.name.trim(),
-        style: coach.style,
+        style: locked ? preset.style : coach.style,
         age: coach.age ?? rolled.age,
         origin: coach.origin?.trim() || rolled.origin,
-        formerPlayer: coach.formerPlayer ?? rolled.formerPlayer,
-        offense: coach.offenseSkill ?? rolled.offense,
-        defense: coach.defenseSkill ?? rolled.defense,
-        teaching: coach.teaching ?? rolled.teaching,
-        manManagement: coach.manManagement ?? rolled.manManagement
+        formerPlayer: locked ? preset.formerPlayer : (coach.formerPlayer ?? rolled.formerPlayer),
+        offense: locked ? preset.offense : (coach.offenseSkill ?? rolled.offense),
+        defense: locked ? preset.defense : (coach.defenseSkill ?? rolled.defense),
+        teaching: locked ? preset.teaching : (coach.teaching ?? rolled.teaching),
+        manManagement: locked ? preset.manManagement : (coach.manManagement ?? rolled.manManagement),
+        pedigree,
+        signatures: clampSignatures(coach.signatures),
+        respect: preset.respect
       }
       hired.tactics = {
         ...hired.tactics,
@@ -619,22 +627,27 @@ export class LeagueManager {
   setCoach(coach: HiredCoach): void {
     const team = this.userTeam()
     const rolled = rollCoach(coach.name.trim() || team.coach.name, coach.style, 0)
+    const pedigree = coach.pedigree ?? team.coach.pedigree ?? pedigreeForStyle(coach.style)
+    const preset = PEDIGREE_PRESETS[pedigree]
+    const signatures = clampSignatures(coach.signatures ?? team.coach.signatures)
     team.coach = {
       ...rolled,
       name: coach.name.trim() || team.coach.name,
-      style: coach.style,
+      style: preset.style,
       age: coach.age ?? team.coach.age ?? rolled.age,
       origin: coach.origin?.trim() || team.coach.origin || rolled.origin,
-      formerPlayer: coach.formerPlayer ?? team.coach.formerPlayer ?? false,
-      offense: coach.offenseSkill ?? team.coach.offense ?? rolled.offense,
-      defense: coach.defenseSkill ?? team.coach.defense ?? rolled.defense,
-      teaching: coach.teaching ?? team.coach.teaching ?? rolled.teaching,
-      manManagement: coach.manManagement ?? team.coach.manManagement ?? rolled.manManagement
+      formerPlayer: preset.formerPlayer,
+      offense: preset.offense,
+      defense: preset.defense,
+      teaching: preset.teaching,
+      manManagement: preset.manManagement,
+      pedigree,
+      signatures,
+      respect: preset.respect
     }
     const { tempo, offense, coverage } = coach
-    const style = coach.style
-    team.tactics = { ...team.tactics, tempo, offensiveStyle: offense, defensiveCoverage: coverage }
-    this.note('Front Office', 'Coach updated', `${team.coach.name} is the head coach. Style: ${style}.`)
+    const marks = signatures.map(id => SIGNATURE_PRESETS.find(item => item.id === id)?.label).filter((label): label is string => !!label)
+    this.note('Front Office', 'Coach updated', `${team.coach.name} (${PEDIGREE_PRESETS[pedigree].label}) is the head coach. Style: ${preset.style}.${marks.length ? ` ${marks.join(', ')}.` : ''}`)
     this.saveToLocalStorage()
   }
 

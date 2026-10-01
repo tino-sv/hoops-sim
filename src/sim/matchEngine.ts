@@ -388,8 +388,8 @@ export class GameSession {
     for (const player of [...this.onCourtHome, ...this.onCourtAway]) {
       const bag = this.statsHome[player.id] ? this.statsHome : this.statsAway
       if (bag[player.id]) bag[player.id].minutes += minutes
-      const style = this.home.roster.includes(player) ? this.home.coach?.style : this.away.coach?.style
-      player.fatigue = Math.min(100, player.fatigue + fatigueDelta(player, elapsed) * coachFatigueFactor(style))
+      const coach = this.home.roster.includes(player) ? this.home.coach : this.away.coach
+      player.fatigue = Math.min(100, player.fatigue + fatigueDelta(player, elapsed) * coachFatigueFactor(coach))
     }
     for (const player of [...this.home.roster, ...this.away.roster]) {
       const onCourt = this.onCourtHome.includes(player) || this.onCourtAway.includes(player)

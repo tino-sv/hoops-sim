@@ -1,5 +1,5 @@
 import { assistBoost, blockMultiplier, contestBoost, foulBoost, hasBadge, leaderMakeBoost, reboundMultiplier, shootingBoost, shotCallout, stealBoost, turnoverBoost, usageMultiplier } from './badges'
-import { coachMakeBoost } from './office'
+import { coachFoulMultiplier, coachMakeBoost, coachShotAdjust, coachTurnoverBump } from './office'
 import type { Player, Position, Team, TeamTactics } from './types'
 
 export type ShotKind = 'close' | 'mid' | 'three'
@@ -148,6 +148,7 @@ export class PossessionEngine {
     if (defTactics.doubleTeamTrigger === 'late-clock' && ctx.secondsRemaining < 90 && ctx.quarter >= 4) turnoverChance += 0.01
     const overplay = defTactics.targetOverplay[handler.id] ?? 'none'
     if (overplay !== 'none') turnoverChance += 0.012
+    turnoverChance += coachTurnoverBump(offense.coach, fastBreak)
     turnoverChance = clamp(turnoverChance, 0.07, 0.22)
 
     if (Math.random() < turnoverChance) {
@@ -175,7 +176,7 @@ export class PossessionEngine {
     }
 
     const inBonus = ctx.defenseTeamFouls >= 4
-    const nonShootingFoul = !fastBreak && !ctx.secondChance && Math.random() < (inBonus ? 0.055 : 0.07) + foulBoost(primaryDef)
+    const nonShootingFoul = !fastBreak && !ctx.secondChance && Math.random() < ((inBonus ? 0.055 : 0.07) + foulBoost(primaryDef)) * coachFoulMultiplier(defense.coach)
     if (nonShootingFoul) {
       const result = emptyResult(4 + Math.round(Math.random() * 2), logs)
       result.foulPlayerId = primaryDef.id
@@ -230,6 +231,14 @@ export class PossessionEngine {
     make += shootingBoost(shooter, shot.kind, ctx.quarter, ctx.secondsRemaining)
     make += leaderMakeBoost(onCourtOff, shooter.id)
     make += coachMakeBoost(offense.coach, 'offense')
+    const roomMorale = onCourtOff.reduce((sum, player) => sum + player.morale, 0) / Math.max(1, onCourtOff.length)
+    make += coachShotAdjust(offense.coach, {
+      fastBreak,
+      quarter: ctx.quarter,
+      secondsRemaining: ctx.secondsRemaining,
+      shooterIsDiva: hasBadge(shooter, 'diva'),
+      roomMorale
+    })
     make = clamp(make, shot.kind === 'close' ? 0.42 : 0.22, shot.kind === 'close' ? 0.78 : shot.kind === 'three' ? 0.46 : 0.52)
 
     const blockChance = this.blockChanceFor(shot.kind, onCourtDef, advantage)
@@ -242,9 +251,9 @@ export class PossessionEngine {
       return [missed]
     }
 
-    const foulChance = (shot.kind === 'close' ? 0.18 : shot.kind === 'mid' ? 0.08 : 0.04) + foulBoost(defender)
+    const foulChance = ((shot.kind === 'close' ? 0.18 : shot.kind === 'mid' ? 0.08 : 0.04) + foulBoost(defender)
       + (attr(shooter, 'technical', 'finishing') - 60) * 0.0008
-      + (shooter.overallRating >= 94 && shot.kind === 'close' ? 0.03 : 0)
+      + (shooter.overallRating >= 94 && shot.kind === 'close' ? 0.03 : 0)) * coachFoulMultiplier(defense.coach)
     if (Math.random() < foulChance) {
       const andOne = Math.random() < make * 0.85
       const ftCount = andOne ? 1 : (shot.kind === 'three' ? 3 : 2)

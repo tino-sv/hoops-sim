@@ -1,9 +1,9 @@
 <script lang="ts">
   import { OPEN_MARKETS, type HiredCoach } from '../sim/league';
-  import { coachTraits, luxuryTaxBill, tvCheck, tvCheckFor, tvUpgradeCost } from '../sim/office';
+  import { coachTraits, PEDIGREE_PRESETS, SIGNATURE_PRESETS, skillWord, styleWord, luxuryTaxBill, tvCheck, tvCheckFor, tvUpgradeCost } from '../sim/office';
   import { NBA_RULES } from '../sim/rules';
   import type { OfferVerdict } from '../sim/cba';
-  import type { CoachStyle, MarketDeal, Team, TeamTactics } from '../sim/types';
+  import type { CoachPedigree, CoachSignature, MarketDeal, Team, TeamTactics } from '../sim/types';
 
   let { team, onSave, onTvDeal, onJersey, onMove }: {
     team: Team
@@ -39,12 +39,8 @@
   let name = $state(team.coach.name);
   let age = $state(team.coach.age ?? 46);
   let origin = $state(team.coach.origin ?? '');
-  let formerPlayer = $state(!!team.coach.formerPlayer);
-  let offenseSkill = $state(team.coach.offense ?? 62);
-  let defenseSkill = $state(team.coach.defense ?? 62);
-  let teaching = $state(team.coach.teaching ?? 62);
-  let manManagement = $state(team.coach.manManagement ?? 62);
-  let style = $state<CoachStyle>(team.coach.style);
+  let pedigree = $state<CoachPedigree>(team.coach.pedigree ?? 'former-star');
+  let signatures = $state<CoachSignature[]>(team.coach.signatures ?? []);
   let tempo = $state(team.tactics.tempo);
   let offense = $state(team.tactics.offensiveStyle);
   let coverage = $state(team.tactics.defensiveCoverage);
@@ -53,14 +49,10 @@
     name = team.coach.name;
     age = team.coach.age ?? 46;
     origin = team.coach.origin ?? '';
-    formerPlayer = !!team.coach.formerPlayer;
-    offenseSkill = team.coach.offense ?? 62;
-    defenseSkill = team.coach.defense ?? 62;
-    teaching = team.coach.teaching ?? 62;
-    manManagement = team.coach.manManagement ?? 62;
+    pedigree = team.coach.pedigree ?? 'former-star';
+    signatures = team.coach.signatures ?? [];
     primary = team.color;
     trim = team.trim ?? '#E8E4D9';
-    style = team.coach.style;
     tempo = team.tactics.tempo;
     offense = team.tactics.offensiveStyle;
     coverage = team.tactics.defensiveCoverage;
@@ -71,21 +63,33 @@
   const millions = (value: number) => `$${(value / 1_000_000).toFixed(1)}M`;
   const tax = $derived(luxuryTaxBill(team));
 
+  const preset = $derived(PEDIGREE_PRESETS[pedigree]);
   const traits = $derived(coachTraits({
-    name, style, age: Number(age), origin, formerPlayer,
-    offense: Number(offenseSkill), defense: Number(defenseSkill),
-    teaching: Number(teaching), manManagement: Number(manManagement)
+    name, style: preset.style, age: Number(age), origin, formerPlayer: preset.formerPlayer, pedigree, signatures,
+    offense: preset.offense, defense: preset.defense,
+    teaching: preset.teaching, manManagement: preset.manManagement
   }));
 
+  const applyPedigree = (next: CoachPedigree) => {
+    pedigree = next;
+  };
+
+  const toggleSignature = (id: CoachSignature) => {
+    if (signatures.includes(id)) signatures = signatures.filter(item => item !== id);
+    else if (signatures.length < 2) signatures = [...signatures, id];
+  };
+
   const save = () => onSave({
-    name, style, tempo, offense, coverage,
+    name, style: preset.style, tempo, offense, coverage,
     age: Number(age),
     origin,
-    formerPlayer,
-    offenseSkill: Number(offenseSkill),
-    defenseSkill: Number(defenseSkill),
-    teaching: Number(teaching),
-    manManagement: Number(manManagement)
+    formerPlayer: preset.formerPlayer,
+    offenseSkill: preset.offense,
+    defenseSkill: preset.defense,
+    teaching: preset.teaching,
+    manManagement: preset.manManagement,
+    pedigree,
+    signatures
   });
 
   const orderJersey = () => {
@@ -105,44 +109,42 @@
   <div class="card">
     <h2 style="margin-bottom: 8px;">Coach</h2>
     <p style="color: var(--text-secondary); margin-bottom: 16px;">
-      The scheme is what the games use. A tactician helps your offense finish. A disciplinarian contests more and tires the roster slower, and he wears on fragile players. A players' coach adds a point of morale after a win.
+      The pedigree sets the ratings and how the room treats you. Two signatures change makes, fouls, fatigue, or a loss. The scheme is still what the games run.
     </p>
+    <label>Pedigree
+      <select class="form-input" value={pedigree} onchange={(event) => applyPedigree(event.currentTarget.value as CoachPedigree)}>
+        {#each Object.entries(PEDIGREE_PRESETS) as [id, preset]}
+          <option value={id}>{preset.label}</option>
+        {/each}
+      </select>
+    </label>
+    <p style="color: var(--text-secondary);">Player respect {PEDIGREE_PRESETS[pedigree].respect}.</p>
+    <p style="font-weight: 700; margin-top: 8px;">Signatures, pick two</p>
+    {#each SIGNATURE_PRESETS as signature}
+      <label class="check">
+        <input
+          type="checkbox"
+          checked={signatures.includes(signature.id)}
+          onchange={(event) => {
+            toggleSignature(signature.id);
+            event.currentTarget.checked = signatures.includes(signature.id);
+          }}
+        />
+        {signature.label}. {signature.effect}
+      </label>
+    {/each}
     <label>Name <input class="form-input" bind:value={name} /></label>
     <label>Age <input class="form-input" type="number" min="28" max="78" bind:value={age} /></label>
     <label>Origin <input class="form-input" bind:value={origin} placeholder="City" /></label>
-    <label class="check"><input type="checkbox" bind:checked={formerPlayer} /> Former player</label>
-    <label>Offense skill
-      <select class="form-input" bind:value={offenseSkill}>
-        <option value={48}>Developing</option>
-        <option value={62}>Solid</option>
-        <option value={76}>Sharp</option>
-        <option value={88}>Elite</option>
-      </select>
-    </label>
-    <label>Defense skill
-      <select class="form-input" bind:value={defenseSkill}>
-        <option value={48}>Developing</option>
-        <option value={62}>Solid</option>
-        <option value={76}>Sharp</option>
-        <option value={88}>Elite</option>
-      </select>
-    </label>
-    <label>Teaching
-      <select class="form-input" bind:value={teaching}>
-        <option value={48}>Developing</option>
-        <option value={62}>Solid</option>
-        <option value={76}>Sharp</option>
-        <option value={88}>Elite</option>
-      </select>
-    </label>
-    <label>Locker room
-      <select class="form-input" bind:value={manManagement}>
-        <option value={48}>Developing</option>
-        <option value={62}>Solid</option>
-        <option value={76}>Sharp</option>
-        <option value={88}>Elite</option>
-      </select>
-    </label>
+    <div class="locked">
+      <div><span>Offense</span><b>{skillWord(preset.offense)}</b></div>
+      <div><span>Defense</span><b>{skillWord(preset.defense)}</b></div>
+      <div><span>Teaching</span><b>{skillWord(preset.teaching)}</b></div>
+      <div><span>Locker room</span><b>{skillWord(preset.manManagement)}</b></div>
+      <div><span>Style</span><b>{styleWord(preset.style)}</b></div>
+      <div><span>Former player</span><b>{preset.formerPlayer ? 'Yes' : 'No'}</b></div>
+    </div>
+    <p style="color: var(--text-secondary); margin-bottom: 12px;">The pedigree sets these. They stay put.</p>
     {#if traits.length}
       <ul class="traits">
         {#each traits as trait}
@@ -150,13 +152,6 @@
         {/each}
       </ul>
     {/if}
-    <label>Style
-      <select class="form-input" bind:value={style}>
-        <option value="players-coach">Players' coach</option>
-        <option value="tactician">Tactician</option>
-        <option value="disciplinarian">Disciplinarian</option>
-      </select>
-    </label>
     <label>Offense
       <select class="form-input" bind:value={offense}>
         <option value="pace-and-space">Pace and space</option>
@@ -303,7 +298,22 @@
     gap: 6px;
     margin: 6px 0 10px;
   }
-  .check { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+  label.check {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 8px;
+    font-weight: 560;
+  }
+  label.check input { margin-top: 3px; }
+  .locked {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+    margin: 8px 0;
+    font-size: 0.85rem;
+  }
+  .locked div { display: flex; justify-content: space-between; gap: 8px; color: var(--text-secondary); }
+  .locked b { color: var(--text-primary); font-weight: 650; }
   .traits { margin: 8px 0 12px; padding-left: 16px; color: var(--text-secondary); font-size: 0.85rem; }
   .traits b { color: var(--text-primary); font-weight: 650; }
   .swatch {

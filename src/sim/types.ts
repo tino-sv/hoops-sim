@@ -5,6 +5,8 @@ export const POSITIONS: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
 export type Conference = 'East' | 'West';
 export type Division = 'Atlantic' | 'Central' | 'Southeast' | 'Northwest' | 'Pacific' | 'Southwest';
 export type CoachStyle = 'players-coach' | 'tactician' | 'disciplinarian';
+export type CoachPedigree = 'former-star' | 'video-room' | 'college-mentor' | 'european-tactician';
+export type CoachSignature = 'seven-seconds' | 'lockdown' | 'players-friend';
 export type SeasonPhase = 'regular' | 'offseason';
 export type OffseasonStep = 'draft' | 'free-agency';
 
@@ -192,6 +194,12 @@ export interface Coach {
   teaching: number;
   /** 1-99. How the room handles a loss, a diva, and a fragile player. */
   manManagement: number;
+  /** Where the coach came from. Sets the ratings and how the room treats him. */
+  pedigree: CoachPedigree;
+  /** Up to two. Each one helps the team and costs something. */
+  signatures: CoachSignature[];
+  /** 1-99. How quickly players give him the room. */
+  respect: number;
 }
 
 export interface Owner {

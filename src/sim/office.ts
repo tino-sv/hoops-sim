@@ -1,5 +1,5 @@
 import { seasonLine } from './seasonStats'
-import type { Coach, CoachStyle, MarketDeal, MonthBook, Player, SeasonAwards, Team, WirePost } from './types'
+import type { Coach, CoachPedigree, CoachSignature, CoachStyle, MarketDeal, MonthBook, Player, SeasonAwards, Team, WirePost } from './types'
 import { NBA_RULES } from './rules'
 import { CBASimulator } from './cba'
 
@@ -189,18 +189,127 @@ export function yearBooks(team: Team): MonthBook {
 
 const ORIGINS = ['Chicago', 'Lagos', 'Manila', 'Belgrade', 'Oakland', 'San Juan', 'Melbourne', 'Athens', 'Dakar', 'Halifax', 'Seoul', 'Lyon']
 
+export interface PedigreePreset {
+  label: string
+  note: string
+  style: CoachStyle
+  offense: number
+  defense: number
+  teaching: number
+  manManagement: number
+  formerPlayer: boolean
+  respect: number
+}
+
+export const PEDIGREE_PRESETS: Record<CoachPedigree, PedigreePreset> = {
+  'former-star': {
+    label: 'Former star',
+    note: 'Veterans listen. Young players feel the gap after a loss.',
+    style: 'players-coach',
+    offense: 62,
+    defense: 62,
+    teaching: 62,
+    manManagement: 88,
+    formerPlayer: true,
+    respect: 86
+  },
+  'video-room': {
+    label: 'Video room',
+    note: 'The offense finishes a little more often. Veteran leaders want results.',
+    style: 'tactician',
+    offense: 88,
+    defense: 76,
+    teaching: 48,
+    manManagement: 48,
+    formerPlayer: false,
+    respect: 42
+  },
+  'college-mentor': {
+    label: 'College mentor',
+    note: 'Young players leave a win higher. The team fouls less, and late games are thinner.',
+    style: 'players-coach',
+    offense: 62,
+    defense: 62,
+    teaching: 88,
+    manManagement: 76,
+    formerPlayer: false,
+    respect: 70
+  },
+  'european-tactician': {
+    label: 'European tactician',
+    note: 'The ball moves. A diva shoots worse until the room buys in.',
+    style: 'tactician',
+    offense: 88,
+    defense: 76,
+    teaching: 62,
+    manManagement: 62,
+    formerPlayer: false,
+    respect: 58
+  }
+}
+
+export interface SignaturePreset {
+  id: CoachSignature
+  label: string
+  effect: string
+}
+
+export const SIGNATURE_PRESETS: SignaturePreset[] = [
+  { id: 'seven-seconds', label: 'Seven seconds or less', effect: 'Transition finishes more often. Half-court turnovers rise, and the roster tires faster.' },
+  { id: 'lockdown', label: 'Lockdown architect', effect: 'Shots are contested harder. The team fouls more.' },
+  { id: 'players-friend', label: "Player's best friend", effect: 'A loss costs about half as much morale.' }
+]
+
+export function skillWord(value: number): string {
+  if (value >= 82) return 'Elite'
+  if (value >= 74) return 'Sharp'
+  if (value >= 60) return 'Solid'
+  return 'Developing'
+}
+
+export function styleWord(style: CoachStyle | undefined): string {
+  if (style === 'tactician') return 'Tactician'
+  if (style === 'disciplinarian') return 'Disciplinarian'
+  return "Players' coach"
+}
+
+export function pedigreeForStyle(style: CoachStyle | undefined): CoachPedigree {
+  if (style === 'tactician') return 'video-room'
+  if (style === 'disciplinarian') return 'college-mentor'
+  return 'former-star'
+}
+
+export function clampSignatures(list: CoachSignature[] | undefined): CoachSignature[] {
+  const allowed = new Set(SIGNATURE_PRESETS.map(item => item.id))
+  const picked: CoachSignature[] = []
+  for (const id of list ?? []) {
+    if (!allowed.has(id) || picked.includes(id)) continue
+    picked.push(id)
+    if (picked.length === 2) break
+  }
+  return picked
+}
+
+export function hasSignature(coach: Coach | undefined, id: CoachSignature): boolean {
+  return !!coach?.signatures?.includes(id)
+}
+
 export function rollCoach(name: string, style: CoachStyle, index = 0): Coach {
   const lean = style === 'tactician'
     ? { offense: 76, defense: 58, teaching: 62, manManagement: 54 }
     : style === 'disciplinarian'
       ? { offense: 56, defense: 78, teaching: 66, manManagement: 46 }
       : { offense: 64, defense: 60, teaching: 72, manManagement: 76 }
+  const pedigree = pedigreeForStyle(style)
   return {
     name,
     style,
     age: 41 + (index * 3) % 22,
     origin: ORIGINS[index % ORIGINS.length],
     formerPlayer: index % 3 !== 0,
+    pedigree,
+    signatures: [],
+    respect: PEDIGREE_PRESETS[pedigree].respect,
     ...lean
   }
 }
@@ -208,9 +317,14 @@ export function rollCoach(name: string, style: CoachStyle, index = 0): Coach {
 export function ensureCoach(team: Team, index = 0) {
   const coach = team.coach
   if (!coach?.name) return
-  if (typeof coach.age === 'number' && coach.origin && typeof coach.offense === 'number') return
-  const rolled = rollCoach(coach.name, coach.style ?? 'players-coach', index)
-  team.coach = { ...rolled, name: coach.name, style: coach.style ?? rolled.style }
+  if (typeof coach.age !== 'number' || !coach.origin || typeof coach.offense !== 'number') {
+    const rolled = rollCoach(coach.name, coach.style ?? 'players-coach', index)
+    team.coach = { ...rolled, name: coach.name, style: coach.style ?? rolled.style }
+  }
+  const current = team.coach
+  if (!current.pedigree) current.pedigree = pedigreeForStyle(current.style)
+  current.signatures = clampSignatures(current.signatures)
+  if (typeof current.respect !== 'number') current.respect = PEDIGREE_PRESETS[current.pedigree].respect
 }
 
 export interface CoachTrait {
@@ -218,8 +332,14 @@ export interface CoachTrait {
   effect: string
 }
 
-export function coachTraits(coach: Coach): CoachTrait[] {
+export function coachTraits(coach: Partial<Coach>): CoachTrait[] {
   const list: CoachTrait[] = []
+  const pedigree = coach.pedigree ? PEDIGREE_PRESETS[coach.pedigree] : null
+  if (pedigree) list.push({ name: pedigree.label, effect: pedigree.note })
+  for (const id of clampSignatures(coach.signatures)) {
+    const signature = SIGNATURE_PRESETS.find(item => item.id === id)
+    if (signature) list.push({ name: signature.label, effect: signature.effect })
+  }
   if (coach.formerPlayer) list.push({ name: 'Former pro', effect: 'A loss sits lighter in the room.' })
   if ((coach.offense ?? 0) >= 75) list.push({ name: 'Shot doctor', effect: 'The offense finishes a little more often.' })
   if ((coach.defense ?? 0) >= 75) list.push({ name: 'Defensive mind', effect: 'Shots are contested a little harder.' })
@@ -234,13 +354,44 @@ export function coachMakeBoost(coach: Coach | undefined, side: 'offense' | 'defe
   let boost = 0
   if (coach.style === 'tactician' && side === 'offense') boost += 0.004
   if (coach.style === 'disciplinarian' && side === 'defense') boost += 0.004
+  if (side === 'defense' && hasSignature(coach, 'lockdown')) boost += 0.006
   const skill = side === 'offense' ? coach.offense ?? 60 : coach.defense ?? 60
   boost += (skill - 60) * 0.00005
   return boost
 }
 
-export function coachFatigueFactor(style: CoachStyle | undefined): number {
-  return style === 'disciplinarian' ? 0.92 : 1
+export function coachShotAdjust(coach: Coach | undefined, shot: {
+  fastBreak: boolean
+  quarter: number
+  secondsRemaining: number
+  shooterIsDiva: boolean
+  roomMorale: number
+}): number {
+  if (!coach) return 0
+  let make = 0
+  if (coach.pedigree === 'video-room' || coach.pedigree === 'european-tactician') make += 0.003
+  if (coach.pedigree === 'european-tactician' && shot.shooterIsDiva && shot.roomMorale < 72) make -= 0.01
+  if (coach.pedigree === 'college-mentor' && shot.quarter >= 4 && shot.secondsRemaining < 120) make -= 0.008
+  if (hasSignature(coach, 'seven-seconds') && shot.fastBreak) make += 0.03
+  return make
+}
+
+export function coachTurnoverBump(coach: Coach | undefined, fastBreak: boolean): number {
+  if (fastBreak || !hasSignature(coach, 'seven-seconds')) return 0
+  return 0.008
+}
+
+export function coachFoulMultiplier(coach: Coach | undefined): number {
+  let factor = 1
+  if (coach?.pedigree === 'college-mentor') factor *= 0.92
+  if (hasSignature(coach, 'lockdown')) factor *= 1.1
+  return factor
+}
+
+export function coachFatigueFactor(coach: Coach | undefined): number {
+  let factor = coach?.style === 'disciplinarian' ? 0.92 : 1
+  if (hasSignature(coach, 'seven-seconds')) factor *= 1.12
+  return factor
 }
 
 function mvpScore(player: Player, team: Team): number {
