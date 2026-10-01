@@ -28,10 +28,11 @@ Status: `not started` | `in progress` | `done`
 - A coach has an age, an origin, a former-player flag, and ratings for offense, defense, teaching, and the locker room. Those ratings change makes and morale. Player biographies are still thin. `in progress`
 - A new coach picks a pedigree and up to two signatures. A former star steadies veterans and weighs on young players. Seven seconds scores more in transition and turns the ball over in the half court. The ratings stay with the pedigree. `done`
 - A starter who plays well under the minutes his spot promises loses morale and can ask out. The wire says so. A scorer next to two other high-usage players makes a slightly worse shot. A contract year and a traded glue guy are still open. `in progress`
+- A ribbon across the desk shows the record, the next game, the cap tier, the date, and unread mail. The button says go to the match, simulate the day, or blocked. `done`
 
 ## Next
 
-The status ribbon (8): record, next game, cap tier, date, and unread mail. A contract year and a traded glue guy stay open on 15. The ribbon comes before any tactics lab, rotation board, or play drawer (16, 18, 19).
+Lists, the office, and the books screen are still unfinished (8, 11). A contract year and a traded glue guy stay open on 15, before any tactics lab, rotation board, or play drawer (16, 18, 19).
 
 ## Backlog
 
