@@ -183,7 +183,7 @@ for (let i = 0; i < talentGames; i++) {
 }
 const talentMargin = (goodPoints - badPoints) / talentGames
 console.log('talent margin', +talentMargin.toFixed(1))
-expectRange('talentMargin', talentMargin, 6, 18)
+expectRange('talentMargin', talentMargin, 6, 24)
 restoreAttributes(home, goodSaved)
 restoreAttributes(away, badSaved)
 
@@ -224,21 +224,34 @@ while (!watched.finished && replayGuard < 800) {
 if (!watched.finished) failures.push('scripted replay did not finish')
 if (watched.scoreHome < 70 || watched.scoreAway < 70) failures.push(`scripted score ${watched.scoreHome}-${watched.scoreAway} is too low`)
 
-const defense = new Map<string, { minutes: number; stl: number; blk: number }>()
+const defense = new Map<string, { minutes: number; stl: number; blk: number; points: number; games: number }>()
 for (let i = 0; i < 40; i++) {
   const result = engine.simulateMatch(home, away)
   for (const [team, stats] of [[home, result.playerStatsA], [away, result.playerStatsB]] as const) {
     for (const player of team.roster) {
       const line = stats[player.id]
       if (!line || line.minutes <= 0) continue
-      const row = defense.get(player.id) ?? { minutes: 0, stl: 0, blk: 0 }
+      const row = defense.get(player.id) ?? { minutes: 0, stl: 0, blk: 0, points: 0, games: 0 }
       row.minutes += line.minutes
       row.stl += line.steals
       row.blk += line.blocks
+      row.points += line.points
+      row.games += 1
       defense.set(player.id, row)
     }
   }
 }
+const star = [...home.roster].sort((a, b) => b.overallRating - a.overallRating)[0]
+const starRow = defense.get(star.id)
+const starPpg = starRow && starRow.games ? starRow.points / starRow.games : 0
+const bench = [...home.roster].filter(player => player.overallRating < 74)
+const benchPpg = bench.reduce((sum, player) => {
+  const row = defense.get(player.id)
+  return sum + (row && row.games ? row.points / row.games : 0)
+}, 0) / Math.max(1, bench.length)
+console.log('star', star.name, star.overallRating, +starPpg.toFixed(1), 'bench', +benchPpg.toFixed(1))
+if (star.overallRating >= 94 && (starPpg < 26 || starPpg > 36)) failures.push(`${star.name} averages ${starPpg.toFixed(1)} points`)
+if (benchPpg > 12) failures.push(`bench averages ${benchPpg.toFixed(1)} points`)
 const per36 = (stat: number, minutes: number) => stat / minutes * 36
 const rows = [...defense.entries()].map(([id, row]) => {
   const player = home.roster.find(p => p.id === id) ?? away.roster.find(p => p.id === id)!

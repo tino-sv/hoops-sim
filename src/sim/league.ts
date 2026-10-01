@@ -1,7 +1,7 @@
 import { settleTeamMorale } from './badges'
 import { birdFromYears, CBASimulator, type OfferVerdict } from './cba'
 import { MatchEngine } from './matchEngine'
-import { bookGameMoney, ensureCommercials, findPlayer, gamePosts, luxuryTaxBill, pickAllStars, pickAwards, tvCheck, tvUpgradeCost } from './office'
+import { bookGameMoney, ensureCoach, ensureCommercials, findPlayer, gamePosts, levyFine, monthKey, pickAllStars, pickAwards, postCash, rollCoach, luxuryTaxBill, tvCheck, tvUpgradeCost } from './office'
 import { createPlayer, createProspect, playerFromProspect } from './players'
 import { deriveTraits, developPlayer } from './ratings'
 import { NBA_RULES } from './rules'
@@ -103,6 +103,13 @@ export interface HiredCoach {
   tempo: TeamTactics['tempo']
   offense: TeamTactics['offensiveStyle']
   coverage: TeamTactics['defensiveCoverage']
+  age?: number
+  origin?: string
+  formerPlayer?: boolean
+  offenseSkill?: number
+  defenseSkill?: number
+  teaching?: number
+  manManagement?: number
 }
 
 export interface CareerChoice {
@@ -303,6 +310,8 @@ export class LeagueManager {
       }
       this.teams.forEach((team, index) => {
         ensureCommercials(team, index)
+        ensureCoach(team, index)
+        if (!team.finances.books) team.finances.books = []
         if (!team.trim) team.trim = DEFAULT_TRIM
       })
       for (const team of this.teams) for (const player of team.roster) refreshBadges(player)
@@ -326,7 +335,19 @@ export class LeagueManager {
     this.userTeamId = this.teams.find(team => team.id === teamId)?.id ?? this.teams[0].id
     if (coach?.name.trim()) {
       const hired = this.userTeam()
-      hired.coach = { name: coach.name.trim(), style: coach.style }
+      const rolled = rollCoach(coach.name.trim(), coach.style, 0)
+      hired.coach = {
+        ...rolled,
+        name: coach.name.trim(),
+        style: coach.style,
+        age: coach.age ?? rolled.age,
+        origin: coach.origin?.trim() || rolled.origin,
+        formerPlayer: coach.formerPlayer ?? rolled.formerPlayer,
+        offense: coach.offenseSkill ?? rolled.offense,
+        defense: coach.defenseSkill ?? rolled.defense,
+        teaching: coach.teaching ?? rolled.teaching,
+        manManagement: coach.manManagement ?? rolled.manManagement
+      }
       hired.tactics = {
         ...hired.tactics,
         tempo: coach.tempo,
@@ -415,10 +436,7 @@ export class LeagueManager {
       division: template.division,
       color: template.color,
       trim: DEFAULT_TRIM,
-      coach: {
-        name: template.coach,
-        style: COACH_STYLES[index % COACH_STYLES.length]
-      },
+      coach: rollCoach(template.coach, COACH_STYLES[index % COACH_STYLES.length], index),
       owner: {
         name: template.owner,
         goalWins: GOAL_WINS[quality],
@@ -598,9 +616,23 @@ export class LeagueManager {
     this.saveToLocalStorage()
   }
 
-  setCoach(name: string, style: CoachStyle, tempo: TeamTactics['tempo'], offense: TeamTactics['offensiveStyle'], coverage: TeamTactics['defensiveCoverage']): void {
+  setCoach(coach: HiredCoach): void {
     const team = this.userTeam()
-    team.coach = { name: name.trim() || team.coach.name, style }
+    const rolled = rollCoach(coach.name.trim() || team.coach.name, coach.style, 0)
+    team.coach = {
+      ...rolled,
+      name: coach.name.trim() || team.coach.name,
+      style: coach.style,
+      age: coach.age ?? team.coach.age ?? rolled.age,
+      origin: coach.origin?.trim() || team.coach.origin || rolled.origin,
+      formerPlayer: coach.formerPlayer ?? team.coach.formerPlayer ?? false,
+      offense: coach.offenseSkill ?? team.coach.offense ?? rolled.offense,
+      defense: coach.defenseSkill ?? team.coach.defense ?? rolled.defense,
+      teaching: coach.teaching ?? team.coach.teaching ?? rolled.teaching,
+      manManagement: coach.manManagement ?? team.coach.manManagement ?? rolled.manManagement
+    }
+    const { tempo, offense, coverage } = coach
+    const style = coach.style
     team.tactics = { ...team.tactics, tempo, offensiveStyle: offense, defensiveCoverage: coverage }
     this.note('Front Office', 'Coach updated', `${team.coach.name} is the head coach. Style: ${style}.`)
     this.saveToLocalStorage()
@@ -614,8 +646,7 @@ export class LeagueManager {
     if (team.finances.cash < cost) {
       return deny(`The buyout is $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
     }
-    team.finances.cash -= cost
-    team.finances.seasonExpenses += cost
+    if (cost > 0) postCash(team, 'other', -cost, team.finances.lastBookMonth ?? 'preseason')
     team.finances.tvDeal = tier
     const check = tvCheck(team)
     this.note(
@@ -637,8 +668,7 @@ export class LeagueManager {
     if (team.finances.cash < cost) {
       return deny(`The uniform order is $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
     }
-    team.finances.cash -= cost
-    team.finances.seasonExpenses += cost
+    postCash(team, 'other', -cost, team.finances.lastBookMonth ?? 'preseason')
     team.color = color
     team.trim = trim
     this.note('Front Office', 'New uniforms', `Home is ${color} with ${trim} trim. The order was $${(cost / 1_000_000).toFixed(0)}M, and it does not hit the cap.`)
@@ -664,8 +694,7 @@ export class LeagueManager {
       return deny(`The move costs $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
     }
     const from = team.city
-    team.finances.cash -= cost
-    team.finances.seasonExpenses += cost
+    postCash(team, 'other', -cost, team.finances.lastBookMonth ?? 'preseason')
     team.city = next
     this.note(
       'Owner',
@@ -724,7 +753,7 @@ export class LeagueManager {
       match.winnerId = result.winnerId
       match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
       this.applyMatchResults(home, away, result, match.cup)
-      this.bookGate(home, away, result.winnerId === home.id, match.cup)
+      this.bookGate(home, away, result.winnerId === home.id, match.cup, match.date, result.teamAScore, result.teamBScore)
       this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
       if (userTeamId && (home.id === userTeamId || away.id === userTeamId) && onUserGameDone) {
         onUserGameDone(result)
@@ -748,13 +777,16 @@ export class LeagueManager {
     const home = this.teams.find(team => team.id === match.homeTeamId)
     const away = this.teams.find(team => team.id === match.awayTeamId)
     if (!home || !away) return
-    this.bookGate(home, away, homeWon, match.cup)
+    this.bookGate(home, away, homeWon, match.cup, match.date, match.scoreHome ?? 0, match.scoreAway ?? 0)
     this.reactToGame(home, away, match.scoreHome ?? 0, match.scoreAway ?? 0, match.date)
   }
 
-  private bookGate(home: Team, away: Team, homeWon: boolean, cup: boolean) {
-    bookGameMoney(home, true, homeWon)
-    bookGameMoney(away, false, !homeWon)
+  private bookGate(home: Team, away: Team, homeWon: boolean, cup: boolean, date: string, homeScore: number, awayScore: number) {
+    bookGameMoney(home, true, homeWon, date)
+    bookGameMoney(away, false, !homeWon, date)
+    if (Math.abs(homeScore - awayScore) >= 25) {
+      levyFine(homeWon ? away : home, NBA_RULES.BLOWOUT_FINE, monthKey(date))
+    }
     if (!cup) return
     if (homeWon) {
       home.cupWins++
@@ -879,11 +911,11 @@ export class LeagueManager {
     match.winnerId = result.winnerId
     match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
     if (match.exhibition) {
-      settleTeamMorale(home.roster, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, home.coach?.style)
-      settleTeamMorale(away.roster, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, away.coach?.style)
+      settleTeamMorale(home.roster, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, home.coach)
+      settleTeamMorale(away.roster, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, away.coach)
       return
     }
-    this.bookGate(home, away, result.winnerId === home.id, true)
+    this.bookGate(home, away, result.winnerId === home.id, true, match.date, result.teamAScore, result.teamBScore)
     this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
   }
 
@@ -918,8 +950,7 @@ export class LeagueManager {
         this.cupResolved = true
         const winner = this.teams.find(team => team.id === this.cupChampionId)
         if (winner) {
-          winner.finances.cash += NBA_RULES.CUP_PURSE
-          winner.finances.seasonRevenue += NBA_RULES.CUP_PURSE
+          postCash(winner, 'other', NBA_RULES.CUP_PURSE, winner.finances.lastBookMonth ?? 'cup')
           this.note('League office', 'Cup champion', `${winner.city} ${winner.name} won the Cup. $${(NBA_RULES.CUP_PURSE / 1_000_000).toFixed(0)}M goes to the team, not the cap.`)
         }
         return
@@ -1103,10 +1134,10 @@ export class LeagueManager {
     match.scoreAway = result.teamBScore
     match.winnerId = result.winnerId
     match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
-    this.bookGate(home, away, result.winnerId === home.id, false)
+    this.bookGate(home, away, result.winnerId === home.id, false, match.date, result.teamAScore, result.teamBScore)
     this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
-    settleTeamMorale(home.roster, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, home.coach?.style)
-    settleTeamMorale(away.roster, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, away.coach?.style)
+    settleTeamMorale(home.roster, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, home.coach)
+    settleTeamMorale(away.roster, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, away.coach)
     this.recordSeriesGame(match)
   }
 
@@ -1202,8 +1233,8 @@ export class LeagueManager {
 
     updateStats(home, res.playerStatsA)
     updateStats(away, res.playerStatsB)
-    settleTeamMorale(home.roster, player => res.playerStatsA[player.id]?.minutes ?? 0, res.winnerId === home.id, home.coach?.style)
-    settleTeamMorale(away.roster, player => res.playerStatsB[player.id]?.minutes ?? 0, res.winnerId === away.id, away.coach?.style)
+    settleTeamMorale(home.roster, player => res.playerStatsA[player.id]?.minutes ?? 0, res.winnerId === home.id, home.coach)
+    settleTeamMorale(away.roster, player => res.playerStatsB[player.id]?.minutes ?? 0, res.winnerId === away.id, away.coach)
   }
 
   enterOffseason(): OfferVerdict {
@@ -1221,8 +1252,7 @@ export class LeagueManager {
     for (const team of this.teams) {
       const tax = luxuryTaxBill(team)
       if (tax > 0) {
-        team.finances.cash -= tax
-        team.finances.seasonExpenses += tax
+        postCash(team, 'other', -tax, team.finances.lastBookMonth ?? 'offseason')
         if (team.id === user.id) userTax = tax
       }
       const met = team.wins >= team.owner.goalWins
@@ -1231,8 +1261,7 @@ export class LeagueManager {
     for (const team of this.teams) {
       const annual = team.finances.sponsor?.annual ?? 0
       if (annual <= 0) continue
-      team.finances.cash += annual
-      team.finances.seasonRevenue += annual
+      postCash(team, 'sponsor', annual, 'offseason')
     }
     const sponsor = user.finances.sponsor
     if (sponsor) {
@@ -1559,6 +1588,8 @@ export class LeagueManager {
       team.cupLosses = 0
       team.finances.seasonRevenue = 0
       team.finances.seasonExpenses = 0
+      team.finances.books = []
+      team.finances.lastBookMonth = undefined
       team.finances.exceptions = CBASimulator.freshExceptions()
       team.finances.hardCap = null
       for (const player of team.roster) {

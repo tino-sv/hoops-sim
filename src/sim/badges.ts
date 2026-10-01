@@ -1,4 +1,4 @@
-import type { CoachStyle, Player, PlayerAttributes, PlayerPersonality, Position } from './types'
+import type { Coach, Player, PlayerAttributes, PlayerPersonality, Position } from './types'
 
 type ShotKind = 'close' | 'mid' | 'three'
 
@@ -165,7 +165,8 @@ export function salaryBadgeMultiplier(player: Player): number {
   return 1
 }
 
-export function moraleAfterGame(player: Player, minutes: number, won: boolean, leaderPlayed: boolean, coachStyle?: CoachStyle): number {
+export function moraleAfterGame(player: Player, minutes: number, won: boolean, leaderPlayed: boolean, coach?: Coach): number {
+  const coachStyle = coach?.style
   let delta = won ? 2 : -2
   if (hasBadge(player, 'competitor')) delta = won ? 4 : -1
   if (hasBadge(player, 'hothead') && !won) delta = -5
@@ -175,6 +176,10 @@ export function moraleAfterGame(player: Player, minutes: number, won: boolean, l
   if (coachStyle === 'players-coach' && won) delta += 1
   if (coachStyle === 'disciplinarian' && hasBadge(player, 'hothead')) delta += 1
   if (coachStyle === 'disciplinarian' && hasBadge(player, 'fragile')) delta -= 1
+  if (coach?.formerPlayer && !won) delta += 1
+  if ((coach?.teaching ?? 0) >= 75 && player.age <= 23 && won) delta += 1
+  if ((coach?.manManagement ?? 60) >= 75 && (hasBadge(player, 'diva') || hasBadge(player, 'fragile'))) delta += 1
+  if ((coach?.manManagement ?? 60) <= 42 && !won) delta -= 1
 
   const wantsBall = player.personality.usageExpectation > 20
   if (hasBadge(player, 'diva') && minutes > 0 && minutes < 28) delta -= 3
@@ -188,9 +193,9 @@ export function moraleAfterGame(player: Player, minutes: number, won: boolean, l
   return clamp(player.morale + delta, 0, 100)
 }
 
-export function settleTeamMorale(roster: Player[], minutesOf: (player: Player) => number, won: boolean, coachStyle?: CoachStyle) {
+export function settleTeamMorale(roster: Player[], minutesOf: (player: Player) => number, won: boolean, coach?: Coach) {
   const leaderPlayed = roster.some(player => hasBadge(player, 'leader') && minutesOf(player) >= 15)
   for (const player of roster) {
-    player.morale = moraleAfterGame(player, minutesOf(player), won, leaderPlayed, coachStyle)
+    player.morale = moraleAfterGame(player, minutesOf(player), won, leaderPlayed, coach)
   }
 }

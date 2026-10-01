@@ -41,7 +41,7 @@ export function createPlayer(options: {
     greed: Math.round(30 + Math.random() * 60),
     morale: 80,
     chemistry: 75,
-    usageExpectation: overallRating >= 94 ? 32 : overallRating >= 86 ? 28 : overallRating >= 78 ? 22 : overallRating >= 72 ? 16 : 12
+    usageExpectation: overallRating >= 96 ? 36 : overallRating >= 90 ? 31 : overallRating >= 84 ? 24 : overallRating >= 78 ? 18 : overallRating >= 72 ? 14 : 10
   }
 
   const traits = deriveTraits(attributes, position, personality)

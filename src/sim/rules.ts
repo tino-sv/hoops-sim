@@ -40,6 +40,16 @@ export const NBA_RULES = {
   JERSEY_ORDER: 2_000_000,
   /** Cash to move the club to an open city. Division and conference stay. */
   RELOCATION_FEE: 35_000_000,
+  /** Monthly, before the win bump. National markets sell more shirts. */
+  MERCH_LOCAL: 700_000,
+  MERCH_PARTNER: 1_400_000,
+  MERCH_NATIONAL: 2_400_000,
+  /** Building upkeep for the month. Not a new arena. */
+  STADIUM_UPKEEP: 1_100_000,
+  /** Coaches, trainers, and the front office for the month. Not player salary. */
+  STAFF_PAYROLL: 900_000,
+  /** League fine after a 25-point loss. */
+  BLOWOUT_FINE: 250_000,
   SCHEMA_VERSION: 3
 } as const
 

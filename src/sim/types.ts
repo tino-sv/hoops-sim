@@ -160,11 +160,38 @@ export interface TeamFinances {
   tvDeal?: MarketDeal;
   /** Paid in cash when the offseason opens. It does not hit the cap. */
   sponsor?: SponsorDeal;
+  /** Monthly cash book. Missing on older saves until the league loads. */
+  books?: MonthBook[];
+  lastBookMonth?: string;
+}
+
+export interface MonthBook {
+  month: string;
+  gate: number;
+  tv: number;
+  merch: number;
+  sponsor: number;
+  stadium: number;
+  salary: number;
+  staff: number;
+  fine: number;
+  other: number;
 }
 
 export interface Coach {
   name: string;
   style: CoachStyle;
+  age: number;
+  origin: string;
+  formerPlayer: boolean;
+  /** 1-99. How often the offense finishes. */
+  offense: number;
+  /** 1-99. How hard shots are contested. */
+  defense: number;
+  /** 1-99. Young players take a win better. */
+  teaching: number;
+  /** 1-99. How the room handles a loss, a diva, and a fragile player. */
+  manManagement: number;
 }
 
 export interface Owner {

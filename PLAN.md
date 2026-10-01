@@ -23,24 +23,32 @@ Status: `not started` | `in progress` | `done`
 - The match is a full court: kits, a score line, floor bars, and the ball. Home opens on the next game, and the lineup board uses the same floor. Shell type is flat, with team color and no emoji. `in progress`
 - A watched game is charted before the first trip. A sub or a coverage change throws out the rest and charts again from that moment. `done`
 - Steals and blocks sit near the 2024-25 line, about 8 and 5 a game. A 90 steal guard lands near 2.5 a night. An ordinary player stays near 1. A real rim protector is the one who blocks shots. `done`
+- A 97 overall takes a first-option share and scores about 32 a game. The team stays near 113. A new career is required to see the new usage. `done`
+- Books is its own screen. Each month lists gate, TV, merch, salaries, staff, the building, and fines. An arena and a staff market are still open. `in progress`
+- A coach has an age, an origin, a former-player flag, and ratings for offense, defense, teaching, and the locker room. Those ratings change makes and morale. Player biographies are still thin. `in progress`
 
 ## Next
 
-Finances, the look, and the coach are still open (1, 8, 11, 14). Star scoring is the next engine pass.
+Commit the open scoring, books, and coach profile on `feat/star-scoring`. Then coach pedigree and two traits (14). Then a promised role against real minutes (15). The status ribbon (8) comes before any tactics lab, rotation board, or play drawer (16, 18, 19).
 
 ## Backlog
 
-1. Deeper finances. Sponsors, a TV buyout, uniforms, and a move are on the cash book. Still missing a finances screen with monthly and yearly income and spending: merch, TV, the building, salaries, fines, and staff, each with its own sim. `in progress`
+1. Deeper finances. Books shows the year and each month. Still open: incentives, dead money, options, trade kickers, a real repeater tax, apron trade locks, dynamic gate, naming rights, and playoff gate. `in progress`
 2. The game should center on an inbox, in the style of Football Manager. `not started`
-3. Scouting past the NBA draft: G League, small regional leagues, overseas leagues, high school. `not started`
-4. Full staff, rival staff, and agents and agencies that change decisions. `not started`
-5. Social media. A wire reacts to your games: a beat writer, a highlight show, the team account, a fan, and a player. YouTubers, podcasters, and the rest of the press are still open. `in progress`
+3. Scouting fog past the draft board: hidden ceilings, medical flags, a two-way affiliate, and a veteran mentor who passes a badge. `not started`
+4. Full staff, rival staff, and agents and agencies that change decisions. Scouting, sports science, and the practice building are budget lines with an effect, not sliders. `not started`
+5. The wire reacts to games. Still open: a postgame answer that helps the owner or the player, a leak when you shop someone, and the rest of the press. `in progress`
 6. Coaching carousel. Move between high school, college, and the pro league. `not started`
 7. A full college game, with continuity when a coach has worked both levels. `not started`
-8. Cleaner UI across the shell, home screen, calendar, and office. The shell is flat. The lists, the office, and the finances screen are not finished. `in progress`
+8. Shell. A top ribbon with record, next game, cap tier, date, and unread mail. The sim control says simulate the day, go to the match, or blocked. The left nav stays words. Lists, office, and books are still unfinished. `in progress`
 9. Sim the rest of the regular season from the home screen, for testing. `done`
 10. Honors on its own page, plus sort and filter controls on the main lists. `done`
-11. Redesign the look. Chrome is flat type and team color, without emoji, pills, or fake crests. Roster and draft tables are still plain lists. `in progress`
+11. Redesign the look. Chrome is flat type and team color, without emoji, pills, or fake crests. Home should show the next game, who cannot play, and the owner in one view. Roster and draft tables are still plain lists. `in progress`
 12. Choose your team when a game starts. `done`
-13. Precompute the game, then show that script on the court. A sub or a coverage change recalculates from that moment. Steals and blocks sit near the 2024-25 line, about 8 and 5 a game, and only the good defenders post the loud averages. Star scoring is still too flat. `in progress`
-14. Coach and player identity. History, including a former player, plus name, age, origin, and coach stats that change the team and how he deals with players. Badges and traits stay part of it. `not started`
+13. Precompute the game, then show that script on the court. A sub or a coverage change recalculates from that moment. Steals and blocks sit near the 2024-25 line. A 96-plus player scores like a modern first option, about 26 to 34 a game, and the team stays near 113. `done`
+14. Coach pedigree. Former star, video-room, college mentor, or European tactician sets respect, tactics, and growth. Two signature traits, each with a bonus and a cost. Ratings stay on the scale the players already use. `in progress`
+15. Role and usage resentment. A promised role, a starved scorer, a traded glue guy, or a contract year changes efficiency, morale, and trade demands. `not started`
+16. Playbook. Tempo, spacing, shot profile, matchup hunting, and a foul plan on top of the coverages we have. A timeout and foul-trouble subs come before a play drawer. `not started`
+17. Owner archetype. Impatient, cheap, or hands-off, on top of the win goal and patience we already store. `not started`
+18. Rotation board. Minute targets that add to 240, a closing five, and stagger so two handlers are not both sitting. Lineup ratings wait until those minutes are real. `not started`
+19. Match command. Foul trouble on the floor, a live run, and changes that wait for the next whistle. The court we have stays the view. `not started`

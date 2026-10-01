@@ -216,7 +216,7 @@ export class PossessionEngine {
     if (defTactics.defensiveCoverage === 'zone-32' && shot.kind === 'close') contest -= 0.02
     if (defTactics.defensiveCoverage === 'zone-32' && shot.kind === 'three') contest += 0.02
     contest += contestBoost(defender)
-    contest += coachMakeBoost(defense.coach?.style, 'defense')
+    contest += coachMakeBoost(defense.coach, 'defense')
     if (defTactics.defensiveCoverage === 'switch-everything') {
       const gap = SIZE[defender.position] - SIZE[shooter.position]
       if (gap >= 2) contest -= 0.025
@@ -225,11 +225,11 @@ export class PossessionEngine {
     contest = clamp(contest, 0.005, 0.16)
 
     const skillKey = shot.kind === 'three' ? 'threePoint' : shot.kind === 'mid' ? 'midRange' : 'closeShot'
-    let make = this.baseMake(shot.kind) + (attr(shooter, 'technical', skillKey) - 68) * 0.0009 - contest + mood
+    let make = this.baseMake(shot.kind) + (attr(shooter, 'technical', skillKey) - 68) * 0.0012 - contest + mood
     if (ctx.isHomeOffense) make += 0.008
     make += shootingBoost(shooter, shot.kind, ctx.quarter, ctx.secondsRemaining)
     make += leaderMakeBoost(onCourtOff, shooter.id)
-    make += coachMakeBoost(offense.coach?.style, 'offense')
+    make += coachMakeBoost(offense.coach, 'offense')
     make = clamp(make, shot.kind === 'close' ? 0.42 : 0.22, shot.kind === 'close' ? 0.78 : shot.kind === 'three' ? 0.46 : 0.52)
 
     const blockChance = this.blockChanceFor(shot.kind, onCourtDef, advantage)
@@ -242,8 +242,9 @@ export class PossessionEngine {
       return [missed]
     }
 
-    const foulChance = (shot.kind === 'close' ? 0.21 : shot.kind === 'mid' ? 0.095 : 0.045) + foulBoost(defender)
-      + (attr(shooter, 'technical', 'finishing') - 60) * 0.0006
+    const foulChance = (shot.kind === 'close' ? 0.18 : shot.kind === 'mid' ? 0.08 : 0.04) + foulBoost(defender)
+      + (attr(shooter, 'technical', 'finishing') - 60) * 0.0008
+      + (shooter.overallRating >= 94 && shot.kind === 'close' ? 0.03 : 0)
     if (Math.random() < foulChance) {
       const andOne = Math.random() < make * 0.85
       const ftCount = andOne ? 1 : (shot.kind === 'three' ? 3 : 2)
@@ -326,6 +327,12 @@ export class PossessionEngine {
     return clamp(chance, 0, kind === 'close' ? 0.2 : 0.035)
   }
 
+  private usageWeight(player: Player): number {
+    const usage = Math.max(8, player.personality.usageExpectation)
+    const star = player.overallRating >= 96 ? 1.35 : player.overallRating >= 90 ? 1.15 : 1
+    return Math.pow(usage, 1.2) * star * usageMultiplier(player)
+  }
+
   private possessionLength(tempo: TeamTactics['tempo'], ctx: PossessionContext): number {
     const mean = tempo === 'fast' ? 15.6 : tempo === 'slow' ? 19.2 : 17.4
     const length = mean + (Math.random() * 4 - 2)
@@ -335,7 +342,7 @@ export class PossessionEngine {
   private pickBallHandler(players: Player[], tactics: TeamTactics): Player {
     return pickWeighted(players.map(player => {
       const role = tactics.offensiveRoles[player.id]
-      let weight = (6 + player.personality.usageExpectation * 0.85) * usageMultiplier(player)
+      let weight = this.usageWeight(player)
       weight += (attr(player, 'technical', 'ballHandling') - 50) * 0.12
       if (role === 'initiator') weight += 16
       if (role === 'secondary-initiator') weight += 9
@@ -389,15 +396,17 @@ export class PossessionEngine {
     overplayed: boolean
   ): { shooter: Player; kind: ShotKind; assist: boolean; passerId: string | null; kickout: boolean } {
     const others = lineup.filter(player => player.id !== handler.id)
-    const keepIt = secondChance ? 0.7
-      : tactics.offensiveRoles[handler.id] === 'initiator' ? 0.26
-      : 0.34
+    const keepIt = secondChance ? 0.72
+      : handler.overallRating >= 96 ? 0.42
+      : handler.overallRating >= 90 ? 0.34
+      : tactics.offensiveRoles[handler.id] === 'initiator' ? 0.3
+      : 0.2
     const shooter = others.length === 0 || Math.random() < keepIt
       ? handler
       : pickWeighted(others.map(player => ({
           item: player,
-          w: 4 + player.personality.usageExpectation * 0.4
-            + Math.max(0, attr(player, 'technical', 'threePoint') - 70) * 0.3
+          w: this.usageWeight(player)
+            + Math.max(0, attr(player, 'technical', 'threePoint') - 70) * 0.4
             + (tactics.offensiveRoles[player.id] === 'spot-up' ? 8 : 0)
             + (tactics.offensiveRoles[player.id] === 'rim-runner' ? 7 : 0)
         })))
