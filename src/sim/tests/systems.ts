@@ -1,5 +1,5 @@
 import { crowdedShotPenalty, moraleAfterGame, roleMoraleDelta, settleTeamMorale } from '../badges'
-import { CBASimulator } from '../cba'
+import { capTierLabel, CBASimulator, rosterBlockReason } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
 import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
 import { createPlayer } from '../players'
@@ -42,6 +42,14 @@ for (const team of league.teams) {
 
 const user = league.userTeam()
 assert(CBASimulator.capHit(user) > NBA_RULES.SALARY_CAP, 'user team is over the cap, like most NBA teams')
+const hit = CBASimulator.capHit(user)
+const tier = capTierLabel(user)
+const expectedTier = hit > NBA_RULES.SECOND_APRON ? 'Second apron' : hit > NBA_RULES.FIRST_APRON ? 'First apron' : hit > NBA_RULES.LUXURY_TAX ? 'Tax' : 'Over the cap'
+assert(tier === expectedTier, `cap tier ${tier} should be ${expectedTier}`)
+assert(rosterBlockReason(15, 'regular') === null, 'a 15-man roster can play')
+assert(rosterBlockReason(16, 'regular')?.includes('15'), '16 men block the night')
+assert(rosterBlockReason(13, 'regular')?.includes('14'), '13 men block the night')
+assert(rosterBlockReason(18, 'offseason')?.includes('17'), '18 men block the offseason')
 
 const guard = createPlayer({ position: 'PG', targetOverall: 90, age: 27, years: 2 })
 assert(guard.attributes.technical.block < 50, `star PG block should stay low, got ${guard.attributes.technical.block}`)

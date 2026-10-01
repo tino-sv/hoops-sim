@@ -293,6 +293,25 @@ export class CBASimulator {
   }
 }
 
+export function capTierLabel(team: Team): string {
+  const hit = CBASimulator.capHit(team)
+  if (hit > NBA_RULES.SECOND_APRON) return 'Second apron'
+  if (hit > NBA_RULES.FIRST_APRON) return 'First apron'
+  if (hit > NBA_RULES.LUXURY_TAX) return 'Tax'
+  if (hit > NBA_RULES.SALARY_CAP) return 'Over the cap'
+  return 'Under the cap'
+}
+
+export function rosterBlockReason(count: number, phase: SeasonPhase): string | null {
+  if (phase === 'offseason') {
+    if (count > NBA_RULES.OFFSEASON_ROSTER_MAX) return `Roster is ${count}. The offseason max is ${NBA_RULES.OFFSEASON_ROSTER_MAX}.`
+    return null
+  }
+  if (count > NBA_RULES.ROSTER_MAX) return `Roster is ${count}. Cut to ${NBA_RULES.ROSTER_MAX} before the next night.`
+  if (count < NBA_RULES.ROSTER_MIN) return `Roster is ${count}. You need ${NBA_RULES.ROSTER_MIN}.`
+  return null
+}
+
 export function birdFromYears(yearsServed: number): BirdRights {
   if (yearsServed >= 3) return 'full-bird'
   if (yearsServed === 2) return 'early-bird'

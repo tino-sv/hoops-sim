@@ -16,6 +16,7 @@
   import TeamSelect from './pages/TeamSelect.svelte';
   import Wire from './pages/Wire.svelte';
   import Finances from './pages/Finances.svelte';
+  import StatusRibbon from './components/StatusRibbon.svelte';
   import type { CoachStyle, DefensiveCoverage, MarketDeal, OffensiveStyle, TeamTactics } from './sim/types';
 
   // Instantiate League Manager
@@ -429,6 +430,28 @@
 
   <!-- Main Content Shell -->
   <main class="main-content">
+    <StatusRibbon
+      team={userTeam}
+      allTeams={teams}
+      {schedule}
+      {currentRound}
+      {phase}
+      {offseasonStep}
+      {seasonComplete}
+      {playoffSeries}
+      {championId}
+      {news}
+      {season}
+      inMatch={!!activeMatchId}
+      onAdvance={handleAdvanceRound}
+      onPlayoffNight={handlePlayoffNight}
+      onGoToMatch={handleGoToMatchCenter}
+      onEnterOffseason={handleEnterOffseason}
+      onStartSeason={handleStartSeason}
+      onOpenHome={() => { activeTab = 'dashboard'; activeMatchId = null; }}
+      onOpenDraft={() => { activeTab = 'scouting'; activeMatchId = null; }}
+    />
+    <div class="desk">
     {#if activeMatchId}
       <MatchCenter 
         matchId={activeMatchId} 
@@ -548,6 +571,7 @@
         onPlay={handleGoToMatchCenter}
       />
     {/if}
+    </div>
   </main>
 </div>
 
