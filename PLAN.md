@@ -27,7 +27,8 @@ Status: `not started` | `in progress` | `done`
 - Books is its own screen. Each month lists gate, TV, merch, salaries, staff, the building, and fines. An arena and a staff market are still open. `in progress`
 - A coach has an age, an origin, a former-player flag, and ratings for offense, defense, teaching, and the locker room. Those ratings change makes and morale. Player biographies are still thin. `in progress`
 - A new coach picks a pedigree and up to two signatures. A former star steadies veterans and weighs on young players. Seven seconds scores more in transition and turns the ball over in the half court. The ratings stay with the pedigree. `done`
-- A starter who plays well under the minutes his spot promises loses morale and can ask out. The wire says so. A scorer next to two other high-usage players makes a slightly worse shot. A contract year and a traded glue guy are still open. `in progress`
+- A starter who plays well under the minutes his spot promises loses morale and can ask out. The wire says so. A scorer next to two other high-usage players makes a slightly worse shot. `done`
+- A player in the last year of his deal makes a few more shots, turns it over a little more, and feels a loss harder. A glue guy helps a teammate's shot. If he sits, or you waive him, the room sags. A new career is required to roll who the glue guys are. `done`
 - A ribbon across the desk shows the record, the next game, the cap tier, the date, and unread mail. The button says go to the match, simulate the day, or blocked. `done`
 - The roster lists role, salary, years left, and who wants out. The draft board is a table. An overall stays a range until you scout him. `done`
 - A heavy night can knock a player out for a few days. Home lists who cannot play. `done`
@@ -35,7 +36,10 @@ Status: `not started` | `in progress` | `done`
 
 ## Next
 
-A contract year and a traded glue guy stay open on 15. An arena and a staff market stay open on the books (1).
+1. A player page: origin, years in the league, and one sentence. Badges stay (14). `not started`
+2. Shop one player. One offer comes back. Accept or refuse. The wire hears about it (5, 20). `not started`
+3. An owner who is impatient, cheap, or hands-off (17). `not started`
+4. Minute targets that add to 240, a closing five, and a stagger. No tactics lab until those minutes are real (18). `not started`
 
 ## Backlog
 
@@ -53,8 +57,9 @@ A contract year and a traded glue guy stay open on 15. An arena and a staff mark
 12. Choose your team when a game starts. `done`
 13. Precompute the game, then show that script on the court. A sub or a coverage change recalculates from that moment. Steals and blocks sit near the 2024-25 line. A 96-plus player scores like a modern first option, about 26 to 34 a game, and the team stays near 113. `done`
 14. Coach pedigree. Former star, video-room, college mentor, or European tactician sets respect and the ratings the sim already uses. Two signature traits, each with a bonus and a cost. Player biographies are still a name, an age, and badges. `in progress`
-15. Role and usage resentment. A promised role against real minutes, and a scorer stuck next to two ball-dominant teammates, changes efficiency, morale, and a trade demand. A contract year and a traded glue guy are still open. `in progress`
+15. Role and usage resentment. A promised role against real minutes, and a scorer stuck next to two ball-dominant teammates, changes efficiency, morale, and a trade demand. A contract year plays a little better and feels a loss more. A glue guy steadies a teammate's shot, and the room sags when he sits or is waived. `done`
 16. Playbook. Tempo, spacing, shot profile, matchup hunting, and a foul plan on top of the coverages we have. A timeout and foul-trouble subs come before a play drawer. `not started`
 17. Owner archetype. Impatient, cheap, or hands-off, on top of the win goal and patience we already store. `not started`
 18. Rotation board. Minute targets that add to 240, a closing five, and stagger so two handlers are not both sitting. Lineup ratings wait until those minutes are real. `not started`
 19. Match command. Foul trouble on the floor, a live run, and changes that wait for the next whistle. The court we have stays the view. `not started`
+20. A trade desk. Shop one player, get one offer, accept or refuse. No full trade machine. `not started`

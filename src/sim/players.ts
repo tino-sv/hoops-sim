@@ -40,7 +40,7 @@ export function createPlayer(options: {
     loyalty: Math.round(25 + Math.random() * 65),
     greed: Math.round(30 + Math.random() * 60),
     morale: 80,
-    chemistry: 75,
+    chemistry: Math.round(40 + Math.random() * 55),
     usageExpectation: overallRating >= 96 ? 36 : overallRating >= 90 ? 31 : overallRating >= 84 ? 24 : overallRating >= 78 ? 18 : overallRating >= 72 ? 14 : 10
   }
 
@@ -104,7 +104,7 @@ export function playerFromProspect(prospect: DraftProspect, overallPick: number 
     loyalty: 50 + Math.floor(Math.random() * 40),
     greed: 20 + Math.floor(Math.random() * 40),
     morale: 90,
-    chemistry: 80,
+    chemistry: Math.round(40 + Math.random() * 55),
     usageExpectation: 12
   }
 

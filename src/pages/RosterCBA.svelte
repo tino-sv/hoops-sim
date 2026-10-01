@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { badgeById } from '../sim/badges';
+  import { badgeById, inContractYear, isGlue } from '../sim/badges';
   import type { Team, Player } from '../sim/types';
   import { CBASimulator, CBA_CONSTANTS, type OfferVerdict } from '../sim/cba';
 
@@ -342,10 +342,12 @@
               <tr class="roster-row" class:active={selectedPlayer?.id === player.id} onclick={() => selectPlayer(player)}>
                 <td>
                   <div style="font-weight: 700;">{player.name}</div>
-                  {#if player.injury || player.tradeDemand}
+                  {#if player.injury || player.tradeDemand || inContractYear(player) || isGlue(player)}
                     <div class="flag">
                       {#if player.injury}Out {player.injury.daysRemaining}d{/if}
                       {#if player.tradeDemand}Wants out{/if}
+                      {#if inContractYear(player)}Contract year{/if}
+                      {#if isGlue(player)}Glue{/if}
                     </div>
                   {/if}
                 </td>

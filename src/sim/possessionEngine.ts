@@ -1,4 +1,4 @@
-import { assistBoost, blockMultiplier, contestBoost, crowdedShotPenalty, foulBoost, hasBadge, leaderMakeBoost, reboundMultiplier, shootingBoost, shotCallout, stealBoost, turnoverBoost, usageMultiplier } from './badges'
+import { assistBoost, blockMultiplier, contestBoost, contractYearMake, contractYearTurnover, crowdedShotPenalty, foulBoost, glueMakeBoost, hasBadge, leaderMakeBoost, reboundMultiplier, shootingBoost, shotCallout, stealBoost, turnoverBoost, usageMultiplier } from './badges'
 import { coachFoulMultiplier, coachMakeBoost, coachShotAdjust, coachTurnoverBump } from './office'
 import type { Player, Position, Team, TeamTactics } from './types'
 
@@ -137,7 +137,7 @@ export class PossessionEngine {
     const home = ctx.isHomeOffense ? 1 : 0
     const mood = (handler.morale - 75) * 0.00045
 
-    let turnoverChance = 0.155 + turnoverBoost(handler)
+    let turnoverChance = 0.155 + turnoverBoost(handler) + contractYearTurnover(handler)
       + (attr(primaryDef, 'technical', 'steal') - attr(handler, 'technical', 'ballHandling')) * 0.00045
       + (75 - handler.morale) * 0.00035
       - home * 0.004
@@ -239,6 +239,8 @@ export class PossessionEngine {
       shooterIsDiva: hasBadge(shooter, 'diva'),
       roomMorale
     })
+    make += contractYearMake(shooter)
+    make += glueMakeBoost(onCourtOff, shooter.id)
     make -= crowdedShotPenalty(shooter, onCourtOff)
     make = clamp(make, shot.kind === 'close' ? 0.42 : 0.22, shot.kind === 'close' ? 0.78 : shot.kind === 'three' ? 0.46 : 0.52)
 
