@@ -862,12 +862,29 @@ export class LeagueManager {
     this.note('Locker room', `${player.name} is gone`, `${player.name} held the room together. Morale slipped.`)
   }
 
+  hearDemand(playerId: string, choice: 'play' | 'look') {
+    const team = this.userTeam()
+    const player = team.roster.find(item => item.id === playerId)
+    if (!player?.tradeDemand) return
+    player.demandHeard = true
+    if (choice === 'play') {
+      const chart = team.depthChart[player.position] || []
+      team.depthChart[player.position] = [player.id, ...chart.filter(id => id !== player.id)]
+      this.note(player.name, 'You will play', `${player.name} is first at ${player.position}. The minutes have to show up.`)
+    } else {
+      player.morale = Math.max(0, player.morale - 2)
+      this.note('Front office', `${player.name} can look`, `${player.name} can see what is out there. He is still on the roster.`)
+    }
+    this.saveToLocalStorage()
+  }
+
   private leakDemands(team: Team, date: string) {
     if (team.id !== this.userTeamId) return
     const leaks = team.roster.filter(player => player.tradeLeak)
     if (!leaks.length) return
     for (const player of leaks) player.tradeLeak = false
     const extra = leaks.length > 1 ? ` ${leaks.length - 1} other${leaks.length > 2 ? 's' : ''} too.` : ''
+    this.note(leaks[0].name, 'I need to play', `${leaks[0].name} is not getting the minutes he was promised. The day waits on an answer.${extra}`)
     this.publish({
       handle: leaks[0].name.toLowerCase().replace(/[^a-z]+/g, '') || 'player',
       name: leaks[0].name,
@@ -1309,6 +1326,7 @@ export class LeagueManager {
     const updateStats = (team: Team, playerStats: Record<string, BoxScoreStats>) => {
       team.roster.forEach(player => {
         const stats = playerStats[player.id]
+        player.lastNight = { points: stats?.points ?? 0, minutes: stats?.minutes ?? 0 }
         if (!stats) return
         if (!player.careerStats['season']) {
           player.careerStats['season'] = {

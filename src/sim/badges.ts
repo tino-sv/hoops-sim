@@ -198,6 +198,10 @@ export function salaryBadgeMultiplier(player: Player): number {
   return 1
 }
 
+export function unansweredDemand(roster: Player[]): Player | null {
+  return roster.find(player => player.tradeDemand && !player.demandHeard) ?? null
+}
+
 export function promisedMinutes(player: Player, chartIndex: number): number {
   if (chartIndex < 0) return 0
   const hungry = player.personality.usageExpectation >= 28
@@ -267,9 +271,11 @@ export function settleTeamMorale(roster: Player[], minutesOf: (player: Player) =
     if (role <= -3 && hungry) {
       if (!player.tradeDemand) player.tradeLeak = true
       player.tradeDemand = true
+      player.demandHeard = false
     } else if (chartIndex >= 0 && minutes + 4 >= promisedMinutes(player, chartIndex)) {
       player.tradeDemand = false
       player.tradeLeak = false
+      player.demandHeard = false
     }
   }
 }

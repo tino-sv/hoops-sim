@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { unansweredDemand } from '../sim/badges';
   import { capTierLabel, rosterBlockReason, type OfferVerdict } from '../sim/cba';
   import type { PlayoffSeries, ScheduledMatch } from '../sim/league';
   import type { OfficeNote, SeasonPhase, Team } from '../sim/types';
@@ -79,12 +80,14 @@
     });
   });
 
+  const waiting = $derived(unansweredDemand(team.roster));
   const action = $derived.by(() => {
     if (inMatch) return { label: 'In the game', disabled: true, reason: '', run: 'none' as const };
+    if (waiting) return { label: `Answer ${waiting.name.split(' ').slice(-1)[0]}`, disabled: false, reason: '', run: 'answer' as const };
     if (block) return { label: 'Blocked', disabled: true, reason: block, run: 'none' as const };
-    if (playable && featured) return { label: 'Go to the match', disabled: false, reason: '', run: 'match' as const };
-    if (inPlayoffs) return { label: 'Simulate the day', disabled: false, reason: '', run: 'playoff' as const };
-    if (phase === 'regular' && !seasonComplete) return { label: 'Simulate the day', disabled: false, reason: '', run: 'day' as const };
+    if (playable && featured) return { label: 'Continue', disabled: false, reason: '', run: 'match' as const };
+    if (inPlayoffs) return { label: 'Continue', disabled: false, reason: '', run: 'playoff' as const };
+    if (phase === 'regular' && !seasonComplete) return { label: 'Continue', disabled: false, reason: '', run: 'day' as const };
     if (seasonComplete && !inPlayoffs) return { label: 'Enter offseason', disabled: false, reason: '', run: 'offseason' as const };
     if (phase === 'offseason' && offseasonStep === 'draft') return { label: 'Go to the draft', disabled: false, reason: '', run: 'draft' as const };
     if (phase === 'offseason') return { label: 'Open the next season', disabled: false, reason: '', run: 'season' as const };
@@ -96,7 +99,8 @@
   const press = () => {
     if (action.disabled) return;
     actionError = '';
-    if (action.run === 'match' && featured) onGoToMatch(featured.id);
+    if (action.run === 'answer') onOpenHome();
+    else if (action.run === 'match' && featured) onGoToMatch(featured.id);
     else if (action.run === 'day') onAdvance();
     else if (action.run === 'playoff') onPlayoffNight();
     else if (action.run === 'offseason') {

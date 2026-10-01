@@ -34,15 +34,17 @@ Status: `not started` | `in progress` | `done`
 - The roster lists role, salary, years left, and who wants out. The draft board is a table. An overall stays a range until you scout him. `done`
 - A heavy night can knock a player out for a few days. Home lists who cannot play. `done`
 - Books names uniforms, a move, a TV buyout, the tax, and the cup on their own lines. The office money card is the checkbook. `done`
+- Home is the next game, who cannot play, and one note. Continue stops when a player wants an answer. `in progress`
+- The roster list is role, shape, and mood. Overall and the cap hit show up when you open him. `in progress`
 
 ## Next
 
-The player sentence, shot profile, and glass plan are on `feat/player-page`. Hometowns follow the surname on `fix/hometowns` (14, 16). Contract year and glue are in (15). Next in the playbook: hedge, a hunted matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer (16, 19). Then scouting fog, a medical flag, a two-way, and a mentor (3). Then a postgame answer and an owner who is impatient, cheap, or hands-off (5, 17). One offer on the trade desk is still open (20).
+Squad words are in progress on `feat/quiet-desk` (2). Scout sentences and a postgame question come after. Playbook, scouting fog, and the owner stay behind that.
 
 ## Backlog
 
 1. Deeper finances. Books shows the year and each month. Still open: incentives, dead money, options, trade kickers, a real repeater tax, apron trade locks, dynamic gate, naming rights, and playoff gate. `in progress`
-2. The game should center on an inbox, in the style of Football Manager. `not started`
+2. The desk should feel like Football Manager 24. Continue stops when a player wants an answer. Home is the next game, who cannot play, and that note. The roster list is role, shape, and mood. Scout sentences and a postgame question come after. `in progress`
 3. Scouting fog. A hidden ceiling, a medical flag, a two-way affiliate, and a veteran who passes a badge. A combine and a private workout come after the ceiling is real. `not started`
 4. Full staff, rival staff, and agents and agencies that change decisions. Scouting, sports science, and the practice building are budget lines with an effect, not sliders. `not started`
 5. The wire reacts to games. Still open: a postgame answer that helps the owner or hurts the player, a leak when you shop someone, and the rest of the press. `in progress`
