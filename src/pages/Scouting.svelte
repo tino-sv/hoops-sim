@@ -100,15 +100,6 @@
     }
   };
 
-  const getProjectedPotRange = (range: DraftProspect['projectedRange']) => {
-    switch (range) {
-      case 'Top 3': return 'A+ (88-95 POT)';
-      case 'Lottery': return 'A- (82-90 POT)';
-      case 'First Round': return 'B (76-85 POT)';
-      case 'Second Round': return 'C (70-78 POT)';
-    }
-  };
-
   const getOvrColorClass = (ovr: number) => {
     if (ovr >= 80) return 'text-gold';
     if (ovr >= 70) return 'text-green';
@@ -150,7 +141,7 @@
   <div class="dashboard-grid">
     <!-- Prospects Grid -->
     <div class="card" style="grid-column: span {selectedProspect ? '8' : '12'}; transition: all 0.3s ease;">
-      <h3 class="card-title">Class <span class="badge badge-secondary">{board.length}</span></h3>
+      <h3 class="card-title">Class <span>{board.length}</span></h3>
       <div class="list-tools">
         <select class="tactics-select" bind:value={boardPos}>
           <option value="ALL">All positions</option>
@@ -174,67 +165,56 @@
         </select>
       </div>
       
-      <div class="prospects-grid">
-        {#each board as prospect}
-          <button 
-            type="button"
-            class="prospect-card" 
-            class:scouted={prospect.scouted}
-            class:selected={selectedProspect?.id === prospect.id}
-            onclick={() => selectProspect(prospect)}
-          >
-            <div class="card-header-row">
-              <span class="badge badge-secondary">{prospect.position}</span>
-              <span class="range-badge {prospect.projectedRange.toLowerCase().replace(' ', '-')}">
-                {prospect.projectedRange}
-              </span>
-            </div>
-
-            <div class="prospect-name">{prospect.name}</div>
-            <div class="prospect-school">{prospect.school} • Age {prospect.age}</div>
-
-            <div class="ratings-preview">
-              <div class="rating-box">
-                <span class="box-lbl">Proj. OVR</span>
-                <span class="box-val">
+      <div class="table-container">
+        <table class="sim-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Player</th>
+              <th>Pos</th>
+              <th>Age</th>
+              <th>School</th>
+              <th>Range</th>
+              <th>OVR</th>
+              <th>POT</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each board as prospect, index}
+              <tr class="board-row" class:active={selectedProspect?.id === prospect.id} onclick={() => selectProspect(prospect)}>
+                <td>{index + 1}</td>
+                <td>{prospect.name}</td>
+                <td>{prospect.position}</td>
+                <td>{prospect.age}</td>
+                <td>{prospect.school}</td>
+                <td>{prospect.projectedRange}</td>
+                <td>
                   {#if prospect.scouted}
-                    <strong class={getOvrColorClass(prospect.overallRating)}>{prospect.overallRating}</strong>
+                    {prospect.overallRating}
                   {:else}
-                    <span style="font-size: 0.85rem; color: var(--text-secondary);">{getProjectedOvrRange(prospect.projectedRange).split(' ')[0]}</span>
+                    <span class="hidden band">{getProjectedOvrRange(prospect.projectedRange).replace(' OVR', '').replace(' - ', '–')}</span>
                   {/if}
-                </span>
-              </div>
-              <div class="rating-box">
-                <span class="box-lbl">Proj. POT</span>
-                <span class="box-val">
+                </td>
+                <td>{prospect.scouted ? prospect.potentialRating : '—'}</td>
+                <td>
                   {#if prospect.scouted}
-                    <strong style="color: var(--secondary);">{prospect.potentialRating}</strong>
+                    Scouted
                   {:else}
-                    <span style="font-size: 0.85rem; color: var(--text-secondary);">{getProjectedPotRange(prospect.projectedRange).split(' ')[0]}</span>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      disabled={scoutingTokens <= 0}
+                      onclick={(event) => { event.stopPropagation(); scoutPlayer(prospect); }}
+                    >
+                      Scout
+                    </button>
                   {/if}
-                </span>
-              </div>
-            </div>
-
-            <div class="card-actions">
-              {#if prospect.scouted}
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                  <span class="scouted-tag">Scouted</span>
-                  <span class="badge" style="background: rgba(16,185,129,0.15); color: var(--primary); border: 1px solid rgba(16,185,129,0.3); font-size: 0.65rem; padding: 2px 6px;">Draft Eligible</span>
-                </div>
-              {:else}
-                <button 
-                  type="button"
-                  class="btn btn-sm btn-scout" 
-                  disabled={scoutingTokens <= 0}
-                  onclick={(e) => { e.stopPropagation(); scoutPlayer(prospect); }}
-                >
-                  Scout
-                </button>
-              {/if}
-            </div>
-          </button>
-        {/each}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -345,6 +325,11 @@
 </div>
 
 <style>
+  .board-row { cursor: pointer; }
+  .board-row.active td { background: var(--primary-glow); }
+  .hidden { color: var(--text-secondary); }
+  .band { white-space: nowrap; }
+  .board-row .btn { padding: 4px 10px; font-size: 0.78rem; }
   .draft-message {
     margin-top: 12px;
     padding: 10px 14px;
