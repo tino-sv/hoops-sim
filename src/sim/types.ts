@@ -195,6 +195,8 @@ export interface Team {
   conference: Conference;
   division: Division;
   color: string;
+  /** Second uniform color. Missing on older saves until the league loads. */
+  trim?: string;
   coach: Coach;
   owner: Owner;
   roster: Player[];
@@ -220,6 +222,17 @@ export interface OfficeNote {
   body: string;
   date: string;
   read: boolean;
+}
+
+export type WireRole = 'journalist' | 'team' | 'fan' | 'player' | 'show';
+
+export interface WirePost {
+  id: string;
+  handle: string;
+  name: string;
+  role: WireRole;
+  body: string;
+  date: string;
 }
 
 export interface DraftPick {

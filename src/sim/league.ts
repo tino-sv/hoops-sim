@@ -1,13 +1,13 @@
 import { settleTeamMorale } from './badges'
 import { birdFromYears, CBASimulator, type OfferVerdict } from './cba'
 import { MatchEngine } from './matchEngine'
-import { bookGameMoney, ensureCommercials, findPlayer, luxuryTaxBill, pickAllStars, pickAwards, tvCheck, tvUpgradeCost } from './office'
+import { bookGameMoney, ensureCommercials, findPlayer, gamePosts, luxuryTaxBill, pickAllStars, pickAwards, tvCheck, tvUpgradeCost } from './office'
 import { createPlayer, createProspect, playerFromProspect } from './players'
 import { deriveTraits, developPlayer } from './ratings'
 import { NBA_RULES } from './rules'
 import { addToDepthChart, rebuildDepthChart, waivePlayer } from './roster'
 import { buildSeason, type ScheduleTeam } from './schedule'
-import type { AllStarWeekend, BoxScoreStats, CoachStyle, Conference, Division, DraftPick, DraftProspect, MarketDeal, OfficeNote, OffseasonStep, Player, Position, SeasonAwards, SeasonPhase, Team, TeamTactics } from './types'
+import type { AllStarWeekend, BoxScoreStats, CoachStyle, Conference, Division, DraftPick, DraftProspect, MarketDeal, OfficeNote, OffseasonStep, Player, Position, SeasonAwards, SeasonPhase, Team, TeamTactics, WirePost } from './types'
 import { POSITIONS } from './types'
 
 const TEAM_TEMPLATES: { city: string; name: string; color: string; conference: Conference; division: Division; coach: string; owner: string }[] = [
@@ -136,6 +136,14 @@ export function careerChoices(): CareerChoice[] {
   })
 }
 
+export const OPEN_MARKETS = [
+  'Montreal', 'Pittsburgh', 'Baltimore', 'Cincinnati',
+  'Vancouver', 'San Diego', 'Austin', 'Kansas City'
+]
+
+const DEFAULT_TRIM = '#E8E4D9'
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+
 function deny(reason: string): OfferVerdict {
   return { allowed: false, exceptionUsed: 'None', reason, consumes: null, setsHardCap: null }
 }
@@ -161,6 +169,7 @@ export class LeagueManager {
   draftOrder: DraftPick[] = []
   draftIndex = 0
   news: OfficeNote[] = []
+  wire: WirePost[] = []
   allStarRound = 40
   allStarDate = ''
   allStarDone = false
@@ -196,6 +205,25 @@ export class LeagueManager {
     this.news = this.news.slice(0, 12)
   }
 
+  private publish(post: Omit<WirePost, 'id'>) {
+    this.wire.unshift({ id: 'w_' + Math.random().toString(36).slice(2, 8), ...post })
+    this.wire = this.wire.slice(0, 40)
+  }
+
+  private reactToGame(home: Team, away: Team, homeScore: number, awayScore: number, date: string) {
+    const user = home.id === this.userTeamId ? home : away.id === this.userTeamId ? away : null
+    if (!user) return
+    const opponent = user === home ? away : home
+    const posts = gamePosts({
+      user,
+      opponent,
+      userScore: user === home ? homeScore : awayScore,
+      oppScore: user === home ? awayScore : homeScore,
+      date
+    })
+    for (let i = posts.length - 1; i >= 0; i--) this.publish(posts[i])
+  }
+
   private takenNames(): Set<string> {
     const used = new Set<string>()
     for (const team of this.teams) for (const player of team.roster) used.add(player.name)
@@ -223,6 +251,7 @@ export class LeagueManager {
       draftOrder: this.draftOrder,
       draftIndex: this.draftIndex,
       news: this.news,
+      wire: this.wire,
       allStarRound: this.allStarRound,
       allStarDate: this.allStarDate,
       allStarDone: this.allStarDone,
@@ -258,6 +287,7 @@ export class LeagueManager {
       this.draftOrder = data.draftOrder
       this.draftIndex = data.draftIndex
       this.news = data.news
+      this.wire = Array.isArray(data.wire) ? data.wire : []
       this.allStarRound = data.allStarRound ?? 40
       this.allStarDate = data.allStarDate ?? ''
       this.allStarDone = data.allStarDone ?? false
@@ -271,7 +301,10 @@ export class LeagueManager {
         if (!player.attributes || !player.personality) return
         player.traits = deriveTraits(player.attributes, player.position, player.personality)
       }
-      this.teams.forEach((team, index) => ensureCommercials(team, index))
+      this.teams.forEach((team, index) => {
+        ensureCommercials(team, index)
+        if (!team.trim) team.trim = DEFAULT_TRIM
+      })
       for (const team of this.teams) for (const player of team.roster) refreshBadges(player)
       for (const player of this.freeAgents) refreshBadges(player)
       return true
@@ -313,12 +346,28 @@ export class LeagueManager {
     this.draftOrder = []
     this.draftIndex = 0
     this.news = []
+    this.wire = []
     const user = this.userTeam()
     this.note(
       'Owner',
       `${user.owner.goalWins} wins`,
       `${user.owner.name} wants ${user.owner.goalWins} wins. Patience starts at ${user.owner.patience}. Cash is separate from the cap. ${user.coach.name} (${user.coach.style}) runs the bench.`
     )
+    const opened = `Season ${this.season}`
+    this.publish({
+      handle: 'laneandcourt',
+      name: 'Lane & Court',
+      role: 'show',
+      body: `${user.city} hired ${user.coach.name}. ${user.owner.name} still wants ${user.owner.goalWins} wins.`,
+      date: opened
+    })
+    this.publish({
+      handle: 'section114',
+      name: 'Section 114',
+      role: 'fan',
+      body: `New coach, same building. Let's see if ${user.coach.name} can get us to ${user.owner.goalWins}.`,
+      date: opened
+    })
     this.saveToLocalStorage()
   }
 
@@ -365,6 +414,7 @@ export class LeagueManager {
       conference: template.conference,
       division: template.division,
       color: template.color,
+      trim: DEFAULT_TRIM,
       coach: {
         name: template.coach,
         style: COACH_STYLES[index % COACH_STYLES.length]
@@ -577,6 +627,70 @@ export class LeagueManager {
     return { allowed: true, exceptionUsed: 'TV', reason: `The ${tier} deal is signed.`, consumes: null, setsHardCap: null }
   }
 
+  setJersey(color: string, trim: string): OfferVerdict {
+    const team = this.userTeam()
+    if (!HEX_COLOR.test(color) || !HEX_COLOR.test(trim)) return deny('Pick a home color and a trim.')
+    if (team.color.toLowerCase() === color.toLowerCase() && (team.trim ?? DEFAULT_TRIM).toLowerCase() === trim.toLowerCase()) {
+      return deny('Those are already the home colors.')
+    }
+    const cost = NBA_RULES.JERSEY_ORDER
+    if (team.finances.cash < cost) {
+      return deny(`The uniform order is $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
+    }
+    team.finances.cash -= cost
+    team.finances.seasonExpenses += cost
+    team.color = color
+    team.trim = trim
+    this.note('Front Office', 'New uniforms', `Home is ${color} with ${trim} trim. The order was $${(cost / 1_000_000).toFixed(0)}M, and it does not hit the cap.`)
+    this.publish({
+      handle: team.name.toLowerCase().replace(/[^a-z]/g, ''),
+      name: `${team.city} ${team.name}`,
+      role: 'team',
+      body: `New home uniforms. ${team.city} wears them next game.`,
+      date: `Season ${this.season}`
+    })
+    this.saveToLocalStorage()
+    return { allowed: true, exceptionUsed: 'Jersey', reason: 'The uniform order is in.', consumes: null, setsHardCap: null }
+  }
+
+  setHomeCity(city: string): OfferVerdict {
+    const team = this.userTeam()
+    const next = city.trim()
+    if (next === team.city) return deny('You already play there.')
+    if (!OPEN_MARKETS.includes(next)) return deny('That city is not an open market.')
+    if (this.teams.some(other => other.id !== team.id && other.city === next)) return deny('Another club already plays there.')
+    const cost = NBA_RULES.RELOCATION_FEE
+    if (team.finances.cash < cost) {
+      return deny(`The move costs $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
+    }
+    const from = team.city
+    team.finances.cash -= cost
+    team.finances.seasonExpenses += cost
+    team.city = next
+    this.note(
+      'Owner',
+      `Moving to ${next}`,
+      `${team.owner.name} approved the move from ${from}. The ${team.division} does not change. The fee was $${(cost / 1_000_000).toFixed(0)}M, and it does not hit the cap.`
+    )
+    const date = `Season ${this.season}`
+    this.publish({
+      handle: 'section114',
+      name: 'Section 114',
+      role: 'fan',
+      body: `They are leaving ${from}. I bought these seats.`,
+      date
+    })
+    this.publish({
+      handle: next.toLowerCase().replace(/[^a-z]/g, '') + 'desk',
+      name: `${next} Desk`,
+      role: 'journalist',
+      body: `${team.name} are moving from ${from} to ${next}. They stay in the ${team.division}.`,
+      date
+    })
+    this.saveToLocalStorage()
+    return { allowed: true, exceptionUsed: 'Move', reason: `${team.name} now play in ${next}.`, consumes: null, setsHardCap: null }
+  }
+
   simulateRegularSeason(): { wins: number, losses: number } {
     let guard = 0
     while (this.phase === 'regular' && !this.seasonComplete && guard++ < 250) {
@@ -611,6 +725,7 @@ export class LeagueManager {
       match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
       this.applyMatchResults(home, away, result, match.cup)
       this.bookGate(home, away, result.winnerId === home.id, match.cup)
+      this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
       if (userTeamId && (home.id === userTeamId || away.id === userTeamId) && onUserGameDone) {
         onUserGameDone(result)
       }
@@ -634,6 +749,7 @@ export class LeagueManager {
     const away = this.teams.find(team => team.id === match.awayTeamId)
     if (!home || !away) return
     this.bookGate(home, away, homeWon, match.cup)
+    this.reactToGame(home, away, match.scoreHome ?? 0, match.scoreAway ?? 0, match.date)
   }
 
   private bookGate(home: Team, away: Team, homeWon: boolean, cup: boolean) {
@@ -768,6 +884,7 @@ export class LeagueManager {
       return
     }
     this.bookGate(home, away, result.winnerId === home.id, true)
+    this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
   }
 
   private maybeCup() {
@@ -987,6 +1104,7 @@ export class LeagueManager {
     match.winnerId = result.winnerId
     match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
     this.bookGate(home, away, result.winnerId === home.id, false)
+    this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
     settleTeamMorale(home.roster, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, home.coach?.style)
     settleTeamMorale(away.roster, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, away.coach?.style)
     this.recordSeriesGame(match)

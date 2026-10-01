@@ -36,6 +36,10 @@ export const NBA_RULES = {
   SPONSOR_PARTNER: 12_000_000,
   SPONSOR_NATIONAL: 18_000_000,
   CUP_PURSE: 2_000_000,
+  /** Cash for a new home uniform. It does not hit the cap. */
+  JERSEY_ORDER: 2_000_000,
+  /** Cash to move the club to an open city. Division and conference stay. */
+  RELOCATION_FEE: 35_000_000,
   SCHEMA_VERSION: 3
 } as const
 

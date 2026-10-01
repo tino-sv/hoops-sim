@@ -1,10 +1,11 @@
 <script lang="ts">
+  import { OPEN_MARKETS } from '../sim/league';
   import { luxuryTaxBill, tvCheck, tvCheckFor, tvUpgradeCost } from '../sim/office';
   import { NBA_RULES } from '../sim/rules';
   import type { OfferVerdict } from '../sim/cba';
   import type { CoachStyle, MarketDeal, Team, TeamTactics } from '../sim/types';
 
-  let { team, onSave, onTvDeal }: {
+  let { team, onSave, onTvDeal, onJersey, onMove }: {
     team: Team
     onSave: (
       name: string,
@@ -14,7 +15,15 @@
       coverage: TeamTactics['defensiveCoverage']
     ) => void
     onTvDeal: (tier: MarketDeal) => OfferVerdict
+    onJersey: (color: string, trim: string) => OfferVerdict
+    onMove: (city: string) => OfferVerdict
   } = $props();
+
+  const palette = ['#008348', '#F58426', '#006BB6', '#E31837', '#1D42BA', '#552583', '#0E2240', '#F5F5F0', '#111111', '#C4CED4'];
+  let primary = $state(team.color);
+  let trim = $state(team.trim ?? '#E8E4D9');
+  let nextCity = $state(OPEN_MARKETS[0]);
+  let clubError = $state('');
 
   const tiers: MarketDeal[] = ['local', 'partner', 'national'];
   let dealError = $state('');
@@ -41,6 +50,8 @@
 
   $effect(() => {
     name = team.coach.name;
+    primary = team.color;
+    trim = team.trim ?? '#E8E4D9';
     style = team.coach.style;
     tempo = team.tactics.tempo;
     offense = team.tactics.offensiveStyle;
@@ -53,6 +64,18 @@
   const tax = $derived(luxuryTaxBill(team));
 
   const save = () => onSave(name, style, tempo, offense, coverage);
+
+  const orderJersey = () => {
+    clubError = '';
+    const result = onJersey(primary, trim);
+    if (!result.allowed) clubError = result.reason;
+  };
+
+  const moveClub = () => {
+    clubError = '';
+    const result = onMove(nextCity);
+    if (!result.allowed) clubError = result.reason;
+  };
 </script>
 
 <div class="fade-in office-grid">
@@ -104,6 +127,34 @@
       <p style="color: var(--text-secondary);">Goal is {team.owner.goalWins} wins. Pace is {played ? pace : '—'}.</p>
       <p>Patience {team.owner.patience}</p>
       <div class="bar"><span style="width: {team.owner.patience}%;"></span></div>
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom: 8px;">Club</h2>
+      <p>{team.city} {team.name}. {team.division}, {team.conference}.</p>
+      <div class="jersey" style="background: {primary}; color: {trim}; border-color: {trim};">{team.name}</div>
+      <p style="font-weight: 700; margin-top: 8px;">Home color</p>
+      <div class="swatches">
+        {#each palette as swatch}
+          <button class="swatch" class:on={primary === swatch} style="background: {swatch};" aria-label={swatch} onclick={() => primary = swatch}></button>
+        {/each}
+      </div>
+      <p style="font-weight: 700;">Trim</p>
+      <div class="swatches">
+        {#each palette as swatch}
+          <button class="swatch" class:on={trim === swatch} style="background: {swatch};" aria-label={`trim ${swatch}`} onclick={() => trim = swatch}></button>
+        {/each}
+      </div>
+      <button class="btn btn-secondary" onclick={orderJersey}>Order uniforms · {millions(NBA_RULES.JERSEY_ORDER)}</button>
+      <label style="margin-top: 12px;">Open city
+        <select class="form-input" bind:value={nextCity}>
+          {#each OPEN_MARKETS as city}
+            <option value={city}>{city}</option>
+          {/each}
+        </select>
+      </label>
+      <button class="btn btn-secondary" onclick={moveClub}>Move the club · {millions(NBA_RULES.RELOCATION_FEE)}</button>
+      <p style="color: var(--text-secondary);">The division stays. Both come out of cash, not the cap.</p>
+      {#if clubError}<p style="color: var(--danger);">{clubError}</p>{/if}
     </div>
     <div class="card">
       <h2 style="margin-bottom: 8px;">Money</h2>
@@ -170,5 +221,32 @@
   }
   .deal-row .btn {
     text-transform: capitalize;
+  }
+  .jersey {
+    margin-top: 10px;
+    border: 4px solid;
+    border-radius: 2px;
+    min-height: 72px;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  .swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 6px 0 10px;
+  }
+  .swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 99px;
+    border: 2px solid transparent;
+    padding: 0;
+    cursor: pointer;
+  }
+  .swatch.on {
+    border-color: var(--text-primary);
   }
 </style>

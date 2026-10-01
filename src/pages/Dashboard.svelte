@@ -180,152 +180,93 @@
     const result = onStartSeason();
     if (!result.allowed) actionError = result.reason;
   };
+
 </script>
 
 <div class="dashboard-page fade-in">
-  <div class="page-head">
-    <div>
-      <h2 style="font-size: 1.8rem; font-weight: 800;">Welcome, General Manager</h2>
-      <p>Season {season} · {phase === 'offseason' ? `Offseason · ${offseasonStep === 'draft' ? 'Draft' : 'Free agency'}` : inPlayoffs ? `Playoffs · ${playoffLabel}` : `Night ${currentRound} of ${totalRounds}`}</p>
+  <section class="fixture">
+    <div class="fixture-club">
+      <span class="crest" style="background: {team.color}; border-color: {team.trim ?? '#E8E4D9'};"></span>
+      <div>
+        <div class="fixture-city">{team.city}</div>
+        <div class="fixture-name">{team.name}</div>
+        <div class="fixture-meta">{team.wins}-{team.losses} · #{userRank}</div>
+      </div>
     </div>
-    
-    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-      {#if inPlayoffs}
-        <button class="btn btn-secondary" onclick={onSimPlayoffs}>Sim rest of playoffs</button>
-        {#if playoffMatch}
-          <button class="btn btn-secondary" onclick={onInstantSim}>⚡ Instant Sim</button>
-          <button class="btn btn-primary" onclick={advanceDay}>🏀 Playoff game</button>
-        {:else}
-          <button class="btn btn-primary" onclick={onPlayoffNight}>⏩ Sim the night</button>
-        {/if}
-      {:else if phase === 'regular' && !seasonComplete}
-        <button class="btn btn-secondary" onclick={onSimSeason}>Sim rest of season</button>
-      {/if}
-      {#if phase === 'offseason' && offseasonStep === 'draft'}
-        <button class="btn btn-primary" onclick={() => onOpenTab('scouting')}>
-          🧭 Draft ({clockLabel})
-        </button>
-      {:else if phase === 'offseason'}
-        <button class="btn btn-secondary" onclick={() => onOpenTab('free_agents')}>Free Agency</button>
-        <button class="btn btn-primary" onclick={startSeason}>Open {season + 1}</button>
-      {:else if seasonComplete && !inPlayoffs}
-        <button class="btn btn-primary" onclick={enterOffseason}>Enter Offseason</button>
+
+    <div class="fixture-mid">
+      {#if nextOpponent}
+        <div class="fixture-when">{playoffMatch ? 'PLAYOFFS' : cupMatch ? 'CUP' : formatSlateDate(featuredMatch?.date ?? '')}</div>
+        <div class="fixture-vs">{featuredHome ? 'Home' : 'Road'}{seriesScore ? ` · ${seriesScore}` : ''}</div>
       {:else if inPlayoffs}
-        <!-- Playoff actions sit in the row above. -->
-      {:else if playableNow}
-        {#if !cupMatch}
-          <button class="btn btn-secondary" onclick={onInstantSim}>
-            ⚡ Instant Sim
-          </button>
-        {/if}
-        <button class="btn btn-primary" onclick={advanceDay}>
-          🏀 {cupMatch ? 'Cup game' : 'Play'} vs {nextOpponent?.name}
-        </button>
+        <div class="fixture-when">Series over</div>
+        <div class="fixture-vs">The bracket is still going</div>
       {:else}
-        <button class="btn btn-primary" onclick={advanceDay}>
-          ⏩ Sim the night ({currentRound}/{totalRounds})
-        </button>
+        <div class="fixture-when">{phase === 'offseason' ? 'Offseason' : 'Schedule'}</div>
+        <div class="fixture-vs">{phase === 'offseason' ? (offseasonStep === 'draft' ? 'Draft' : 'Free agency') : `Night ${currentRound} of ${totalRounds}`}</div>
       {/if}
-    </div>
-  </div>
-  {#if actionError}
-    <p style="color: var(--danger); font-weight: 700; margin-bottom: 12px;">{actionError}</p>
-  {/if}
-
-  <div class="dashboard-grid">
-    <!-- Team Summary Card -->
-    <div class="card span-4" style="display: flex; flex-direction: column; justify-content: space-between;">
-      <div>
-        <h3 style="color: var(--primary); margin-bottom: 4px;">{team.city} {team.name}</h3>
-        <span class="badge badge-secondary">Rank #{userRank} in League</span>
-        <div class="season-meter" title="{team.wins + team.losses} of 82 games">
-          <span style="width: {Math.min(100, ((team.wins + team.losses) / 82) * 100)}%"></span>
-        </div>
-        
-        <div style="margin-top: 16px; display: flex; align-items: baseline; gap: 12px;">
-          <span style="font-size: 3rem; font-family: var(--font-display); font-weight: 900; line-height: 1;">
-            {team.wins} - {team.losses}
-          </span>
-          <span style="color: var(--text-secondary); font-size: 0.95rem;">
-            ({Math.round((team.wins / Math.max(1, team.wins + team.losses)) * 100)}% Win Pct)
-          </span>
-        </div>
-      </div>
-
-      <div style="border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 16px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;">
-        <div style="display: flex; justify-content: space-between;">
-          <div><b>Point differential:</b> <span style="color: {team.pointDiff >= 0 ? 'var(--primary)' : 'var(--danger)'}">{team.pointDiff > 0 ? '+' : ''}{team.pointDiff}</span></div>
-          <div><b>Cash:</b> ${(team.finances.cash / 1000000).toFixed(1)}M</div>
-        </div>
-        <div style="color: var(--text-secondary);">{team.owner.name} wants {team.owner.goalWins} wins. Patience {team.owner.patience}.</div>
-      </div>
-    </div>
-
-    <!-- Next Match Card -->
-    <div class="card span-4" style="display: flex; flex-direction: column; justify-content: space-between;">
-      <div>
-        <h3 class="card-title">Next game <span class="badge badge-primary">{playoffMatch ? 'PLAYOFFS' : cupMatch ? 'CUP' : formatSlateDate(featuredMatch?.date ?? '')}</span> <button class="text-btn" onclick={() => onOpenTab(playoffMatch ? 'playoffs' : 'calendar')}>{playoffMatch ? 'Bracket' : 'Calendar'}</button></h3>
-        
-        {#if nextOpponent}
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 16px;">
-            <div style="text-align: center; flex: 1;">
-              <div style="font-size: 1.5rem; font-weight: 800;">{team.name}</div>
-              <div style="font-size: 0.8rem; color: var(--text-secondary);">{featuredHome ? 'Home' : 'Road'}{seriesScore ? ` · ${seriesScore}` : ''}</div>
-            </div>
-            <div style="font-size: 1.25rem; font-weight: 800; color: var(--text-muted);">VS</div>
-            <div style="text-align: center; flex: 1;">
-              <div style="font-size: 1.5rem; font-weight: 800; color: var(--secondary);">{nextOpponent.name}</div>
-              <div style="font-size: 0.8rem; color: var(--text-secondary);">{nextOpponent.city} ({nextOpponent.wins}-{nextOpponent.losses})</div>
-            </div>
-          </div>
-        {:else if inPlayoffs}
-          <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
-            Your series is over. The rest of the bracket is still going.
-            <button class="text-btn" onclick={() => onOpenTab('playoffs')}>Bracket</button>
-          </div>
-        {:else}
-          <div style="text-align: center; color: var(--text-muted); margin-top: 20px;">
-            No games left on the schedule.
-          </div>
-        {/if}
-      </div>
-
-      <div style="margin-top: 16px; display: flex; gap: 8px;">
-        {#if phase === 'offseason'}
-          <button class="btn btn-primary" style="width: 100%;" onclick={() => onOpenTab(offseasonStep === 'draft' ? 'scouting' : 'free_agents')}>
-            {offseasonStep === 'draft' ? `On the clock: ${clockLabel}` : 'Open free agency'}
-          </button>
-        {:else if inPlayoffs}
-          <button class="btn btn-primary" style="width: 100%;" onclick={() => playoffMatch ? advanceDay() : onPlayoffNight()}>
-            {playoffMatch ? '🏀 Tip off' : 'Sim the night'}
-          </button>
-        {:else if seasonComplete}
-          <button class="btn btn-primary" style="width: 100%;" onclick={enterOffseason}>
-            {championId ? 'Champion is crowned. Enter offseason' : 'Season complete. Enter offseason'}
-          </button>
+      <div class="fixture-actions">
+        {#if inPlayoffs}
+          <button class="btn btn-secondary" onclick={onSimPlayoffs}>Sim rest</button>
+          {#if playoffMatch}
+            <button class="btn btn-secondary" onclick={onInstantSim}>Sim</button>
+            <button class="btn btn-primary" onclick={advanceDay}>Play</button>
+          {:else}
+            <button class="btn btn-primary" onclick={onPlayoffNight}>Sim the night</button>
+          {/if}
+        {:else if phase === 'offseason' && offseasonStep === 'draft'}
+          <button class="btn btn-primary" onclick={() => onOpenTab('scouting')}>Draft · {clockLabel}</button>
+        {:else if phase === 'offseason'}
+          <button class="btn btn-secondary" onclick={() => onOpenTab('free_agents')}>Free agency</button>
+          <button class="btn btn-primary" onclick={startSeason}>Open {season + 1}</button>
+        {:else if seasonComplete && !inPlayoffs}
+          <button class="btn btn-primary" onclick={enterOffseason}>Enter offseason</button>
         {:else if playableNow}
           {#if !cupMatch}
-            <button class="btn btn-secondary" style="flex: 1;" onclick={onInstantSim}>
-              ⚡ Instant Sim
-            </button>
+            <button class="btn btn-secondary" onclick={onInstantSim}>Sim</button>
           {/if}
-          <button class="btn btn-primary" style="flex: 2;" onclick={advanceDay}>
-            🏀 Tip off
-          </button>
-        {:else if !seasonComplete && phase === 'regular'}
-          <button class="btn btn-primary" style="width: 100%;" onclick={advanceDay}>
-            Advance to the next game
-          </button>
-        {:else}
-          <button class="btn btn-secondary" style="width: 100%; cursor: not-allowed;" disabled>
-            Final
-          </button>
+          <button class="btn btn-primary" onclick={advanceDay}>Play</button>
+        {:else if phase === 'regular' && !seasonComplete}
+          <button class="btn btn-primary" onclick={advanceDay}>Sim the night</button>
         {/if}
       </div>
     </div>
 
+    <div class="fixture-club away">
+      {#if nextOpponent}
+        <div>
+          <div class="fixture-city">{nextOpponent.city}</div>
+          <div class="fixture-name">{nextOpponent.name}</div>
+          <div class="fixture-meta">{nextOpponent.wins}-{nextOpponent.losses}</div>
+        </div>
+        <span class="crest" style="background: {nextOpponent.color}; border-color: {nextOpponent.trim ?? '#E8E4D9'};"></span>
+      {:else}
+        <div>
+          <div class="fixture-city">{team.division}</div>
+          <div class="fixture-name">{team.coach.name}</div>
+          <div class="fixture-meta">{team.owner.name} wants {team.owner.goalWins}</div>
+        </div>
+      {/if}
+    </div>
+  </section>
+  {#if actionError}
+    <p style="color: var(--danger); font-weight: 700;">{actionError}</p>
+  {/if}
+  <div class="facts">
+    <span>Cash ${(team.finances.cash / 1_000_000).toFixed(1)}M</span>
+    <span>Diff {team.pointDiff > 0 ? '+' : ''}{team.pointDiff}</span>
+    <span>{team.owner.name} · patience {team.owner.patience}</span>
+    <span>{team.coach.name}</span>
+    <button class="text-btn" onclick={() => onOpenTab(playoffMatch ? 'playoffs' : 'calendar')}>{playoffMatch ? 'Bracket' : 'Calendar'}</button>
+    {#if phase === 'regular' && !seasonComplete && !inPlayoffs}
+      <button class="text-btn" onclick={onSimSeason}>Sim rest of season</button>
+    {/if}
+  </div>
+
+  <div class="dashboard-grid">
+
     <!-- League Leaders Card -->
-    <div class="card span-4">
+    <div class="card span-6">
       <h3 class="card-title" style="margin-bottom: 8px;">League Leaders</h3>
       
       <div class="stat-tabs">
@@ -463,20 +404,6 @@
     background-color: var(--secondary-glow) !important;
   }
 
-  .season-meter {
-    margin-top: 12px;
-    height: 6px;
-    border-radius: 99px;
-    background: var(--border-color);
-    overflow: hidden;
-  }
-
-  .season-meter span {
-    display: block;
-    height: 100%;
-    background: var(--primary);
-  }
-
   .text-btn {
     background: none;
     border: none;
@@ -508,7 +435,105 @@
 
   .stat-tabs button.on {
     font-weight: 800;
-    color: var(--primary);
-    background: var(--primary-glow);
+    color: #f4f4f5;
+    background: transparent;
+    box-shadow: inset 0 -1px 0 #f4f4f5;
+  }
+
+  .fixture {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    align-items: center;
+    background: #12151c;
+    border: 1px solid #2a3142;
+    border-radius: 2px;
+    padding: 16px 18px;
+    margin-bottom: 10px;
+  }
+
+  .fixture-club {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .fixture-club.away {
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .crest {
+    width: 8px;
+    align-self: stretch;
+    min-height: 36px;
+    border-radius: 0;
+    border-bottom: 3px solid;
+    flex: none;
+  }
+
+  .fixture-city {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .fixture-name {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.25rem;
+    line-height: 1.1;
+  }
+
+  .fixture-meta {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+
+  .fixture-mid {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .fixture-when {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .fixture-vs {
+    font-weight: 700;
+  }
+
+  .fixture-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    margin-bottom: 14px;
+  }
+
+  @media (max-width: 800px) {
+    .fixture {
+      grid-template-columns: 1fr;
+    }
+    .fixture-club.away {
+      justify-content: flex-start;
+      text-align: left;
+    }
   }
 </style>

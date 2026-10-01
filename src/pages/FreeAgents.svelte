@@ -215,7 +215,7 @@
 <div class="free-agents-container fade-in">
   <!-- Roster Slots and Financial Status Bar -->
   <div class="card" style="margin-bottom: 24px;">
-    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 1.25rem;">Roster spots</h3>
+    <h3 style="margin-bottom: 16px; font-size: 1.05rem;">Roster spots</h3>
     <p style="margin: -8px 0 16px; color: var(--text-secondary); font-size: 0.9rem;">
       {#if inSeason}
         Regular season: the only contract you can offer is a 1-year veteran minimum. Stars will usually walk.
@@ -330,7 +330,7 @@
                     style="padding: 6px 12px; font-size: 0.8rem;" 
                     onclick={() => startNegotiation(agent)}
                   >
-                    🤝 Negotiate
+                    Negotiate
                   </button>
                 </td>
               </tr>
@@ -348,21 +348,16 @@
     {#if selectedPlayer}
       <div class="card fade-in" style="grid-column: span 4; display: flex; flex-direction: column; height: fit-content;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-          <h3 style="color: var(--primary);">Player Profile</h3>
+          <h3>Player</h3>
           <button type="button" class="btn-close" style="background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;" onclick={() => selectedPlayer = null}>×</button>
         </div>
 
-        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-          <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1rem; border: 2px solid var(--primary);">
-            {selectedPlayer.name[0]}
-          </div>
-          <div>
-            <div style="font-weight: 800; font-size: 1.05rem;">{selectedPlayer.name}</div>
-            <div style="font-size: 0.8rem; color: var(--text-secondary);">{getPositionLabel(selectedPlayer.position)} • Age {selectedPlayer.age}</div>
-          </div>
+        <div style="margin-bottom: 16px;">
+          <div style="font-weight: 700; font-size: 1.05rem;">{selectedPlayer.name}</div>
+          <div style="font-size: 0.8rem; color: var(--text-secondary);">{getPositionLabel(selectedPlayer.position)} · Age {selectedPlayer.age}</div>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 12px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 20px;">
+        <div style="display: flex; flex-direction: column; gap: 12px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 2px; border: 1px solid var(--border-color); margin-bottom: 20px;">
           <div style="display: flex; justify-content: space-between;">
             <span style="color: var(--text-muted); font-size: 0.8rem;">Overall Rating:</span>
             <span style="font-weight: 800; color: var(--primary); font-size: 0.9rem;">{selectedPlayer.overallRating} OVR</span>
@@ -415,7 +410,7 @@
           style="width: 100%; margin-top: auto;" 
           onclick={() => startNegotiation(selectedPlayer!)}
         >
-          🤝 Begin Contract Talks
+          Talk contract
         </button>
       </div>
     {/if}
@@ -428,7 +423,7 @@
         <!-- Header -->
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
           <div>
-            <h3 style="font-size: 1.2rem; margin: 0; color: var(--primary);">Negotiate Contract</h3>
+            <h3 style="font-size: 1.05rem; margin: 0;">Negotiate</h3>
             <span style="font-size: 0.8rem; color: var(--text-muted);">Client: {negotiatingPlayer.name} ({negotiatingPlayer.position} | {negotiatingPlayer.overallRating} OVR)</span>
           </div>
           {#if negotiationStage !== 'accepted' && negotiationStage !== 'walked_away'}
@@ -438,13 +433,12 @@
 
         <!-- Agent Details Card -->
         <div class="agent-profile">
-          <div class="agent-avatar">💼</div>
           <div style="display: flex; flex-direction: column; gap: 4px;">
             <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">{agentName}</div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">{agencyName}</div>
             <div style="display: flex; gap: 8px; font-size: 0.75rem; margin-top: 2px;">
               <span class="badge badge-secondary">Style: {negotiatingPlayer.contract?.agentType || 'reasonable'}</span>
-              <span class="badge badge-primary">Mood: {agentMood === 'happy' ? '😊 Happy' : (agentMood === 'neutral' ? '😐 Neutral' : (agentMood === 'annoyed' ? '😒 Annoyed' : '😡 Furious'))}</span>
+              <span class="badge badge-primary">Mood: {agentMood === 'happy' ? 'Happy' : (agentMood === 'neutral' ? 'Neutral' : (agentMood === 'annoyed' ? 'Annoyed' : 'Furious'))}</span>
             </div>
           </div>
         </div>
@@ -504,7 +498,7 @@
             <!-- Submit button and rounds tracking -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
               <span class="rounds-badge" class:safe={negotiationRounds > 1}>
-                ⚠️ {negotiationRounds} attempts left
+                {negotiationRounds} attempts left
               </span>
               <button class="btn btn-primary" onclick={submitOffer} style="padding: 8px 24px;">Submit Offer</button>
             </div>
@@ -513,7 +507,7 @@
           <div style="display: flex; flex-direction: column; gap: 14px; text-align: center;">
             <div style="font-size: 1.1rem; color: var(--primary); font-weight: 700;">Agreement Reached!</div>
             <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">Both parties have agreed to the contract details. Click below to sign the player to your roster.</p>
-            <button class="btn btn-primary" onclick={applyNegotiatedContract} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">✍️ Sign Player to Roster</button>
+            <button class="btn btn-primary" onclick={applyNegotiatedContract} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Sign the player</button>
           </div>
         {:else}
           <!-- Walked away / Stalled -->
@@ -545,7 +539,7 @@
   .stat-box {
     background-color: var(--bg-dark);
     padding: 16px;
-    border-radius: 8px;
+    border-radius: 2px;
     border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
@@ -579,23 +573,21 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.75);
+    background-color: rgba(0, 0, 0, 0.55);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
-    backdrop-filter: blur(4px);
   }
 
   /* Modal Content */
   .modal-content {
-    background-color: #1e293b;
+    background-color: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: 2px;
     width: 90%;
     max-width: 580px;
     padding: 24px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -609,53 +601,20 @@
     gap: 16px;
     background-color: var(--bg-dark);
     padding: 12px;
-    border-radius: 8px;
+    border-radius: 2px;
     border: 1px solid var(--border-color);
   }
 
-  .agent-avatar {
-    font-size: 2rem;
-    background-color: rgba(255, 255, 255, 0.05);
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* Agent dialogue speech bubble */
+  /* Agent dialogue */
   .agent-speech-bubble {
     position: relative;
     background: #0f172a;
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: 2px;
     padding: 16px;
     font-size: 0.95rem;
     line-height: 1.5;
     margin-top: 10px;
-  }
-
-  .agent-speech-bubble::before {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 30px;
-    width: 0;
-    height: 0;
-    border: 10px solid transparent;
-    border-bottom-color: var(--border-color);
-  }
-
-  .agent-speech-bubble::after {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 30px;
-    width: 0;
-    height: 0;
-    border: 9px solid transparent;
-    border-bottom-color: #0f172a;
   }
 
   /* Slider and input controls */

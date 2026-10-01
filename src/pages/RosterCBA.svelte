@@ -183,7 +183,7 @@
         negotiationStage = 'walked_away';
         agentMood = 'furious';
         agentText = `That is enough. We've tried to find middle ground, but your offers are simply not valuation-aligned. We are done talking and will test free agency next season.`;
-        extensionErrorMessage = `❌ Negotiations stalled: Agent walked away.`;
+        extensionErrorMessage = `Negotiations stalled. The agent walked away.`;
       } else {
         if (agentType === 'hardball') {
           if (currentOffer < baseline * 0.93) {
@@ -249,7 +249,7 @@
 <div class="roster-cba-container fade-in">
   <!-- CBA Overview Card -->
   <div class="card" style="margin-bottom: 24px;">
-    <h3 style="color: var(--primary); margin-bottom: 16px; font-size: 1.25rem;">CBA Financial Dashboard</h3>
+    <h3 style="margin-bottom: 16px; font-size: 1.05rem;">Cap</h3>
     
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
       <div class="stat-box">
@@ -341,9 +341,9 @@
                   <div style="font-weight: 700;">{player.name}</div>
                   <div style="font-size: 0.75rem; color: var(--text-muted);">
                     {#if player.injury}
-                      🔴 INJ: {player.injury.description} ({player.injury.daysRemaining}d)
+                      Out: {player.injury.description} ({player.injury.daysRemaining}d)
                     {:else}
-                      🟢 Healthy
+                      Healthy
                     {/if}
                   </div>
                 </td>
@@ -385,13 +385,13 @@
               </div>
             {/if}
           </div>
-          <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick={closeProfile}>✕</button>
+          <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick={closeProfile}>Close</button>
         </div>
 
         <!-- Section: Contract Status -->
         <div class="profile-section">
           <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Contract</h4>
-          <div style="background-color: var(--bg-dark); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;">
+          <div style="background-color: var(--bg-dark); padding: 12px; border-radius: 2px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;">
             <div><b>Cap hits:</b> {selectedPlayer.contract.salaries.map(s => formatNumber(s)).join(' → ')}</div>
             <div><b>Option:</b> {selectedPlayer.contract.option.toUpperCase()}</div>
             <div><b>Years with Team:</b> {selectedPlayer.contract.yearsServed} yrs</div>
@@ -434,7 +434,7 @@
           {#if selectedPlayer.careerStats['season'] && (selectedPlayer.careerStats['season'].games || 0) > 0}
             {@const stats = selectedPlayer.careerStats['season']}
             {@const played = stats.games || 0}
-            <div style="background-color: var(--bg-dark); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 12px; font-size: 0.85rem; border: 1px solid var(--border-color);">
+            <div style="background-color: var(--bg-dark); padding: 12px; border-radius: 2px; display: flex; flex-direction: column; gap: 12px; font-size: 0.85rem; border: 1px solid var(--border-color);">
               <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; text-align: center;">
                 <div class="stat-mini-box">
                   <div class="stat-mini-lbl">GP</div>
@@ -505,7 +505,7 @@
               </div>
             </div>
           {:else}
-            <div style="background-color: var(--bg-dark); padding: 16px; border-radius: 8px; text-align: center; color: var(--text-muted); font-size: 0.85rem; border: 1px solid var(--border-color);">
+            <div style="background-color: var(--bg-dark); padding: 16px; border-radius: 2px; text-align: center; color: var(--text-muted); font-size: 0.85rem; border: 1px solid var(--border-color);">
               No games yet
             </div>
           {/if}
@@ -558,7 +558,7 @@
         <!-- Header -->
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
           <div>
-            <h3 style="font-size: 1.2rem; margin: 0; color: var(--primary);">Negotiation with Agent</h3>
+            <h3 style="font-size: 1.05rem; margin: 0;">Extension</h3>
             <span style="font-size: 0.8rem; color: var(--text-muted);">Client: {negotiatingPlayer.name} ({negotiatingPlayer.position})</span>
           </div>
           {#if negotiationStage !== 'accepted' && negotiationStage !== 'walked_away'}
@@ -568,13 +568,12 @@
 
         <!-- Agent profile card -->
         <div class="agent-profile">
-          <div class="agent-avatar">💼</div>
           <div style="display: flex; flex-direction: column; gap: 4px;">
             <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">{agentName}</div>
             <div style="font-size: 0.75rem; color: var(--text-muted);">{agencyName}</div>
             <div style="display: flex; gap: 8px; font-size: 0.75rem; margin-top: 2px;">
               <span class="badge badge-secondary">Agent: {negotiatingPlayer.contract.agentType || 'reasonable'}</span>
-              <span class="badge badge-primary">Mood: {agentMood === 'happy' ? '😊 Happy' : (agentMood === 'neutral' ? '😐 Neutral' : (agentMood === 'annoyed' ? '😒 Annoyed' : '😡 Furious'))}</span>
+              <span class="badge badge-primary">Mood: {agentMood === 'happy' ? 'Happy' : (agentMood === 'neutral' ? 'Neutral' : (agentMood === 'annoyed' ? 'Annoyed' : 'Furious'))}</span>
             </div>
           </div>
         </div>
@@ -633,7 +632,7 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
               <div style="display: flex; align-items: center; gap: 6px;">
                 <span class="rounds-badge" class:safe={negotiationRounds > 1}>
-                  ⚠️ {negotiationRounds} tries left
+                  {negotiationRounds} tries left
                 </span>
               </div>
               <button class="btn btn-primary" onclick={submitOffer} style="padding: 8px 24px;">Submit Offer</button>
@@ -643,7 +642,7 @@
           <div style="display: flex; flex-direction: column; gap: 14px; text-align: center;">
             <div style="font-size: 1.1rem; color: var(--primary); font-weight: 700;">Negotiations Successful!</div>
             <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">Both parties have agreed to the contract details. Click below to sign the contract extension.</p>
-            <button class="btn btn-primary" onclick={applyNegotiatedContract} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">✍️ Sign Extension Contract</button>
+            <button class="btn btn-primary" onclick={applyNegotiatedContract} style="padding: 10px; font-size: 0.9rem; font-weight: 700; margin-top: 10px;">Sign the extension</button>
           </div>
         {:else}
           <!-- Stalled / walked away -->
@@ -676,7 +675,7 @@
   .stat-box {
     background-color: var(--bg-dark);
     padding: 16px;
-    border-radius: 8px;
+    border-radius: 2px;
     border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
@@ -739,7 +738,7 @@
 
   .meter-bar {
     height: 100%;
-    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    background: var(--primary);
     border-radius: 4px;
   }
 
@@ -768,23 +767,21 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0, 0, 0, 0.75);
+    background-color: rgba(0, 0, 0, 0.55);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 100;
-    backdrop-filter: blur(4px);
   }
 
   /* Modal Content */
   .modal-content {
-    background-color: #1e293b;
+    background-color: var(--bg-card);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: 2px;
     width: 90%;
     max-width: 580px;
     padding: 24px;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -798,53 +795,20 @@
     gap: 16px;
     background-color: var(--bg-dark);
     padding: 12px;
-    border-radius: 8px;
+    border-radius: 2px;
     border: 1px solid var(--border-color);
   }
 
-  .agent-avatar {
-    font-size: 2rem;
-    background-color: rgba(255, 255, 255, 0.05);
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* Agent dialogue speech bubble */
+  /* Agent dialogue */
   .agent-speech-bubble {
     position: relative;
     background: #0f172a;
     border: 1px solid var(--border-color);
-    border-radius: 12px;
+    border-radius: 2px;
     padding: 16px;
     font-size: 0.95rem;
     line-height: 1.5;
     margin-top: 10px;
-  }
-
-  .agent-speech-bubble::before {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 30px;
-    width: 0;
-    height: 0;
-    border: 10px solid transparent;
-    border-bottom-color: var(--border-color);
-  }
-
-  .agent-speech-bubble::after {
-    content: '';
-    position: absolute;
-    bottom: 100%;
-    left: 30px;
-    width: 0;
-    height: 0;
-    border: 9px solid transparent;
-    border-bottom-color: #0f172a;
   }
 
   /* Slider and input controls */
