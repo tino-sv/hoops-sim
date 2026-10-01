@@ -97,11 +97,11 @@ export function gamePosts(args: {
   ]
 }
 
-const BOOK_KINDS = ['gate', 'tv', 'merch', 'sponsor', 'stadium', 'salary', 'staff', 'fine', 'other'] as const
+const BOOK_KINDS = ['gate', 'tv', 'merch', 'sponsor', 'stadium', 'salary', 'staff', 'fine', 'jersey', 'move', 'buyout', 'tax', 'cup', 'other'] as const
 type BookKind = typeof BOOK_KINDS[number]
 
 export function emptyMonth(month: string): MonthBook {
-  return { month, gate: 0, tv: 0, merch: 0, sponsor: 0, stadium: 0, salary: 0, staff: 0, fine: 0, other: 0 }
+  return { month, gate: 0, tv: 0, merch: 0, sponsor: 0, stadium: 0, salary: 0, staff: 0, fine: 0, jersey: 0, move: 0, buyout: 0, tax: 0, cup: 0, other: 0 }
 }
 
 export function monthKey(date: string): string {
@@ -122,7 +122,8 @@ function monthRow(team: Team, month: string): MonthBook {
 /** One cash line. Positive is income. The year totals move with it. */
 export function postCash(team: Team, kind: BookKind, amount: number, month: string) {
   if (!amount) return
-  monthRow(team, month)[kind] += amount
+  const row = monthRow(team, month)
+  row[kind] = (row[kind] ?? 0) + amount
   team.finances.cash += amount
   if (amount > 0) team.finances.seasonRevenue += amount
   else team.finances.seasonExpenses += -amount
@@ -182,7 +183,7 @@ export function bookGameMoney(team: Team, home: boolean, won: boolean, date = 'p
 export function yearBooks(team: Team): MonthBook {
   const total = emptyMonth('year')
   for (const book of team.finances.books ?? []) {
-    for (const kind of BOOK_KINDS) total[kind] += book[kind]
+    for (const kind of BOOK_KINDS) total[kind] += book[kind] ?? 0
   }
   return total
 }

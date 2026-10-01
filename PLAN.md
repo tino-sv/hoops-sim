@@ -31,10 +31,11 @@ Status: `not started` | `in progress` | `done`
 - A ribbon across the desk shows the record, the next game, the cap tier, the date, and unread mail. The button says go to the match, simulate the day, or blocked. `done`
 - The roster lists role, salary, years left, and who wants out. The draft board is a table. An overall stays a range until you scout him. `done`
 - A heavy night can knock a player out for a few days. Home lists who cannot play. `done`
+- Books names uniforms, a move, a TV buyout, the tax, and the cup on their own lines. The office money card is the checkbook. `done`
 
 ## Next
 
-The office and the books screen are still unfinished (8). A contract year and a traded glue guy stay open on 15.
+A contract year and a traded glue guy stay open on 15. An arena and a staff market stay open on the books (1).
 
 ## Backlog
 
@@ -45,7 +46,7 @@ The office and the books screen are still unfinished (8). A contract year and a 
 5. The wire reacts to games. Still open: a postgame answer that helps the owner or the player, a leak when you shop someone, and the rest of the press. `in progress`
 6. Coaching carousel. Move between high school, college, and the pro league. `not started`
 7. A full college game, with continuity when a coach has worked both levels. `not started`
-8. Shell. A top ribbon with record, next game, cap tier, date, and unread mail. The sim control says simulate the day, go to the match, or blocked. The left nav stays words. The office and the books screen are still unfinished. `in progress`
+8. Shell. A top ribbon with record, next game, cap tier, date, and unread mail. The sim control says simulate the day, go to the match, or blocked. The left nav stays words. Books is a ledger. The office money card is cash, the TV deal, the sponsor, and the tax. `done`
 9. Sim the rest of the regular season from the home screen, for testing. `done`
 10. Honors on its own page, plus sort and filter controls on the main lists. `done`
 11. Redesign the look. Chrome is flat type and team color. The roster shows role, years left, and who wants out. The draft board is a table, and overalls stay hidden until a prospect is scouted. Home lists who cannot play, and the days left. `done`

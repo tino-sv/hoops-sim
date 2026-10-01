@@ -181,6 +181,16 @@ export interface MonthBook {
   salary: number;
   staff: number;
   fine: number;
+  /** Uniform order. Older saves may still carry this inside other. */
+  jersey: number;
+  /** Relocation fee. */
+  move: number;
+  /** Cash paid to leave a TV deal. */
+  buyout: number;
+  /** Luxury tax, taken at the end of the season. */
+  tax: number;
+  /** Cup champion purse. */
+  cup: number;
   other: number;
 }
 

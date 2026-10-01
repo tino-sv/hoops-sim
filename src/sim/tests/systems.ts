@@ -270,6 +270,7 @@ assert(market.setTvDeal('national').allowed, 'national deal signs once the buyou
 assert(tvCheck(market.userTeam()) === Math.round(NBA_RULES.TV_SHARE * NBA_RULES.TV_NATIONAL), 'national check')
 assert(market.setTvDeal('partner').allowed, 'dropping a tier is free')
 assert(market.userTeam().finances.cash === cash, 'a downgrade does not refund the buyout')
+assert(market.userTeam().finances.books?.some(row => row.buyout === -NBA_RULES.TV_BUYOUT_NATIONAL), 'the TV buyout is its own line')
 
 const club = new LeagueManager()
 club.initializeLeague('team_1')
@@ -288,6 +289,9 @@ assert(club.setHomeCity('Boston').allowed === false, 'the current city is not a 
 assert(club.setHomeCity('Montreal').allowed, 'an open city is available')
 assert(club.userTeam().city === 'Montreal' && club.userTeam().id === 'team_1' && club.userTeam().division === 'Atlantic', 'the club moves and stays in the division')
 assert(club.teams.filter(team => team.city === 'Boston').length === 0, 'the old city is empty')
+const preseason = club.userTeam().finances.books?.find(row => row.month === 'preseason')
+assert(preseason?.jersey === -NBA_RULES.JERSEY_ORDER, 'uniforms are their own line')
+assert(preseason?.move === -NBA_RULES.RELOCATION_FEE, 'a move is its own line')
 const beforeWire = club.wire.length
 let spins = 0
 while (club.wire.length === beforeWire && spins++ < 8) club.simulateRound('team_1')
