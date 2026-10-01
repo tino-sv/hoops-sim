@@ -1,16 +1,17 @@
 <script lang="ts">
   import { badgeById } from "../sim/badges";
+  import { roleWord, scoutRead } from "../sim/roster";
   import { seasonLine } from "../sim/seasonStats";
   import type { Division, Team, Player, Position } from "../sim/types";
 
   let { allTeams, userTeamId }: { allTeams: Team[], userTeamId: string } = $props();
 
   // Selected Team ID state (defaults to the first opposing team, team_2, or team_1)
-  let selectedTeamId = $state(allTeams[0]?.id || "");
+  let selectedTeamId = $state(allTeams.find(team => team.id !== userTeamId)?.id || allTeams[0]?.id || "");
   let teamConference = $state<'ALL' | 'East' | 'West'>('ALL');
   let teamDivision = $state<'ALL' | Division>('ALL');
   let rosterPos = $state('ALL');
-  let rosterSort = $state<'overall' | 'age' | 'salary' | 'name'>('overall');
+  let rosterSort = $state<'read' | 'age' | 'salary' | 'name'>('read');
 
   let listedTeams = $derived(allTeams.filter(team =>
     (teamConference === 'ALL' || team.conference === teamConference) &&
@@ -24,6 +25,8 @@
   let selectedTeam = $derived(
     allTeams.find((t) => t.id === selectedTeamId) || listedTeams[0] || allTeams[0],
   );
+  let userRoster = $derived(allTeams.find(team => team.id === userTeamId)?.roster ?? []);
+  let ownRoster = $derived(selectedTeam?.id === userTeamId);
 
   $effect(() => {
     if (teamDivision !== 'ALL' && !divisionOptions.includes(teamDivision)) {
@@ -104,7 +107,7 @@
     blk: null
   });
 
-  // Sort roster of selected team by overall
+  // Sort a rival roster by the staff read, and your own roster by role.
   let sortedRoster = $derived.by(() => {
     if (!selectedTeam) return [];
     const posOrder: Record<string, number> = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
@@ -114,7 +117,11 @@
         if (rosterSort === 'name') return a.name.localeCompare(b.name);
         if (rosterSort === 'age') return a.age - b.age;
         if (rosterSort === 'salary') return (b.contract.salaries[0] ?? 0) - (a.contract.salaries[0] ?? 0);
-        return b.overallRating - a.overallRating || posOrder[a.position] - posOrder[b.position];
+        if (selectedTeam.id === userTeamId) {
+          const rank = (player: Player) => roleWord((selectedTeam.depthChart[player.position] || []).indexOf(player.id)).rank;
+          return rank(a) - rank(b) || posOrder[a.position] - posOrder[b.position];
+        }
+        return scoutRead(a, userRoster).rank - scoutRead(b, userRoster).rank || posOrder[a.position] - posOrder[b.position];
       });
   });
 </script>
@@ -240,7 +247,7 @@
             <option value="C">C</option>
           </select>
           <select class="tactics-select" bind:value={rosterSort}>
-            <option value="overall">Sort: overall</option>
+            <option value="read">Sort: staff read</option>
             <option value="age">Sort: age</option>
             <option value="salary">Sort: salary</option>
             <option value="name">Sort: name</option>
@@ -254,7 +261,7 @@
                 <th>Player Name</th>
                 <th style="text-align: center;">Pos</th>
                 <th style="text-align: center;">Age</th>
-                <th style="text-align: center;">OVR</th>
+                <th style="text-align: center;">{ownRoster ? 'Role' : 'Read'}</th>
                 <th>Current Salary</th>
                 <th>Contract Length</th>
               </tr>
@@ -286,10 +293,11 @@
                     ></td
                   >
                   <td style="text-align: center;">{player.age}</td>
-                  <td
-                    style="text-align: center; font-weight: 800; color: var(--primary);"
-                    >{player.overallRating}</td
-                  >
+                  <td style="text-align: center; font-weight: 700;">
+                    {ownRoster
+                      ? roleWord((selectedTeam.depthChart[player.position] || []).indexOf(player.id)).label
+                      : scoutRead(player, userRoster).label}
+                  </td>
                   <td style="font-family: monospace;"
                     >{player.contract.salaries[0]
                       ? formatNumber(player.contract.salaries[0])
@@ -466,12 +474,16 @@
           <div
             style="display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 20px; font-size: 0.85rem;"
           >
-            <div style="display: flex; justify-content: space-between;">
-              <span style="color: var(--text-muted);">Overall Rating:</span>
-              <span style="font-weight: 800; color: var(--primary);"
-                >{selectedPlayer.overallRating} OVR</span
-              >
-            </div>
+            {#if ownRoster}
+              <div style="display: flex; justify-content: space-between;">
+                <span style="color: var(--text-muted);">Overall Rating:</span>
+                <span style="font-weight: 800; color: var(--primary);"
+                  >{selectedPlayer.overallRating} OVR</span
+                >
+              </div>
+            {:else}
+              <div style="line-height: 1.4;">{scoutRead(selectedPlayer, userRoster).line}</div>
+            {/if}
             <div style="display: flex; justify-content: space-between;">
               <span style="color: var(--text-muted);">Salary demand tier:</span>
               <span style="font-weight: 600; text-transform: capitalize;"
@@ -490,6 +502,7 @@
             </div>
           </div>
 
+          {#if ownRoster}
           <div
             style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;"
           >
@@ -548,6 +561,7 @@
               </div>
             </div>
           </div>
+          {/if}
 
           {#if selectedPlayer.traits.length > 0}
             <div style="margin-bottom: 20px;">

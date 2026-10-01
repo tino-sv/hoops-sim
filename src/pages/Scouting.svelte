@@ -1,9 +1,11 @@
 <script lang="ts">
-  import type { DraftProspect, OffseasonStep, Position, SeasonPhase } from '../sim/types';
+  import { scoutCeiling, scoutRead } from '../sim/roster';
+  import type { DraftProspect, OffseasonStep, Player, Position, SeasonPhase } from '../sim/types';
   import type { OfferVerdict } from '../sim/cba';
 
   let { 
     draftProspects, 
+    roster,
     scoutingTokens,
     phase,
     offseasonStep,
@@ -13,6 +15,7 @@
     onDraft
   }: { 
     draftProspects: DraftProspect[], 
+    roster: Player[],
     scoutingTokens: number,
     phase: SeasonPhase,
     offseasonStep: OffseasonStep | null,
@@ -45,9 +48,11 @@
       .sort((a, b) => {
         if (boardSort === 'name') return a.name.localeCompare(b.name);
         if (boardSort === 'age') return a.age - b.age;
-        const left = a.scouted ? -a.overallRating : rangeRank[a.projectedRange];
-        const right = b.scouted ? -b.overallRating : rangeRank[b.projectedRange];
-        return left - right;
+        const left = rangeRank[a.projectedRange];
+        const right = rangeRank[b.projectedRange];
+        if (left !== right) return left - right;
+        if (a.scouted && b.scouted) return scoutRead(a, roster).rank - scoutRead(b, roster).rank;
+        return a.name.localeCompare(b.name);
       });
   });
 
@@ -91,20 +96,6 @@
     return labels[pos] || pos;
   };
 
-  const getProjectedOvrRange = (range: DraftProspect['projectedRange']) => {
-    switch (range) {
-      case 'Top 3': return '72 - 78 OVR';
-      case 'Lottery': return '68 - 75 OVR';
-      case 'First Round': return '64 - 72 OVR';
-      case 'Second Round': return '60 - 68 OVR';
-    }
-  };
-
-  const getOvrColorClass = (ovr: number) => {
-    if (ovr >= 80) return 'text-gold';
-    if (ovr >= 70) return 'text-green';
-    return 'text-blue';
-  };
 </script>
 
 <div class="scouting-container fade-in">
@@ -175,8 +166,8 @@
               <th>Age</th>
               <th>School</th>
               <th>Range</th>
-              <th>OVR</th>
-              <th>POT</th>
+              <th>Read</th>
+              <th>Ceiling</th>
               <th></th>
             </tr>
           </thead>
@@ -189,14 +180,8 @@
                 <td>{prospect.age}</td>
                 <td>{prospect.school}</td>
                 <td>{prospect.projectedRange}</td>
-                <td>
-                  {#if prospect.scouted}
-                    {prospect.overallRating}
-                  {:else}
-                    <span class="hidden band">{getProjectedOvrRange(prospect.projectedRange).replace(' OVR', '').replace(' - ', '–')}</span>
-                  {/if}
-                </td>
-                <td>{prospect.scouted ? prospect.potentialRating : '—'}</td>
+                <td>{prospect.scouted ? scoutRead(prospect, roster).label : '—'}</td>
+                <td>{prospect.scouted ? scoutCeiling(prospect.id, prospect.potentialRating).label : '—'}</td>
                 <td>
                   {#if prospect.scouted}
                     Scouted
@@ -239,23 +224,13 @@
 
           {#if selectedProspect.scouted}
             <div class="scout-report font-display">
-              <h4 style="margin-bottom: 12px; color: var(--text-primary); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em;">Scouting Metrics</h4>
-              <div class="metrics-grid">
-                <div class="metric-item">
-                  <div class="metric-label">True Overall Rating</div>
-                  <div class="metric-val {getOvrColorClass(selectedProspect.overallRating)}">{selectedProspect.overallRating}</div>
-                </div>
-                <div class="metric-item">
-                  <div class="metric-label">Potential Ceiling</div>
-                  <div class="metric-val" style="color: var(--secondary);">{selectedProspect.potentialRating}</div>
-                </div>
-              </div>
+              <p style="margin: 0; line-height: 1.45;">{scoutRead(selectedProspect, roster).line} They see {scoutCeiling(selectedProspect.id, selectedProspect.potentialRating).line}.</p>
             </div>
           {:else}
             <div class="unscouted-card-lock">
               <p>Not scouted</p>
               <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 16px;">
-                True Overall and Potential ratings are hidden until scouted.
+                The staff has not watched him. The range is the public guess.
               </span>
               <button 
                 type="button"
@@ -287,10 +262,6 @@
                   <li class="bullet-weakness">{weakness}</li>
                 {/each}
               </ul>
-            </div>
-
-            <div class="scout-summary-box">
-              <p><b>Scout Summary:</b> {selectedProspect.name} is a {selectedProspect.overallRating >= 73 ? 'ready contributor' : 'project'} with a ceiling of {selectedProspect.potentialRating}. Those notes come from his actual ratings, not a separate blurb.</p>
             </div>
           {/if}
 
@@ -327,8 +298,6 @@
 <style>
   .board-row { cursor: pointer; }
   .board-row.active td { background: var(--primary-glow); }
-  .hidden { color: var(--text-secondary); }
-  .band { white-space: nowrap; }
   .board-row .btn { padding: 4px 10px; font-size: 0.78rem; }
   .draft-message {
     margin-top: 12px;
@@ -603,47 +572,6 @@
     margin: 16px 0;
   }
 
-  .metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-    margin-top: 8px;
-  }
-
-  .metric-item {
-    background: rgba(0, 0, 0, 0.25);
-    padding: 12px;
-    border-radius: 2px;
-    text-align: center;
-    border: 1px solid var(--border-color);
-  }
-
-  .metric-label {
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-
-  .metric-val {
-    font-size: 1.8rem;
-    font-weight: 800;
-    font-family: var(--font-display);
-  }
-
-  .text-gold {
-    color: var(--accent);
-  }
-
-  .text-green {
-    color: var(--primary);
-  }
-
-  .text-blue {
-    color: var(--secondary);
-  }
-
   .unscouted-card-lock {
     text-align: center;
     padding: 24px 16px;
@@ -677,18 +605,4 @@
   }
   .bullet-strength { color: #34d399; }
   .bullet-weakness { color: #f87171; }
-
-  .scout-summary-box {
-    margin-top: 20px;
-    padding: 12px;
-    background: rgba(59, 130, 246, 0.05);
-    border: 1px solid rgba(59, 130, 246, 0.15);
-    border-radius: 2px;
-  }
-
-  .scout-summary-box p {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    line-height: 1.4;
-  }
 </style>

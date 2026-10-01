@@ -1,5 +1,6 @@
 <script lang="ts">
   import { badgeById, settleTeamMorale } from '../sim/badges';
+  import { scoutRead } from '../sim/roster';
   import { GameSession } from '../sim/matchEngine';
   import { madeAttempts } from '../sim/seasonStats';
   import type { Team, Player, BoxScoreStats, TeamTactics, Position } from '../sim/types';
@@ -9,17 +10,20 @@
     matchId, 
     allTeams, 
     schedule = $bindable(), 
+    userTeamId,
     onFinishedMatch 
   }: { 
     matchId: string, 
     allTeams: Team[], 
     schedule: ScheduledMatch[], 
+    userTeamId: string,
     onFinishedMatch: (scoreHome: number, scoreAway: number, winnerId: string, minutes: { home: Record<string, number>; away: Record<string, number> }) => void 
   } = $props();
 
   const matchData = schedule.find(m => m.id === matchId)!;
   const teamHome = allTeams.find(t => t.id === matchData.homeTeamId)!;
   const teamAway = allTeams.find(t => t.id === matchData.awayTeamId)!;
+  const userRoster = allTeams.find(team => team.id === userTeamId)?.roster ?? [];
   let session: GameSession;
 
   // Active game states
@@ -426,7 +430,7 @@
         <button class="unit-row" class:active={selectedOnCourtId === p.id} onclick={() => selectedOnCourtId = selectedOnCourtId === p.id ? null : p.id}>
           <span class="jersey-no" style="background: {teamHome.color}; color: {inkFor(teamHome.color)};">{SHIRT[p.position]}</span>
           <span class="unit-name">{lastName(p.name)}</span>
-          <span class="ovr">{p.overallRating}</span>
+          <span class="ovr">{teamHome.id === userTeamId ? p.overallRating : scoutRead(p, userRoster).label}</span>
           <span class="pts">{line?.points || 0}</span>
           <span class="pf" class:foul-trouble={(line?.fouls || 0) >= 4}>{line?.fouls || 0}</span>
         </button>
@@ -517,7 +521,7 @@
         <div class="unit-row away">
           <span class="jersey-no" style="background: {teamAway.color}; color: {inkFor(teamAway.color)};">{SHIRT[p.position]}</span>
           <span class="unit-name">{lastName(p.name)}</span>
-          <span class="ovr">{p.overallRating}</span>
+          <span class="ovr">{teamAway.id === userTeamId ? p.overallRating : scoutRead(p, userRoster).label}</span>
           <span class="pts">{line?.points || 0}</span>
           <span class="pf" class:foul-trouble={(line?.fouls || 0) >= 4}>{line?.fouls || 0}</span>
         </div>
@@ -846,7 +850,7 @@
   .unit-row {
     width: 100%;
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) 28px 22px 16px;
+    grid-template-columns: 22px minmax(0, 1fr) 64px 22px 16px;
     gap: 6px;
     align-items: center;
     text-align: left;
