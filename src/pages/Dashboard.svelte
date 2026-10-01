@@ -120,6 +120,16 @@
   });
   let featuredHome = $derived(featuredMatch?.homeTeamId === team.id);
   let playableNow = $derived(!!playoffMatch || !!cupMatch || (!!nextUserMatch && nextUserMatch.round === currentRound));
+  let sidelined = $derived(
+    team.roster
+      .filter(player => player.injury && player.injury.daysRemaining > 0)
+      .sort((a, b) => (b.injury?.daysRemaining ?? 0) - (a.injury?.daysRemaining ?? 0))
+  );
+  let outLine = $derived(
+    sidelined.length === 0
+      ? 'Everyone can play.'
+      : `Cannot play: ${sidelined.map(player => `${player.name}, ${player.injury?.description.toLowerCase()}, ${player.injury?.daysRemaining}d`).join(' · ')}`
+  );
 
   const leaderTabs = ['pts', 'ast', 'reb', 'stl', 'blk'] as const;
   let activeLeaderTab = $state<(typeof leaderTabs)[number]>('pts');
@@ -249,6 +259,7 @@
       {/if}
     </div>
   </section>
+  <p class="out-line">{outLine}</p>
   {#if actionError}
     <p style="color: var(--danger); font-weight: 700;">{actionError}</p>
   {/if}
@@ -515,6 +526,12 @@
     display: flex;
     gap: 8px;
     margin-top: 6px;
+  }
+
+  .out-line {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin: 0 0 10px;
   }
 
   .facts {

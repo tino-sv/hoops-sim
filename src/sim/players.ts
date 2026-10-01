@@ -2,7 +2,7 @@ import { birdFromYears, CBASimulator } from './cba'
 import { uniqueName } from './names'
 import { computeOverall, deriveTraits, generateAttributes, noisyRange, scoutingNotes } from './ratings'
 import { NBA_RULES } from './rules'
-import type { DraftProspect, Player, PlayerContract, Position } from './types'
+import type { DraftProspect, Injury, Player, PlayerContract, Position } from './types'
 
 const AGENTS: PlayerContract['agentType'][] = ['hardball', 'reasonable', 'ring-chaser', 'team-first']
 
@@ -161,4 +161,37 @@ export function createProspect(position: Position, targetOverall: number, usedNa
     weaknesses: notes.weaknesses,
     hiddenAttributes: attributes
   }
+}
+
+const HURTS: { description: string; days: number; weight: number }[] = [
+  { description: 'Rolled ankle', days: 3, weight: 4 },
+  { description: 'Sore knee', days: 4, weight: 3 },
+  { description: 'Back spasm', days: 5, weight: 2 },
+  { description: 'Sprained ankle', days: 10, weight: 2 },
+  { description: 'Hamstring', days: 18, weight: 1 }
+]
+
+/** A night under 18 minutes is too short to get hurt. A player already out stays out. */
+export function hurtPlayer(player: Player, minutes: number, chanceRoll = Math.random(), kindRoll = Math.random()): Injury | null {
+  if (minutes < 18 || (player.injury && player.injury.daysRemaining > 0)) return null
+  const chance = player.fatigue > 75 ? 0.02 : 0.012
+  if (chanceRoll >= chance) return null
+  const total = HURTS.reduce((sum, hurt) => sum + hurt.weight, 0)
+  let ticket = kindRoll * total
+  let pick = HURTS[0]
+  for (const hurt of HURTS) {
+    ticket -= hurt.weight
+    if (ticket <= 0) {
+      pick = hurt
+      break
+    }
+  }
+  player.injury = { description: pick.description, daysRemaining: pick.days }
+  return player.injury
+}
+
+export function healPlayer(player: Player, days: number) {
+  if (!player.injury || days <= 0) return
+  player.injury.daysRemaining -= days
+  if (player.injury.daysRemaining <= 0) player.injury = null
 }
