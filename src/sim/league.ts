@@ -765,7 +765,7 @@ export class LeagueManager {
       match.scoreAway = result.teamBScore
       match.winnerId = result.winnerId
       match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
-      this.applyMatchResults(home, away, result, match.cup)
+      this.applyMatchResults(home, away, result, match.cup, match.date)
       this.bookGate(home, away, result.winnerId === home.id, match.cup, match.date, result.teamAScore, result.teamBScore)
       this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
       if (userTeamId && (home.id === userTeamId || away.id === userTeamId) && onUserGameDone) {
@@ -792,6 +792,28 @@ export class LeagueManager {
     if (!home || !away) return
     this.bookGate(home, away, homeWon, match.cup, match.date, match.scoreHome ?? 0, match.scoreAway ?? 0)
     this.reactToGame(home, away, match.scoreHome ?? 0, match.scoreAway ?? 0, match.date)
+    this.leakDemands(home, match.date)
+    this.leakDemands(away, match.date)
+  }
+
+  private leakDemands(team: Team, date: string) {
+    if (team.id !== this.userTeamId) return
+    const leaks = team.roster.filter(player => player.tradeLeak)
+    if (!leaks.length) return
+    for (const player of leaks) player.tradeLeak = false
+    const extra = leaks.length > 1 ? ` ${leaks.length - 1} other${leaks.length > 2 ? 's' : ''} too.` : ''
+    this.publish({
+      handle: leaks[0].name.toLowerCase().replace(/[^a-z]+/g, '') || 'player',
+      name: leaks[0].name,
+      role: 'player',
+      body: `${leaks[0].name} is not getting the minutes he was promised. He wants out.${extra}`,
+      date
+    })
+  }
+
+  private settlePlayed(team: Team, minutesOf: (player: Player) => number, won: boolean, date: string) {
+    settleTeamMorale(team.roster, minutesOf, won, team.coach, team)
+    this.leakDemands(team, date)
   }
 
   private bookGate(home: Team, away: Team, homeWon: boolean, cup: boolean, date: string, homeScore: number, awayScore: number) {
@@ -924,8 +946,8 @@ export class LeagueManager {
     match.winnerId = result.winnerId
     match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
     if (match.exhibition) {
-      settleTeamMorale(home.roster, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, home.coach)
-      settleTeamMorale(away.roster, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, away.coach)
+      this.settlePlayed(home, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, match.date)
+      this.settlePlayed(away, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, match.date)
       return
     }
     this.bookGate(home, away, result.winnerId === home.id, true, match.date, result.teamAScore, result.teamBScore)
@@ -1149,8 +1171,8 @@ export class LeagueManager {
     match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
     this.bookGate(home, away, result.winnerId === home.id, false, match.date, result.teamAScore, result.teamBScore)
     this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
-    settleTeamMorale(home.roster, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, home.coach)
-    settleTeamMorale(away.roster, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, away.coach)
+    this.settlePlayed(home, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, match.date)
+    this.settlePlayed(away, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, match.date)
     this.recordSeriesGame(match)
   }
 
@@ -1199,7 +1221,7 @@ export class LeagueManager {
     return this.championId
   }
 
-  private applyMatchResults(home: Team, away: Team, res: any, _cup = false): void {
+  private applyMatchResults(home: Team, away: Team, res: any, _cup = false, date = ''): void {
     if (res.winnerId === home.id) {
       home.wins++
       away.losses++
@@ -1246,8 +1268,9 @@ export class LeagueManager {
 
     updateStats(home, res.playerStatsA)
     updateStats(away, res.playerStatsB)
-    settleTeamMorale(home.roster, player => res.playerStatsA[player.id]?.minutes ?? 0, res.winnerId === home.id, home.coach)
-    settleTeamMorale(away.roster, player => res.playerStatsB[player.id]?.minutes ?? 0, res.winnerId === away.id, away.coach)
+    const night = date || `Season ${this.season}`
+    this.settlePlayed(home, player => res.playerStatsA[player.id]?.minutes ?? 0, res.winnerId === home.id, night)
+    this.settlePlayed(away, player => res.playerStatsB[player.id]?.minutes ?? 0, res.winnerId === away.id, night)
   }
 
   enterOffseason(): OfferVerdict {

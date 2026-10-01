@@ -1,5 +1,5 @@
 import { hasSignature } from './office'
-import type { Coach, Player, PlayerAttributes, PlayerPersonality, Position } from './types'
+import type { Coach, Player, PlayerAttributes, PlayerPersonality, Position, Team } from './types'
 
 type ShotKind = 'close' | 'mid' | 'three'
 
@@ -166,7 +166,28 @@ export function salaryBadgeMultiplier(player: Player): number {
   return 1
 }
 
-export function moraleAfterGame(player: Player, minutes: number, won: boolean, leaderPlayed: boolean, coach?: Coach): number {
+export function promisedMinutes(player: Player, chartIndex: number): number {
+  if (chartIndex < 0) return 0
+  const hungry = player.personality.usageExpectation >= 28
+  if (chartIndex === 0) return hungry ? 34 : 28
+  if (chartIndex === 1) return hungry ? 22 : 16
+  return hungry ? 12 : 6
+}
+
+export function roleMoraleDelta(player: Player, minutes: number, chartIndex: number): number {
+  if (minutes <= 0 || chartIndex < 0) return 0
+  const gap = promisedMinutes(player, chartIndex) - minutes
+  if (gap < 8) return 0
+  return gap >= 14 ? -3 : -1
+}
+
+export function crowdedShotPenalty(shooter: Player, onCourt: Player[]): number {
+  if (shooter.personality.usageExpectation < 24) return 0
+  const others = onCourt.filter(player => player.id !== shooter.id && player.personality.usageExpectation >= 24).length
+  return others >= 2 ? 0.012 : 0
+}
+
+export function moraleAfterGame(player: Player, minutes: number, won: boolean, leaderPlayed: boolean, coach?: Coach, roleDelta = 0): number {
   const coachStyle = coach?.style
   let delta = won ? 2 : -2
   if (hasBadge(player, 'competitor')) delta = won ? 4 : -1
@@ -195,14 +216,26 @@ export function moraleAfterGame(player: Player, minutes: number, won: boolean, l
 
   if (hasBadge(player, 'competitor') && minutes > 0 && minutes < 15 && player.personality.usageExpectation > 18) delta -= 2
   if (!won && leaderPlayed && !hasBadge(player, 'hothead')) delta += 1
+  if (roleDelta) delta += roleDelta
 
   delta = clamp(delta, -8, 6)
   return clamp(player.morale + delta, 0, 100)
 }
 
-export function settleTeamMorale(roster: Player[], minutesOf: (player: Player) => number, won: boolean, coach?: Coach) {
+export function settleTeamMorale(roster: Player[], minutesOf: (player: Player) => number, won: boolean, coach?: Coach, team?: Team) {
   const leaderPlayed = roster.some(player => hasBadge(player, 'leader') && minutesOf(player) >= 15)
   for (const player of roster) {
-    player.morale = moraleAfterGame(player, minutesOf(player), won, leaderPlayed, coach)
+    const minutes = minutesOf(player)
+    const chartIndex = team ? (team.depthChart[player.position] || []).indexOf(player.id) : -1
+    const role = roleMoraleDelta(player, minutes, chartIndex)
+    player.morale = moraleAfterGame(player, minutes, won, leaderPlayed, coach, role)
+    const hungry = player.personality.usageExpectation >= 22
+    if (role <= -3 && hungry) {
+      if (!player.tradeDemand) player.tradeLeak = true
+      player.tradeDemand = true
+    } else if (chartIndex >= 0 && minutes + 4 >= promisedMinutes(player, chartIndex)) {
+      player.tradeDemand = false
+      player.tradeLeak = false
+    }
   }
 }

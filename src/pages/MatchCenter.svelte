@@ -267,8 +267,8 @@
       updateStats(teamHome, statsHome);
       updateStats(teamAway, statsAway);
     }
-    settleTeamMorale(teamHome.roster, player => statsHome[player.id]?.minutes ?? 0, winnerId === teamHome.id, teamHome.coach);
-    settleTeamMorale(teamAway.roster, player => statsAway[player.id]?.minutes ?? 0, winnerId === teamAway.id, teamAway.coach);
+    settleTeamMorale(teamHome.roster, player => statsHome[player.id]?.minutes ?? 0, winnerId === teamHome.id, teamHome.coach, teamHome);
+    settleTeamMorale(teamAway.roster, player => statsAway[player.id]?.minutes ?? 0, winnerId === teamAway.id, teamAway.coach, teamAway);
 
     alert(`Game Completed! Final Score: ${teamHome.name} ${scoreHome} - ${scoreAway} ${teamAway.name}`);
     onFinishedMatch(scoreHome, scoreAway, winnerId);

@@ -26,11 +26,12 @@ Status: `not started` | `in progress` | `done`
 - A 97 overall takes a first-option share and scores about 32 a game. The team stays near 113. A new career is required to see the new usage. `done`
 - Books is its own screen. Each month lists gate, TV, merch, salaries, staff, the building, and fines. An arena and a staff market are still open. `in progress`
 - A coach has an age, an origin, a former-player flag, and ratings for offense, defense, teaching, and the locker room. Those ratings change makes and morale. Player biographies are still thin. `in progress`
-- A new coach picks a pedigree and up to two signatures. A former star steadies veterans and weighs on young players. Seven seconds scores more in transition and turns the ball over in the half court. `in progress`
+- A new coach picks a pedigree and up to two signatures. A former star steadies veterans and weighs on young players. Seven seconds scores more in transition and turns the ball over in the half court. The ratings stay with the pedigree. `done`
+- A starter who plays well under the minutes his spot promises loses morale and can ask out. The wire says so. A scorer next to two other high-usage players makes a slightly worse shot. A contract year and a traded glue guy are still open. `in progress`
 
 ## Next
 
-A promised role against real minutes (15). The status ribbon (8) comes before any tactics lab, rotation board, or play drawer (16, 18, 19).
+The status ribbon (8): record, next game, cap tier, date, and unread mail. A contract year and a traded glue guy stay open on 15. The ribbon comes before any tactics lab, rotation board, or play drawer (16, 18, 19).
 
 ## Backlog
 
@@ -48,7 +49,7 @@ A promised role against real minutes (15). The status ribbon (8) comes before an
 12. Choose your team when a game starts. `done`
 13. Precompute the game, then show that script on the court. A sub or a coverage change recalculates from that moment. Steals and blocks sit near the 2024-25 line. A 96-plus player scores like a modern first option, about 26 to 34 a game, and the team stays near 113. `done`
 14. Coach pedigree. Former star, video-room, college mentor, or European tactician sets respect and the ratings the sim already uses. Two signature traits, each with a bonus and a cost. Player biographies are still a name, an age, and badges. `in progress`
-15. Role and usage resentment. A promised role, a starved scorer, a traded glue guy, or a contract year changes efficiency, morale, and trade demands. `not started`
+15. Role and usage resentment. A promised role against real minutes, and a scorer stuck next to two ball-dominant teammates, changes efficiency, morale, and a trade demand. A contract year and a traded glue guy are still open. `in progress`
 16. Playbook. Tempo, spacing, shot profile, matchup hunting, and a foul plan on top of the coverages we have. A timeout and foul-trouble subs come before a play drawer. `not started`
 17. Owner archetype. Impatient, cheap, or hands-off, on top of the win goal and patience we already store. `not started`
 18. Rotation board. Minute targets that add to 240, a closing five, and stagger so two handlers are not both sitting. Lineup ratings wait until those minutes are real. `not started`

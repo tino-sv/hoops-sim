@@ -345,6 +345,9 @@
                     {:else}
                       Healthy
                     {/if}
+                    {#if player.tradeDemand}
+                      <div>Wants out</div>
+                    {/if}
                   </div>
                 </td>
                 <td><span class="badge badge-secondary">{player.position}</span></td>
