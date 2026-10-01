@@ -4,18 +4,49 @@
 
   let { team }: { team: Team } = $props();
 
-  const year = $derived(yearBooks(team));
-  const months = $derived([...(team.finances.books ?? [])].reverse());
-  const income = $derived(year.gate + year.tv + year.merch + year.sponsor + Math.max(0, year.other));
-  const spending = $derived(Math.abs(year.salary) + Math.abs(year.staff) + Math.abs(year.stadium) + Math.abs(year.fine) + Math.abs(Math.min(0, year.other)));
+  type Line = Exclude<keyof MonthBook, 'month'>;
 
-  const money = (value: number) => {
-    const sign = value < 0 ? '-' : ''
-    const body = `$${(Math.abs(value) / 1_000_000).toFixed(2)}M`
-    return sign + body
+  const amount = (book: MonthBook, key: Line) => {
+    const value = book[key];
+    return typeof value === 'number' ? value : 0;
   };
 
-  const rows: { key: Exclude<keyof MonthBook, 'month'>; label: string }[] = [
+  const money = (value: number) => {
+    const sign = value < 0 ? '-' : '';
+    return sign + `$${(Math.abs(value) / 1_000_000).toFixed(2)}M`;
+  };
+
+  const cell = (book: MonthBook, key: Line) => {
+    const value = amount(book, key);
+    return value === 0 ? '—' : money(value);
+  };
+
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const monthRank = (key: string) => {
+    if (key === 'preseason') return '0';
+    if (/^\d{4}-\d{2}$/.test(key)) return key;
+    if (key === 'cup') return '8';
+    if (key === 'offseason') return '9';
+    return `5-${key}`;
+  };
+
+  const monthLabel = (key: string) => {
+    const match = /^(\d{4})-(\d{2})$/.exec(key);
+    if (!match) {
+      if (key === 'preseason') return 'Preseason';
+      if (key === 'offseason') return 'Offseason';
+      if (key === 'cup') return 'Cup';
+      return key;
+    }
+    return `${MONTHS[Number(match[2]) - 1]} ${match[1]}`;
+  };
+
+  const year = $derived(yearBooks(team));
+  const months = $derived(
+    [...(team.finances.books ?? [])].sort((a, b) => monthRank(a.month).localeCompare(monthRank(b.month)))
+  );
+  const operating: { key: Line; label: string }[] = [
     { key: 'gate', label: 'Gate' },
     { key: 'tv', label: 'TV' },
     { key: 'merch', label: 'Merch' },
@@ -23,15 +54,35 @@
     { key: 'salary', label: 'Salaries' },
     { key: 'staff', label: 'Staff' },
     { key: 'stadium', label: 'Building' },
-    { key: 'fine', label: 'Fines' },
+    { key: 'fine', label: 'Fines' }
+  ];
+  const rare: { key: Line; label: string }[] = [
+    { key: 'jersey', label: 'Uniforms' },
+    { key: 'move', label: 'Move' },
+    { key: 'buyout', label: 'TV buyout' },
+    { key: 'tax', label: 'Tax' },
+    { key: 'cup', label: 'Cup' },
     { key: 'other', label: 'Other' }
   ];
+  const lines = $derived([
+    ...operating,
+    ...rare.filter(row => amount(year, row.key) !== 0)
+  ]);
+
+  const income = $derived(
+    amount(year, 'gate') + amount(year, 'tv') + amount(year, 'merch') + amount(year, 'sponsor') + amount(year, 'cup') + Math.max(0, amount(year, 'other'))
+  );
+  const spending = $derived(
+    Math.abs(amount(year, 'salary')) + Math.abs(amount(year, 'staff')) + Math.abs(amount(year, 'stadium')) + Math.abs(amount(year, 'fine'))
+    + Math.abs(amount(year, 'jersey')) + Math.abs(amount(year, 'move')) + Math.abs(amount(year, 'buyout')) + Math.abs(amount(year, 'tax'))
+    + Math.abs(Math.min(0, amount(year, 'other')))
+  );
 </script>
 
 <div class="fade-in">
-  <div class="card" style="margin-bottom: 16px;">
+  <div class="card">
     <h2>Books</h2>
-    <p style="color: var(--text-secondary); margin: 6px 0 14px;">
+    <p class="note">
       Cash on hand is {money(team.finances.cash)}. Gate, TV, and salaries hit every game. Merch, the building, and staff hit once a month. A 25-point loss draws a league fine. The sponsor check arrives in the offseason.
     </p>
     <div class="totals">
@@ -42,33 +93,30 @@
   </div>
 
   {#if months.length === 0}
-    <div class="card"><p style="color: var(--text-secondary);">No month has closed. Play a game and the book fills in.</p></div>
+    <div class="card"><p class="note">No month has closed. Play a game and the book fills in.</p></div>
   {:else}
     <div class="card">
-      <h3 style="margin-bottom: 10px;">Year</h3>
       <div class="table-container">
         <table class="sim-table">
           <thead>
             <tr>
-              <th>Month</th>
-              {#each rows as row}<th>{row.label}</th>{/each}
+              <th>Line</th>
+              {#each months as book}
+                <th>{monthLabel(book.month)}</th>
+              {/each}
+              <th>Year</th>
             </tr>
           </thead>
           <tbody>
-            {#each months as book}
+            {#each lines as row}
               <tr>
-                <td>{book.month}</td>
-                {#each rows as row}
-                  <td class:neg={book[row.key] < 0}>{money(book[row.key])}</td>
+                <td>{row.label}</td>
+                {#each months as book}
+                  <td class:neg={amount(book, row.key) < 0}>{cell(book, row.key)}</td>
                 {/each}
+                <td class:neg={amount(year, row.key) < 0}>{cell(year, row.key)}</td>
               </tr>
             {/each}
-            <tr>
-              <td>Year</td>
-              {#each rows as row}
-                <td class:neg={year[row.key] < 0}>{money(year[row.key])}</td>
-              {/each}
-            </tr>
           </tbody>
         </table>
       </div>
@@ -77,7 +125,8 @@
 </div>
 
 <style>
-  h2 { font-size: 1.15rem; }
+  h2 { font-size: 1.15rem; margin-bottom: 6px; }
+  .note { color: var(--text-secondary); margin: 0 0 14px; }
   .totals {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -95,5 +144,9 @@
     letter-spacing: 0.04em;
   }
   .totals b { font-size: 1.15rem; }
+  th, td { white-space: nowrap; }
   td.neg { color: var(--danger); }
+  @media (max-width: 700px) {
+    .totals { grid-template-columns: 1fr; }
+  }
 </style>

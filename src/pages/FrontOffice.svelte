@@ -218,11 +218,13 @@
     </div>
     <div class="card">
       <h2 style="margin-bottom: 8px;">Money</h2>
-      <p>Cash {millions(team.finances.cash)}</p>
-      <p>Gate and TV {millions(team.finances.seasonRevenue)}</p>
-      <p>Spent {millions(team.finances.seasonExpenses)}</p>
-      <p>Payroll {millions(team.finances.salariesTotal)}</p>
-      <p>TV deal {currentDeal}. Each game pays {millions(tvCheck(team))}.</p>
+      <div class="locked">
+        <div><span>Cash</span><b>{millions(team.finances.cash)}</b></div>
+        <div><span>TV check</span><b>{millions(tvCheck(team))}</b></div>
+        <div><span>Deal</span><b>{currentDeal}</b></div>
+        <div><span>Tax</span><b>{tax > 0 ? millions(tax) : 'Under'}</b></div>
+      </div>
+      <p>Sponsor {team.finances.sponsor ? `${team.finances.sponsor.name}, ${millions(team.finances.sponsor.annual)} a year` : 'none yet'}.</p>
       <div class="deal-row">
         {#each tiers as tier}
           <button class="btn btn-secondary" disabled={tier === currentDeal} onclick={() => signDeal(tier)}>
@@ -232,14 +234,9 @@
       </div>
       {#if dealError}<p style="color: var(--danger);">{dealError}</p>{/if}
       <p style="color: var(--text-secondary);">A higher tier is a cash buyout. Dropping a tier does not pay you back.</p>
-      <p>Sponsor {team.finances.sponsor ? `${team.finances.sponsor.name}, ${millions(team.finances.sponsor.annual)} a year` : 'none yet'}.</p>
-      <p style="color: var(--text-secondary);">
-        {#if tax > 0}
-          Luxury tax if the season ended today: {millions(tax)}. That comes off cash, not the cap.
-        {:else}
-          Under the tax line. Cash is the checkbook. The cap is a different book.
-        {/if}
-      </p>
+      {#if tax > 0}
+        <p style="color: var(--text-secondary);">Luxury tax if the season ended today comes off cash, not the cap.</p>
+      {/if}
     </div>
   </div>
 </div>
@@ -313,7 +310,7 @@
     font-size: 0.85rem;
   }
   .locked div { display: flex; justify-content: space-between; gap: 8px; color: var(--text-secondary); }
-  .locked b { color: var(--text-primary); font-weight: 650; }
+  .locked b { color: var(--text-primary); font-weight: 650; text-transform: capitalize; }
   .traits { margin: 8px 0 12px; padding-left: 16px; color: var(--text-secondary); font-size: 0.85rem; }
   .traits b { color: var(--text-primary); font-weight: 650; }
   .swatch {

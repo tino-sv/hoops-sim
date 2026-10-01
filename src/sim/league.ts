@@ -663,7 +663,7 @@ export class LeagueManager {
     if (team.finances.cash < cost) {
       return deny(`The buyout is $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
     }
-    if (cost > 0) postCash(team, 'other', -cost, team.finances.lastBookMonth ?? 'preseason')
+    if (cost > 0) postCash(team, 'buyout', -cost, team.finances.lastBookMonth ?? 'preseason')
     team.finances.tvDeal = tier
     const check = tvCheck(team)
     this.note(
@@ -685,7 +685,7 @@ export class LeagueManager {
     if (team.finances.cash < cost) {
       return deny(`The uniform order is $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
     }
-    postCash(team, 'other', -cost, team.finances.lastBookMonth ?? 'preseason')
+    postCash(team, 'jersey', -cost, team.finances.lastBookMonth ?? 'preseason')
     team.color = color
     team.trim = trim
     this.note('Front Office', 'New uniforms', `Home is ${color} with ${trim} trim. The order was $${(cost / 1_000_000).toFixed(0)}M, and it does not hit the cap.`)
@@ -711,7 +711,7 @@ export class LeagueManager {
       return deny(`The move costs $${(cost / 1_000_000).toFixed(0)}M. You have $${(team.finances.cash / 1_000_000).toFixed(1)}M.`)
     }
     const from = team.city
-    postCash(team, 'other', -cost, team.finances.lastBookMonth ?? 'preseason')
+    postCash(team, 'move', -cost, team.finances.lastBookMonth ?? 'preseason')
     team.city = next
     this.note(
       'Owner',
@@ -1028,7 +1028,7 @@ export class LeagueManager {
         this.cupResolved = true
         const winner = this.teams.find(team => team.id === this.cupChampionId)
         if (winner) {
-          postCash(winner, 'other', NBA_RULES.CUP_PURSE, winner.finances.lastBookMonth ?? 'cup')
+          postCash(winner, 'cup', NBA_RULES.CUP_PURSE, winner.finances.lastBookMonth ?? 'cup')
           this.note('League office', 'Cup champion', `${winner.city} ${winner.name} won the Cup. $${(NBA_RULES.CUP_PURSE / 1_000_000).toFixed(0)}M goes to the team, not the cap.`)
         }
         return
@@ -1336,7 +1336,7 @@ export class LeagueManager {
     for (const team of this.teams) {
       const tax = luxuryTaxBill(team)
       if (tax > 0) {
-        postCash(team, 'other', -tax, team.finances.lastBookMonth ?? 'offseason')
+        postCash(team, 'tax', -tax, team.finances.lastBookMonth ?? 'offseason')
         if (team.id === user.id) userTax = tax
       }
       const met = team.wins >= team.owner.goalWins
