@@ -120,9 +120,6 @@
   <!-- Scouting Tokens Dashboard -->
   <div class="card tokens-banner">
     <div class="tokens-left">
-      <div class="token-orb">
-        <span class="compass-icon">🧭</span>
-      </div>
       <div>
         <h2>Draft Board</h2>
         <p>
@@ -153,7 +150,7 @@
   <div class="dashboard-grid">
     <!-- Prospects Grid -->
     <div class="card" style="grid-column: span {selectedProspect ? '8' : '12'}; transition: all 0.3s ease;">
-      <h3 class="card-title">Draft Prospects Pool <span class="badge badge-secondary">{board.length} Available</span></h3>
+      <h3 class="card-title">Class <span class="badge badge-secondary">{board.length}</span></h3>
       <div class="list-tools">
         <select class="tactics-select" bind:value={boardPos}>
           <option value="ALL">All positions</option>
@@ -222,7 +219,7 @@
             <div class="card-actions">
               {#if prospect.scouted}
                 <div style="display: flex; flex-direction: column; gap: 4px;">
-                  <span class="scouted-tag">✓ Fully Scouted</span>
+                  <span class="scouted-tag">Scouted</span>
                   <span class="badge" style="background: rgba(16,185,129,0.15); color: var(--primary); border: 1px solid rgba(16,185,129,0.3); font-size: 0.65rem; padding: 2px 6px;">Draft Eligible</span>
                 </div>
               {:else}
@@ -232,7 +229,7 @@
                   disabled={scoutingTokens <= 0}
                   onclick={(e) => { e.stopPropagation(); scoutPlayer(prospect); }}
                 >
-                  🔍 Scout (1 Token)
+                  Scout
                 </button>
               {/if}
             </div>
@@ -245,15 +242,12 @@
     {#if selectedProspect}
       <div class="card prospect-details-panel fade-in" style="grid-column: span 4; display: flex; flex-direction: column;">
         <div class="panel-header">
-          <h3 style="color: var(--primary);">Scouting Dossier</h3>
+          <h3>Dossier</h3>
           <button type="button" class="btn-close" onclick={closeDetails}>×</button>
         </div>
 
         <div class="details-body">
           <div class="profile-header">
-            <div class="avatar-circle">
-              {selectedProspect.name.split(' ')[0][0]}{selectedProspect.name.split(' ')[1]?.[0] || ''}
-            </div>
             <div>
               <div class="profile-name">{selectedProspect.name}</div>
               <div class="profile-meta">{getPositionLabel(selectedProspect.position)} | {selectedProspect.school}</div>
@@ -279,8 +273,7 @@
             </div>
           {:else}
             <div class="unscouted-card-lock">
-              <span class="lock-icon">🔒</span>
-              <p>Ratings Locked</p>
+              <p>Not scouted</p>
               <span style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 16px;">
                 True Overall and Potential ratings are hidden until scouted.
               </span>
@@ -290,7 +283,7 @@
                 disabled={scoutingTokens <= 0}
                 onclick={() => scoutPlayer(selectedProspect!)}
               >
-                🔍 Scout {selectedProspect.name}
+                Scout {selectedProspect.name}
               </button>
             </div>
           {/if}
@@ -299,19 +292,19 @@
             <hr class="divider" />
 
             <div class="bullet-section">
-              <h4 style="color: var(--primary); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Key Strengths</h4>
+              <h4 style="font-size: 0.85rem; margin-bottom: 8px;">Strengths</h4>
               <ul>
                 {#each selectedProspect.strengths as strength}
-                  <li class="bullet-strength">⚡ {strength}</li>
+                  <li class="bullet-strength">{strength}</li>
                 {/each}
               </ul>
             </div>
 
             <div class="bullet-section" style="margin-top: 16px;">
-              <h4 style="color: var(--danger); font-size: 0.85rem; text-transform: uppercase; margin-bottom: 8px;">Areas of Weakness</h4>
+              <h4 style="font-size: 0.85rem; margin-bottom: 8px;">Weaknesses</h4>
               <ul>
                 {#each selectedProspect.weaknesses as weakness}
-                  <li class="bullet-weakness">⚠️ {weakness}</li>
+                  <li class="bullet-weakness">{weakness}</li>
                 {/each}
               </ul>
             </div>
@@ -323,7 +316,7 @@
 
           {#if draftMessage}
             <div class="draft-message" class:success={draftMessageType === 'success'} class:error={draftMessageType === 'error'}>
-              {draftMessageType === 'success' ? '🎉' : '⚠️'} {draftMessage}
+              {draftMessage}
             </div>
           {/if}
           {#if onTheClock}
@@ -355,7 +348,7 @@
   .draft-message {
     margin-top: 12px;
     padding: 10px 14px;
-    border-radius: 8px;
+    border-radius: 2px;
     font-size: 0.85rem;
     font-weight: 600;
     border: 1px solid;
@@ -376,8 +369,8 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 24px;
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
-    border-left: 4px solid var(--primary);
+    background: var(--bg-card);
+    border-left: 2px solid var(--border-color);
   }
 
 
@@ -385,21 +378,6 @@
     display: flex;
     align-items: center;
     gap: 16px;
-  }
-
-  .token-orb {
-    width: 48px;
-    height: 48px;
-    background: var(--primary-glow);
-    border: 1px solid rgba(16, 185, 129, 0.3);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .compass-icon {
-    font-size: 1.5rem;
   }
 
   .tokens-banner h2 {
@@ -425,7 +403,6 @@
     color: var(--primary);
     line-height: 1;
     font-family: var(--font-display);
-    text-shadow: 0 0 15px var(--primary-glow);
   }
 
   .count-lbl {
@@ -445,7 +422,7 @@
   .prospect-card {
     background: rgba(15, 23, 42, 0.35);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
+    border-radius: 2px;
     padding: 16px;
     text-align: left;
     cursor: pointer;
@@ -525,7 +502,7 @@
     margin-bottom: 14px;
     background: rgba(0, 0, 0, 0.2);
     padding: 8px;
-    border-radius: 6px;
+    border-radius: 2px;
   }
 
   .rating-box {
@@ -567,14 +544,14 @@
     width: 100%;
     padding: 6px 12px;
     font-size: 0.75rem;
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--primary);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
   }
 
   .btn-scout:hover:not(:disabled) {
-    background: var(--primary);
-    color: var(--bg-darker);
+    background: #e7e5e4;
+    color: #1c1917;
   }
 
   .btn-scout:disabled {
@@ -584,7 +561,7 @@
 
   /* Details Panel */
   .prospect-details-panel {
-    background: linear-gradient(180deg, var(--bg-card) 0%, rgba(30, 41, 59, 0.9) 100%);
+    background: var(--bg-card);
     border-left: 2px solid var(--border-color);
   }
 
@@ -614,21 +591,6 @@
     align-items: center;
     gap: 16px;
     margin-bottom: 16px;
-  }
-
-  .avatar-circle {
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    background: var(--border-color);
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 800;
-    font-size: 1.15rem;
-    font-family: var(--font-display);
-    border: 2px solid var(--primary);
   }
 
   .profile-name {
@@ -666,7 +628,7 @@
   .metric-item {
     background: rgba(0, 0, 0, 0.25);
     padding: 12px;
-    border-radius: 8px;
+    border-radius: 2px;
     text-align: center;
     border: 1px solid var(--border-color);
   }
@@ -687,24 +649,21 @@
 
   .text-gold {
     color: var(--accent);
-    text-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
   }
 
   .text-green {
     color: var(--primary);
-    text-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
   }
 
   .text-blue {
     color: var(--secondary);
-    text-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
   }
 
   .unscouted-card-lock {
     text-align: center;
     padding: 24px 16px;
     background: rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
+    border-radius: 2px;
     border: 1px dashed var(--border-color);
   }
 
@@ -739,7 +698,7 @@
     padding: 12px;
     background: rgba(59, 130, 246, 0.05);
     border: 1px solid rgba(59, 130, 246, 0.15);
-    border-radius: 6px;
+    border-radius: 2px;
   }
 
   .scout-summary-box p {

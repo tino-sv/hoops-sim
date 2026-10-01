@@ -126,7 +126,6 @@
     style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; gap: 16px;"
   >
     <div style="display: flex; align-items: center; gap: 16px;">
-      <span style="font-size: 1.5rem;">🏢</span>
       <div>
         <h2 style="font-size: 1.25rem; margin: 0;">Teams</h2>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
@@ -313,11 +312,7 @@
         >
           <!-- Category Leaders Card -->
           <div class="card">
-            <h3
-              style="color: var(--primary); font-size: 1.1rem; margin-bottom: 16px;"
-            >
-              Team Leaders
-            </h3>
+            <h3 style="font-size: 1.05rem; margin-bottom: 16px;">Leaders</h3>
 
             <div style="display: flex; flex-direction: column; gap: 14px;">
               <!-- PTS -->
@@ -415,11 +410,7 @@
 
           <!-- Tactical Profile Card -->
           <div class="card">
-            <h3
-              style="color: var(--primary); font-size: 1.1rem; margin-bottom: 16px;"
-            >
-              Scheme
-            </h3>
+            <h3 style="font-size: 1.05rem; margin-bottom: 16px;">Scheme</h3>
 
             <div
               style="display: flex; flex-direction: column; gap: 12px; font-size: 0.85rem;"
@@ -454,7 +445,7 @@
           <div
             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;"
           >
-            <h3 style="color: var(--primary);">Player Profile</h3>
+            <h3>Player</h3>
             <button
               type="button"
               class="btn-close"
@@ -463,21 +454,12 @@
             >
           </div>
 
-          <div
-            style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;"
-          >
-            <div
-              style="width: 48px; height: 48px; border-radius: 50%; background: var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1rem; border: 2px solid var(--primary);"
-            >
-              {selectedPlayer.name[0]}
+          <div style="margin-bottom: 16px;">
+            <div style="font-weight: 700; font-size: 1.05rem;">
+              {selectedPlayer.name}
             </div>
-            <div>
-              <div style="font-weight: 800; font-size: 1.05rem;">
-                {selectedPlayer.name}
-              </div>
-              <div style="font-size: 0.8rem; color: var(--text-secondary);">
-                {getPositionLabel(selectedPlayer.position)} • Age {selectedPlayer.age}
-              </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+              {getPositionLabel(selectedPlayer.position)} · Age {selectedPlayer.age}
             </div>
           </div>
 
@@ -629,20 +611,9 @@
 </div>
 
 <style>
-  .selector-card {
-    background: linear-gradient(
-      135deg,
-      rgba(30, 41, 59, 0.9),
-      rgba(15, 23, 42, 0.9)
-    );
-  }
-
+  .selector-card,
   .team-banner-card {
-    background: linear-gradient(
-      90deg,
-      rgba(30, 41, 59, 0.75) 0%,
-      rgba(15, 23, 42, 0.75) 100%
-    );
+    background: var(--bg-card);
   }
 
   .banner-stat {

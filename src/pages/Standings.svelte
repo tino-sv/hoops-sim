@@ -130,7 +130,7 @@
     {@const pool = allTeams.filter(team => team.conference === conference.name)}
     {@const started = pool.some(team => team.wins + team.losses > 0)}
     <div class="card" style="margin-bottom: 20px;">
-      <h3 style="color: var(--primary); font-size: 1.3rem; margin-bottom: 16px;">{conference.name} Conference</h3>
+      <h3 style="font-size: 1.05rem; margin-bottom: 16px;">{conference.name}</h3>
       {#each conference.divisions as division}
         {@const divisionPool = allTeams.filter(team => team.division === division)}
         <section class="division-block">

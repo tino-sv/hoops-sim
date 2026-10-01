@@ -110,22 +110,38 @@
     }
   };
 
-  // Get active positions and their coordinates
+  const SHIRT: Record<Position, string> = { PG: '1', SG: '2', SF: '3', PF: '4', C: '5' };
+
+  const inkFor = (hex: string) => {
+    const h = hex.replace('#', '');
+    if (h.length < 6) return '#fff';
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return r * 0.3 + g * 0.59 + b * 0.11 > 165 ? '#1a1208' : '#fff';
+  };
+
+  const onHalf = (half: { x: number, y: number }) => {
+    const along = Math.max(8, Math.min(47, 8 + half.x * 0.36));
+    const fullX = 100 - along;
+    return { x: (fullX - 50) * 2, y: half.y };
+  };
+
   let coords = $derived(
     POSITIONS.map(pos => {
       void chartTick;
-      const coord = getCoordinates(pos, tactics.offensiveStyle);
+      const coord = onHalf(getCoordinates(pos, tactics.offensiveStyle));
       const starterId = team.depthChart[pos]?.[0];
       const player = roster.find(p => p.id === starterId) || roster.find(p => p.position === pos) || roster[0];
       const last = player?.name.split(' ').slice(-1)[0] ?? pos;
-      return { pos, name: player ? player.name : pos, last, ...coord };
+      return { pos, name: player ? player.name : pos, last, rating: player?.overallRating ?? 0, ...coord };
     })
   );
 </script>
 
 <div class="chalkboard-container fade-in">
-  <div class="card" style="margin-bottom: 24px;">
-    <h3 style="color: var(--primary); font-size: 1.25rem; margin-bottom: 6px;">Rotation</h3>
+  <div class="card rotation-card">
+    <h3 style="font-size: 1rem; margin-bottom: 6px;">Rotation</h3>
     <p style="margin: 0 0 16px; color: var(--text-secondary); font-size: 0.9rem;">
       The first name at each spot starts. Move a player up for more minutes. Slide someone over when you want a different look, like a power forward at center.
     </p>
@@ -141,7 +157,8 @@
             <div class="rotation-player" class:is-starter={index === 0}>
               <div class="rotation-slot">{SLOT[index] ?? `Deep reserve · ~6 min`}</div>
               <div class="rotation-name">{player.name}</div>
-              <div class="rotation-meta">OVR {player.overallRating} · {player.position} · {seasonBlurb(player.id)}</div>
+              <div class="ovr-bar"><span style="width: {player.overallRating}%;"></span></div>
+              <div class="rotation-meta">{player.overallRating} · {player.position} · {seasonBlurb(player.id)}</div>
               <div class="rotation-actions">
                 <button type="button" disabled={index === 0} onclick={() => reorder(pos, index, -1)}>Up</button>
                 <button type="button" disabled={index === depth.length - 1} onclick={() => reorder(pos, index, 1)}>Down</button>
@@ -161,10 +178,10 @@
     </div>
   </div>
 
-  <div class="dashboard-grid">
+  <div class="dashboard-grid board">
     <!-- Left panel: Tactical adjustments -->
     <div class="card" style="grid-column: span 5; display: flex; flex-direction: column; gap: 20px;">
-      <h3 style="color: var(--primary); font-size: 1.25rem;">Scheme</h3>
+      <h3 style="font-size: 1rem;">Scheme</h3>
 
       <!-- Offensive settings -->
       <div class="setting-group">
@@ -230,60 +247,55 @@
     </div>
 
     <!-- Right panel: Interactive 2D Court -->
-    <div class="card" style="grid-column: span 7; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 450px;">
-      <h4 style="margin-bottom: 16px; color: var(--text-secondary); width: 100%; text-align: left;">Half-court spacing</h4>
-      
-      <div class="court-container" style="width: 100%; aspect-ratio: 1 / 1; max-width: 450px;">
-        <!-- Beautiful SVG Court Markings -->
-        <svg viewBox="0 0 100 100" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;">
-          <!-- Court floor background -->
-          <rect width="100%" height="100%" fill="#0f172a" />
-          
-          <!-- Key / Paint area -->
-          <rect x="0" y="34" width="40" height="32" fill="rgba(255, 255, 255, 0.02)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" />
-          <line x1="0" y1="34" x2="40" y2="34" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-          <line x1="0" y1="66" x2="40" y2="66" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-          <line x1="40" y1="34" x2="40" y2="66" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-          
-          <!-- Free Throw circle -->
-          <path d="M 40,34 A 16,16 0 0,1 40,66" fill="none" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" stroke-dasharray="2,2" />
-          <path d="M 40,34 A 16,16 0 0,0 40,66" fill="none" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-          
-          <!-- Midcourt center circle arc -->
-          <path d="M 100,38 A 12,12 0 0,0 100,62" fill="none" stroke="rgba(255, 255, 255, 0.2)" stroke-width="1.5" />
-          <line x1="100" y1="0" x2="100" y2="100" stroke="rgba(255, 255, 255, 0.2)" stroke-width="1.5" />
-
-          <!-- Three-point arc -->
-          <path d="M 0,6 L 29.8,6 A 47.5,47.5 0 0,1 29.8,94 L 0,94" fill="none" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-          
-          <!-- Rim, backboard and connector -->
-          <line x1="4" y1="42" x2="4" y2="58" stroke="#ffffff" stroke-width="2.5" />
-          <line x1="4" y1="50" x2="4.75" y2="50" stroke="#ffffff" stroke-width="1.5" />
-          <circle cx="4.75" cy="50" r="1.5" fill="none" stroke="#f97316" stroke-width="2.5" />
+    <div class="card floor-card">
+      <h4 class="floor-title">{tactics.offensiveStyle === 'pace-and-space' ? 'Pace and space' : tactics.offensiveStyle === 'pick-and-roll' ? 'Pick-and-roll' : tactics.offensiveStyle === 'post-up' ? 'Post-up' : tactics.offensiveStyle === 'motion' ? 'Motion' : 'Isolation'}</h4>
+      <div class="half">
+        <svg class="wood" viewBox="470 0 470 500" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="tacticsMaple" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#e7b56a"/>
+              <stop offset="0.45" stop-color="#d09245"/>
+              <stop offset="1" stop-color="#b8742e"/>
+            </linearGradient>
+          </defs>
+          <rect x="470" y="0" width="470" height="500" fill="url(#tacticsMaple)"/>
+          <rect x="478" y="10" width="452" height="480" fill="none" stroke="rgba(255,248,240,0.9)" stroke-width="3"/>
+          <line x1="470" y1="10" x2="470" y2="490" stroke="rgba(255,248,240,0.9)" stroke-width="3"/>
+          <path d="M470 190 A60 60 0 0 1 470 310" fill="none" stroke="rgba(255,248,240,0.9)" stroke-width="3"/>
+          <rect x="750" y="170" width="180" height="160" fill="rgba(140,62,24,0.28)" stroke="rgba(255,248,240,0.92)" stroke-width="3"/>
+          <path d="M750 190 A60 60 0 0 0 750 310" fill="none" stroke="rgba(255,248,240,0.92)" stroke-width="3"/>
+          <path d="M750 190 A60 60 0 0 1 750 310" fill="none" stroke="rgba(255,248,240,0.55)" stroke-width="3" stroke-dasharray="8 7"/>
+          <path d="M930 32 H798 A237 237 0 0 1 798 468 H930" fill="none" stroke="rgba(255,248,240,0.92)" stroke-width="3"/>
+          <line x1="904" y1="214" x2="904" y2="286" stroke="#f8fafc" stroke-width="5"/>
+          <line x1="904" y1="250" x2="888" y2="250" stroke="#f8fafc" stroke-width="3"/>
+          <circle cx="882" cy="250" r="9" fill="none" stroke="#ea580c" stroke-width="4"/>
         </svg>
-
-        <!-- Player Nodes -->
         {#each coords as node}
-          <div 
-            class="court-dot offense" 
-            style="left: {node.x}%; top: {node.y}%; z-index: 5;"
-            title="{node.name} - {node.pos}"
-          >
-            {node.pos}
-            <span class="court-name">{node.last}</span>
-            <span class="court-dot-tooltip">{node.name} · {node.pos}</span>
+          <div class="actor" style="left: {node.x}%; top: {node.y}%; z-index: {Math.round(node.y)};" title="{node.name}">
+            <svg class="kit" viewBox="0 0 36 30" aria-hidden="true">
+              <path d="M8 7 L12 4 H24 L28 7 L33 9 L29 13 V27 H7 V13 L3 9 Z" fill={team.color} stroke="rgba(0,0,0,0.45)" stroke-width="1"/>
+              <path d="M12 4 L18 8 L24 4" fill={team.trim ?? '#E8E4D9'}/>
+              <text x="18" y="21" text-anchor="middle" fill={inkFor(team.color)} font-size="10" font-weight="800">{SHIRT[node.pos]}</text>
+            </svg>
+            <span class="plate">{node.last}</span>
           </div>
         {/each}
       </div>
-
-      <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 14px; text-align: center;">
-        The offensive set moves the starters. Pace and space spreads the floor. Post-up puts the big on the block.
-      </p>
+      <p class="floor-note">The set moves when you change the offense. Pace and space spreads the floor. Post-up puts the big on the block.</p>
     </div>
   </div>
 </div>
 
 <style>
+  .chalkboard-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .board { order: 0; }
+  .rotation-card { order: 1; }
+
   .setting-group {
     display: flex;
     flex-direction: column;
@@ -341,61 +353,6 @@
     width: 55%;
   }
 
-  /* Court visual details */
-  .court-rim {
-    position: absolute;
-    width: 12px;
-    height: 12px;
-    border: 2px solid #ef4444;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-  }
-
-  .court-backboard {
-    position: absolute;
-    width: 2px;
-    height: 24px;
-    background-color: var(--text-primary);
-    transform: translate(-50%, -50%);
-  }
-
-  .court-dot-tooltip {
-    visibility: hidden;
-    width: 120px;
-    background-color: var(--bg-darker);
-    color: var(--text-primary);
-    text-align: center;
-    border-radius: 4px;
-    padding: 4px;
-    position: absolute;
-    z-index: 1;
-    bottom: 125%;
-    left: 50%;
-    transform: translateX(-50%);
-    opacity: 0;
-    transition: opacity 0.3s;
-    font-size: 0.75rem;
-    border: 1px solid var(--border-color);
-  }
-
-  .court-dot:hover .court-dot-tooltip {
-    visibility: visible;
-    opacity: 1;
-  }
-
-  .court-name {
-    position: absolute;
-    top: 34px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.68rem;
-    font-weight: 700;
-    white-space: nowrap;
-    color: var(--text-primary);
-    text-shadow: 0 1px 2px #000;
-    pointer-events: none;
-  }
-
   .rotation-grid {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -428,7 +385,80 @@
   }
 
   .rotation-player.is-starter {
-    border-color: var(--primary);
+    border-color: #d6d3d1;
+  }
+
+  .ovr-bar {
+    margin-top: 6px;
+    height: 4px;
+    border-radius: 99px;
+    background: #0c0e14;
+    overflow: hidden;
+  }
+
+  .ovr-bar span {
+    display: block;
+    height: 100%;
+    background: #86efac;
+  }
+
+  .floor-card {
+    grid-column: span 7;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .floor-title {
+    margin: 0 0 10px;
+    text-transform: capitalize;
+  }
+
+  .half {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 47 / 50;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .wood {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .actor {
+    position: absolute;
+    transform: translate(-50%, -78%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .kit {
+    width: 30px;
+    height: 26px;
+    filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.45));
+  }
+
+  .plate {
+    margin-top: -2px;
+    background: rgba(8, 10, 16, 0.88);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .floor-note {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 10px 0 0;
   }
 
   .rotation-slot {
@@ -486,6 +516,9 @@
   @media (max-width: 1100px) {
     .rotation-grid {
       grid-template-columns: 1fr;
+    }
+    .floor-card {
+      grid-column: auto;
     }
   }
 </style>

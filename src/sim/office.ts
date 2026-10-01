@@ -1,5 +1,5 @@
 import { seasonLine } from './seasonStats'
-import type { CoachStyle, MarketDeal, Player, SeasonAwards, Team } from './types'
+import type { CoachStyle, MarketDeal, Player, SeasonAwards, Team, WirePost } from './types'
 import { NBA_RULES } from './rules'
 import { CBASimulator } from './cba'
 
@@ -47,6 +47,54 @@ export function ensureCommercials(team: Team, index = 0): void {
   if (!team.finances.sponsor) {
     team.finances.sponsor = { name: SPONSORS[index % SPONSORS.length], annual: sponsorAnnual(tier) }
   }
+}
+
+function handleFor(value: string): string {
+  return value.toLowerCase().replace(/[^a-z]/g, '')
+}
+
+export function gamePosts(args: {
+  user: Team
+  opponent: Team
+  userScore: number
+  oppScore: number
+  date: string
+}): Omit<WirePost, 'id'>[] {
+  const { user, opponent, userScore, oppScore, date } = args
+  const won = userScore > oppScore
+  const margin = Math.abs(userScore - oppScore)
+  const star = [...user.roster].sort((a, b) => b.overallRating - a.overallRating)[0]
+  const line = `${user.city} ${userScore}, ${opponent.city} ${oppScore}`
+  const journalist = won
+    ? margin >= 15
+      ? `${user.city} ran ${opponent.city} out of the gym. ${line}.`
+      : `${user.city} got the win. ${line}.`
+    : `${user.city} dropped this one. ${line}. ${user.coach.name} will hear about it.`
+  const show = won
+    ? `Tape from ${user.city}. ${line}.`
+    : `${user.coach.name}'s group had no answer for ${opponent.city}. ${line}.`
+  const player = won ? `Job done. ${line}.` : `That one is on us. ${line}.`
+  const crowd: Omit<WirePost, 'id'> = margin <= 6
+    ? {
+        handle: 'section114',
+        name: 'Section 114',
+        role: 'fan',
+        body: won ? `Hands were shaking. ${line}.` : `I am not watching the fourth of that again. ${line}.`,
+        date
+      }
+    : {
+        handle: handleFor(user.name),
+        name: `${user.city} ${user.name}`,
+        role: 'team',
+        body: `Final. ${line}.`,
+        date
+      }
+  return [
+    { handle: handleFor(star.name), name: star.name, role: 'player', body: player, date },
+    { handle: 'hooptape', name: 'Hoop Tape', role: 'show', body: show, date },
+    { handle: handleFor(user.city) + 'desk', name: `${user.city} Desk`, role: 'journalist', body: journalist, date },
+    crowd
+  ]
 }
 
 export function bookGameMoney(team: Team, home: boolean, won: boolean) {

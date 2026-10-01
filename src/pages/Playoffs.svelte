@@ -80,7 +80,7 @@
 
   {#if champion}
     <div class="card" style="margin-bottom: 16px;">
-      <h3 style="color: var(--primary);">{champion.city} {champion.name} are the champions.</h3>
+      <h3>{champion.city} {champion.name} are the champions.</h3>
     </div>
   {/if}
 
@@ -89,7 +89,7 @@
     <div class="office-grid">
       {#each conferences as conference}
         <div class="card">
-          <h3 style="color: var(--primary); margin-bottom: 10px;">{conference}</h3>
+          <h3 style="margin-bottom: 10px;">{conference}</h3>
           {#each preview(conference) as team, index}
             <div class="seed-row" class:mine={team.id === userTeamId}>
               <span>{index + 1}</span>

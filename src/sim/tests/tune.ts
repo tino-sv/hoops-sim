@@ -1,5 +1,5 @@
 import { LeagueManager } from '../league'
-import { MatchEngine } from '../matchEngine'
+import { GameSession, MatchEngine } from '../matchEngine'
 import type { PlayerAttributes, Team, TeamTactics } from '../types'
 
 interface Totals {
@@ -200,6 +200,82 @@ if (styleGap < 8) failures.push(`pace-and-space 3PAr lead ${styleGap} is under 8
 
 home.tactics.offensiveStyle = homeStyle
 away.tactics.offensiveStyle = awayStyle
+
+const watched = new GameSession(home, away, { narrate: false })
+watched.setHomeTactics(structuredClone(home.tactics))
+watched.step()
+const banked = watched.scriptedPossessions()
+if (banked < 80) failures.push(`script banked ${banked} possessions, expected the rest of the game`)
+const changed = structuredClone(home.tactics)
+changed.defensiveCoverage = home.tactics.defensiveCoverage === 'drop' ? 'switch-everything' : 'drop'
+watched.setHomeTactics(changed)
+if (watched.scriptedPossessions() !== 0) failures.push('a coverage change kept the old script')
+const outgoing = watched.onCourtHome[0]
+const incoming = home.roster.find(player => !watched.onCourtHome.some(on => on.id === player.id) && (!player.injury || player.injury.daysRemaining <= 0))
+if (!incoming || !watched.manualSub(outgoing.id, incoming)) failures.push('could not sub into the charted game')
+else if (watched.scriptedPossessions() !== 0) failures.push('a sub kept the old script')
+watched.step()
+if (incoming && !watched.onCourtHome.some(player => player.id === incoming.id)) failures.push('the sub was not on the recalculated trip')
+let replayGuard = 0
+while (!watched.finished && replayGuard < 800) {
+  watched.step()
+  replayGuard += 1
+}
+if (!watched.finished) failures.push('scripted replay did not finish')
+if (watched.scoreHome < 70 || watched.scoreAway < 70) failures.push(`scripted score ${watched.scoreHome}-${watched.scoreAway} is too low`)
+
+const defense = new Map<string, { minutes: number; stl: number; blk: number }>()
+for (let i = 0; i < 40; i++) {
+  const result = engine.simulateMatch(home, away)
+  for (const [team, stats] of [[home, result.playerStatsA], [away, result.playerStatsB]] as const) {
+    for (const player of team.roster) {
+      const line = stats[player.id]
+      if (!line || line.minutes <= 0) continue
+      const row = defense.get(player.id) ?? { minutes: 0, stl: 0, blk: 0 }
+      row.minutes += line.minutes
+      row.stl += line.steals
+      row.blk += line.blocks
+      defense.set(player.id, row)
+    }
+  }
+}
+const per36 = (stat: number, minutes: number) => stat / minutes * 36
+const rows = [...defense.entries()].map(([id, row]) => {
+  const player = home.roster.find(p => p.id === id) ?? away.roster.find(p => p.id === id)!
+  return {
+    name: player.name,
+    pos: player.position,
+    minutes: row.minutes,
+    steal: player.attributes.technical.steal,
+    block: player.attributes.technical.block,
+    stl36: per36(row.stl, row.minutes),
+    blk36: per36(row.blk, row.minutes)
+  }
+}).filter(row => row.minutes >= 240)
+const mean = (list: { blk36: number; stl36: number }[], key: 'blk36' | 'stl36') => list.reduce((sum, row) => sum + row[key], 0) / Math.max(1, list.length)
+const eliteBlock = rows.filter(row => row.block >= 82)
+const weakBlock = rows.filter(row => row.block <= 42)
+const eliteSteal = rows.filter(row => row.steal >= 85)
+const ordinarySteal = rows.filter(row => row.steal <= 58)
+console.log('block elites', eliteBlock.map(row => `${row.name} ${row.pos} blk ${row.block} ${row.blk36.toFixed(2)}`))
+console.log('steal elites', eliteSteal.map(row => `${row.name} ${row.pos} stl ${row.steal} ${row.stl36.toFixed(2)}`))
+if (eliteBlock.length) {
+  const blk = mean(eliteBlock, 'blk36')
+  console.log('elite blk36', +blk.toFixed(2), 'weak blk36', +mean(weakBlock, 'blk36').toFixed(2))
+  if (blk < 1.6 || blk > 3.6) failures.push(`elite shot blockers average ${blk.toFixed(2)} per 36`)
+}
+if (weakBlock.length && mean(weakBlock, 'blk36') > 0.45) failures.push(`weak shot blockers average ${mean(weakBlock, 'blk36').toFixed(2)} per 36`)
+const bestBlocker = [...rows].sort((a, b) => b.block - a.block)[0]
+if (bestBlocker && weakBlock.length && bestBlocker.blk36 < mean(weakBlock, 'blk36') + 1) {
+  failures.push(`${bestBlocker.name} is not separating from the weak shot blockers`)
+}
+if (eliteSteal.length) {
+  const stl = mean(eliteSteal, 'stl36')
+  console.log('elite stl36', +stl.toFixed(2), 'ordinary stl36', +mean(ordinarySteal, 'stl36').toFixed(2))
+  if (stl < 1.7 || stl > 3.2) failures.push(`elite thieves average ${stl.toFixed(2)} per 36`)
+  if (ordinarySteal.length && stl < mean(ordinarySteal, 'stl36') + 0.6) failures.push('elite thieves are not clear of the rest')
+}
+if (ordinarySteal.length && mean(ordinarySteal, 'stl36') > 1.35) failures.push(`ordinary hands average ${mean(ordinarySteal, 'stl36').toFixed(2)} per 36`)
 
 if (failures.length) {
   throw new Error(`TUNE FAILED\n - ${failures.join('\n - ')}`)

@@ -91,44 +91,60 @@
     }
   };
 
-  // Derive all 10 on-court coordinates based on who has possession
+  const SHIRT: Record<Position, string> = { PG: '1', SG: '2', SF: '3', PF: '4', C: '5' };
+
+  const endFor = (offenseIsHome: boolean, quarter: number): 'left' | 'right' => {
+    const homeAttacksRight = quarter % 2 === 1;
+    return offenseIsHome === homeAttacksRight ? 'right' : 'left';
+  };
+
+  const mapHalf = (half: { x: number, y: number }, end: 'left' | 'right', leak = 0) => {
+    const along = Math.max(8, Math.min(47, 8 + half.x * 0.36 + leak));
+    return {
+      x: end === 'left' ? along : 100 - along,
+      y: Math.max(7, Math.min(93, half.y))
+    };
+  };
+
+  const inkFor = (hex: string) => {
+    const h = hex.replace('#', '');
+    if (h.length < 6) return '#fff';
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return r * 0.3 + g * 0.59 + b * 0.11 > 165 ? '#1a1208' : '#fff';
+  };
+
+  const guardSpot = (offBase: { x: number, y: number }) => {
+    const nearEdge = offBase.y < 20 || offBase.y > 80;
+    const inward = offBase.y >= 50 ? -1 : 1;
+    const y = nearEdge ? offBase.y + inward * 16 : offBase.y + (offBase.y >= 50 ? 12 : -12);
+    return {
+      x: Math.max(6, offBase.x - (offBase.x - 4.75) * 0.34),
+      y: Math.max(10, Math.min(90, y))
+    };
+  };
+
+  // Full-court spots. The team with the ball attacks one basket for the quarter.
   let playerCoordinates = $derived.by(() => {
-    const coords: Record<string, { x: number, y: number, isOffense: boolean, name: string, pos: Position }> = {};
+    const coords: Record<string, { x: number, y: number, isOffense: boolean, name: string, pos: Position, side: 'home' | 'away' }> = {};
     const isHomeOffense = possession === 'home';
+    const end = endFor(isHomeOffense, currentQuarter);
+    const leak = isTransition ? 6 : 0;
     const offStyle = isHomeOffense ? tacticsHome.offensiveStyle : teamAway.tactics.offensiveStyle;
-    
-    // Position offense
     const offCourt = isHomeOffense ? onCourtHome : onCourtAway;
     const defCourt = isHomeOffense ? onCourtAway : onCourtHome;
 
     offCourt.forEach(p => {
-      const base = getCoordinates(p.position, offStyle);
-      coords[p.id] = {
-        x: base.x,
-        y: base.y,
-        isOffense: true,
-        name: p.name,
-        pos: p.position
-      };
+      const spot = mapHalf(getCoordinates(p.position, offStyle), end, leak);
+      coords[p.id] = { ...spot, isOffense: true, name: p.name, pos: p.position, side: isHomeOffense ? 'home' : 'away' };
     });
 
-    // Position defense (matching up to the same position, offset towards hoop at x=4.75, y=50)
     defCourt.forEach(p => {
-      // Find matching offensive player to guard
       const matchedOff = offCourt.find(o => o.position === p.position) || offCourt[0];
       const offBase = matchedOff ? getCoordinates(matchedOff.position, offStyle) : { x: 50, y: 50 };
-      
-      // Shift defender towards baseline/rim
-      const x = offBase.x - (offBase.x - 4.75) * 0.18;
-      const y = offBase.y - (offBase.y - 50) * 0.18;
-
-      coords[p.id] = {
-        x,
-        y,
-        isOffense: false,
-        name: p.name,
-        pos: p.position
-      };
+      const spot = mapHalf(guardSpot(offBase), end, leak);
+      coords[p.id] = { ...spot, isOffense: false, name: p.name, pos: p.position, side: isHomeOffense ? 'away' : 'home' };
     });
 
     return coords;
@@ -165,24 +181,22 @@
 
   let intervalHandle: any = null;
 
-  const placeBall = (event: import('../sim/possessionEngine').PossessionResult | null, offCourt: Player[], defCourt: Player[], offenseWasHome: boolean) => {
+  const placeBall = (event: import('../sim/possessionEngine').PossessionResult | null, offCourt: Player[], defCourt: Player[], offenseWasHome: boolean, quarter: number) => {
     if (!event) return;
+    const end = endFor(offenseWasHome, quarter);
     const offStyle = offenseWasHome ? tacticsHome.offensiveStyle : teamAway.tactics.offensiveStyle;
     const getPlayerCoord = (pId: string) => {
       const pl = offCourt.find(p => p.id === pId) || defCourt.find(p => p.id === pId);
-      if (!pl) return { x: 50, y: 50 };
+      if (!pl) return mapHalf({ x: 50, y: 50 }, end);
       const isOff = offCourt.some(p => p.id === pId);
-      if (isOff) return getCoordinates(pl.position, offStyle);
+      if (isOff) return mapHalf(getCoordinates(pl.position, offStyle), end);
       const matchedOff = offCourt.find(o => o.position === pl.position) || offCourt[0];
       const offBase = matchedOff ? getCoordinates(matchedOff.position, offStyle) : { x: 50, y: 50 };
-      return {
-        x: offBase.x - (offBase.x - 4.75) * 0.18,
-        y: offBase.y - (offBase.y - 50) * 0.18
-      };
+      return mapHalf(guardSpot(offBase), end);
     };
     activeShooter = event.shooterId || event.turnoverPlayerId || event.blockedById;
-    if (event.points > 0) liveBallLocation = { x: 4.75, y: 50 };
-    else if (event.blockedById) liveBallLocation = { x: 6, y: 50 };
+    if (event.points > 0) liveBallLocation = mapHalf({ x: 4.75, y: 50 }, end);
+    else if (event.blockedById) liveBallLocation = mapHalf({ x: 6, y: 50 }, end);
     else if (event.rebounderId) liveBallLocation = getPlayerCoord(event.rebounderId);
     else if (event.stealedById) liveBallLocation = getPlayerCoord(event.stealedById);
     else if (event.turnoverPlayerId) liveBallLocation = getPlayerCoord(event.turnoverPlayerId);
@@ -191,12 +205,13 @@
 
   const executePossession = () => {
     if (session.finished) return;
+    const quarterThen = session.quarter;
     const offenseWasHome = session.possession === 'home';
     const offCourt = offenseWasHome ? [...session.onCourtHome] : [...session.onCourtAway];
     const defCourt = offenseWasHome ? [...session.onCourtAway] : [...session.onCourtHome];
     session.setHomeTactics(tacticsHome);
     const stepped = session.step();
-    placeBall(session.lastEvent, offCourt, defCourt, offenseWasHome);
+    placeBall(session.lastEvent, offCourt, defCourt, offenseWasHome, quarterThen);
     syncFromSession();
     for (const line of stepped.logs) {
       logsList = [line, ...logsList];
@@ -322,153 +337,84 @@
     const s = Math.floor(secs % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
+
+  const lastName = (name: string) => name.split(' ').slice(-1)[0];
+
+  const tally = (book: Record<string, BoxScoreStats>) => {
+    const rows = Object.values(book);
+    const add = (key: keyof BoxScoreStats) => rows.reduce((sum, row) => sum + (Number(row[key]) || 0), 0);
+    return { fgm: add('fgm'), fga: add('fga'), reb: add('rebounds'), ast: add('assists'), tov: add('turnovers') };
+  };
+
+  const homeLine = $derived(tally(statsHome));
+  const awayLine = $derived(tally(statsAway));
+  const share = (home: number, away: number) => {
+    const total = home + away;
+    return total === 0 ? 50 : Math.round((home / total) * 100);
+  };
+  const recent = $derived(logsList.slice(0, 6));
 </script>
 
 <div class="game-screen fade-in">
-  <header class="card scorebug">
-    <div class="scorebug-side">
-      <span class="swatch" style="background: {teamHome.color};"></span>
-      <div class="scorebug-id">
-        <div class="scorebug-city">{teamHome.city}</div>
-        <div class="scorebug-name">{teamHome.name}</div>
-        <div class="scorebug-meta">{teamHome.wins}-{teamHome.losses} · {foulsHome} team fouls{foulsHome >= 4 ? ' · bonus' : ''}</div>
-      </div>
-      <div class="scorebug-points" class:has-ball={possession === 'home'}>{scoreHome}</div>
-    </div>
-
-    <div class="scorebug-mid">
-      <div class="scorebug-clock">{quarterLabel(currentQuarter)} · {formatTimeStr(secondsRemaining)}</div>
-      <div class="scorebug-ball">{possession === 'home' ? teamHome.name : teamAway.name} ball{isTransition ? ' · transition' : ''}</div>
-      <div class="scorebug-controls">
-        {#if isRunning}
-          <button class="btn btn-secondary" onclick={stopGame}>Pause</button>
-        {:else}
-          <button class="btn btn-primary" onclick={startGame}>Play</button>
-        {/if}
-        <button class="btn btn-secondary" onclick={() => { stopGame(); playSpeed = 100; startGame(); }}>Sim game</button>
-        <label><input type="radio" group={playSpeed} value={1} disabled={isRunning} /> 1x</label>
-        <label><input type="radio" group={playSpeed} value={2} disabled={isRunning} /> 2x</label>
-        <label><input type="radio" group={playSpeed} value={5} disabled={isRunning} /> 5x</label>
+  <header class="match-bar">
+    <div class="club">
+      <span class="crest" style="background: {teamHome.color}; border-color: {teamHome.trim ?? '#E8E4D9'};"></span>
+      <div>
+        <div class="club-city">{teamHome.city}</div>
+        <div class="club-name">{teamHome.name}</div>
+        <div class="club-meta">{teamHome.wins}-{teamHome.losses} · {foulsHome} fouls{foulsHome >= 4 ? ' · bonus' : ''}</div>
       </div>
     </div>
 
-    <div class="scorebug-side away">
-      <div class="scorebug-points" class:has-ball={possession === 'away'}>{scoreAway}</div>
-      <div class="scorebug-id" style="text-align: right;">
-        <div class="scorebug-city">{teamAway.city}</div>
-        <div class="scorebug-name">{teamAway.name}</div>
-        <div class="scorebug-meta">{teamAway.wins}-{teamAway.losses} · {foulsAway} team fouls{foulsAway >= 4 ? ' · bonus' : ''}</div>
+    <div class="score-pill">
+      <span class="crest mini" style="background: {teamHome.color};"></span>
+      <span class="score-num" class:has-ball={possession === 'home'}>{scoreHome}</span>
+      <span class="score-mid">
+        <span class="clock">{quarterLabel(currentQuarter)} {formatTimeStr(secondsRemaining)}</span>
+        <span class="ball-note">{possession === 'home' ? teamHome.name : teamAway.name}{isTransition ? ' · running' : ''}</span>
+      </span>
+      <span class="score-num" class:has-ball={possession === 'away'}>{scoreAway}</span>
+      <span class="crest mini" style="background: {teamAway.color};"></span>
+    </div>
+
+    <div class="match-actions">
+      <div class="speeds">
+        {#each [1, 2, 5] as speed}
+          <button class="speed" class:on={playSpeed === speed} disabled={isRunning} onclick={() => playSpeed = speed}>{speed}x</button>
+        {/each}
       </div>
-      <span class="swatch" style="background: {teamAway.color};"></span>
+      <button class="sim" onclick={() => { stopGame(); playSpeed = 100; startGame(); }}>Sim</button>
+      {#if isRunning}
+        <button class="play" onclick={stopGame}>Pause</button>
+      {:else}
+        <button class="play" onclick={startGame}>Play</button>
+      {/if}
     </div>
   </header>
 
-  <div class="last-play card" class:commentary-score={logsList[0]?.type === 'score'} class:commentary-foul={logsList[0]?.type === 'foul'} class:commentary-turnover={logsList[0]?.type === 'turnover'}>
-    {logsList[0]?.text ?? 'Tip-off is next.'}
-  </div>
-
-  <div class="dashboard-grid">
-    <div class="card court-card" style="grid-column: span 7;">
-      <div class="court-container">
-        <svg viewBox="0 0 100 100" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;">
-            <!-- Court floor background -->
-            <rect width="100%" height="100%" fill="#0f172a" />
-            
-            <!-- Key / Paint area -->
-            <rect x="0" y="34" width="40" height="32" fill="rgba(255, 255, 255, 0.02)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" />
-            <line x1="0" y1="34" x2="40" y2="34" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-            <line x1="0" y1="66" x2="40" y2="66" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-            <line x1="40" y1="34" x2="40" y2="66" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-            
-            <!-- Free Throw circle -->
-            <path d="M 40,34 A 16,16 0 0,1 40,66" fill="none" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" stroke-dasharray="2,2" />
-            <path d="M 40,34 A 16,16 0 0,0 40,66" fill="none" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-            
-            <!-- Midcourt center circle arc -->
-            <path d="M 100,38 A 12,12 0 0,0 100,62" fill="none" stroke="rgba(255, 255, 255, 0.2)" stroke-width="1.5" />
-            <line x1="100" y1="0" x2="100" y2="100" stroke="rgba(255, 255, 255, 0.2)" stroke-width="1.5" />
-
-            <!-- Three-point arc -->
-            <path d="M 0,6 L 29.8,6 A 47.5,47.5 0 0,1 29.8,94 L 0,94" fill="none" stroke="rgba(255, 255, 255, 0.25)" stroke-width="1.5" />
-            
-            <!-- Rim, backboard and connector -->
-            <line x1="4" y1="42" x2="4" y2="58" stroke="#ffffff" stroke-width="2.5" />
-            <line x1="4" y1="50" x2="4.75" y2="50" stroke="#ffffff" stroke-width="1.5" />
-            <circle cx="4.75" cy="50" r="1.5" fill="none" stroke="#f97316" stroke-width="2.5" />
-          </svg>
-        {#if isRunning}
-          <div class="court-ball" style="left: {liveBallLocation.x}%; top: {liveBallLocation.y}%; z-index: 10;"></div>
-        {/if}
-        {#each Object.entries(playerCoordinates) as [playerId, c]}
-          <div
-            class="court-dot"
-            class:offense={c.isOffense}
-            class:defense={!c.isOffense}
-            class:hot={playerId === activeShooter}
-            style="left: {c.x}%; top: {c.y}%; z-index: 5;"
-            title="{c.name} ({c.pos})"
-          >
-            {c.pos}
-            <span class="dot-name">{c.name.split(' ').slice(-1)[0]}</span>
-          </div>
-        {/each}
+  <div class="stage">
+    <aside class="unit">
+      <div class="unit-head">
+        <span class="pip" style="background: {teamHome.color};"></span>
+        <span>On the floor</span>
+        <select class="coverage" bind:value={tacticsHome.defensiveCoverage}>
+          <option value="drop">Drop</option>
+          <option value="blitz">Blitz</option>
+          <option value="switch-everything">Switch</option>
+          <option value="zone-23">2-3</option>
+          <option value="zone-32">3-2</option>
+        </select>
       </div>
-    </div>
-
-    <div class="card pbp-card" style="grid-column: span 5;">
-      <h3 class="card-title">Play-by-play</h3>
-      <div class="pbp-feed">
-        {#each logsList as log}
-          <div
-            class="pbp-line"
-            class:commentary-score={log.type === 'score'}
-            class:commentary-foul={log.type === 'foul'}
-            class:commentary-turnover={log.type === 'turnover'}
-            class:commentary-system={log.type === 'system'}
-          >{log.text}</div>
-        {:else}
-          <div class="pbp-empty">Play-by-play starts at tip-off.</div>
-        {/each}
-      </div>
-    </div>
-  </div>
-
-  <div class="card floor-card">
-    <div class="floor-col">
-      <div class="floor-head">
-        <h3>{teamHome.name} on the floor</h3>
-        <label class="coverage-label">
-          Coverage
-          <select class="tactics-select" bind:value={tacticsHome.defensiveCoverage}>
-            <option value="drop">Drop</option>
-            <option value="blitz">Blitz the handler</option>
-            <option value="switch-everything">Switch everything</option>
-            <option value="zone-23">2-3 zone</option>
-            <option value="zone-32">3-2 zone</option>
-          </select>
-        </label>
-      </div>
-      <div class="floor-list">
-        {#each onCourtHome as p}
-          {@const line = statsHome[p.id]}
-          <button class="floor-player" class:active={selectedOnCourtId === p.id} onclick={() => selectedOnCourtId = selectedOnCourtId === p.id ? null : p.id}>
-            <span class="floor-pos">{p.position}</span>
-            <span class="floor-name">{p.name}</span>
-            <span class="floor-stat">{line?.points || 0} pts</span>
-            <span class="floor-stat" class:foul-trouble={(line?.fouls || 0) >= 4}>{line?.fouls || 0} pf</span>
-            <span class="floor-stat">Legs {Math.round(p.fatigue)}</span>
-            <span class="floor-stat">Mood {p.morale}</span>
-            <span class="floor-badges">
-              {#each p.traits as id}
-                {@const badge = badgeById(id)}
-                {#if badge}
-                  <span class="mini-badge {badge.group}" title={badge.effect}>{badge.name}</span>
-                {/if}
-              {/each}
-            </span>
-          </button>
-        {/each}
-      </div>
+      {#each onCourtHome as p}
+        {@const line = statsHome[p.id]}
+        <button class="unit-row" class:active={selectedOnCourtId === p.id} onclick={() => selectedOnCourtId = selectedOnCourtId === p.id ? null : p.id}>
+          <span class="jersey-no" style="background: {teamHome.color}; color: {inkFor(teamHome.color)};">{SHIRT[p.position]}</span>
+          <span class="unit-name">{lastName(p.name)}</span>
+          <span class="ovr">{p.overallRating}</span>
+          <span class="pts">{line?.points || 0}</span>
+          <span class="pf" class:foul-trouble={(line?.fouls || 0) >= 4}>{line?.fouls || 0}</span>
+        </button>
+      {/each}
       {#if selectedHome}
         <div class="badge-card">
           <div class="badge-card-head">
@@ -485,44 +431,133 @@
           {/each}
         </div>
       {/if}
-      {#if selectedOnCourtId}
-        <div class="bench-row">
-          <span class="bench-label">Bring in</span>
-          {#each teamHome.roster.filter(p => !onCourtHome.some(on => on.id === p.id) && (statsHome[p.id]?.fouls ?? 0) < 6) as p}
-            <button class="bench-chip" onclick={() => makeManualSub(p)}>
-              {p.position} {p.name}
-              <span>Legs {Math.round(p.fatigue)}</span>
-            </button>
-          {/each}
-        </div>
-      {/if}
-    </div>
+    </aside>
 
-    <div class="floor-col">
-      <h3>{teamAway.name} on the floor</h3>
-      <div class="floor-list">
-        {#each onCourtAway as p}
-          {@const line = statsAway[p.id]}
-          <div class="floor-player away">
-            <span class="floor-pos">{p.position}</span>
-            <span class="floor-name">{p.name}</span>
-            <span class="floor-stat">{line?.points || 0} pts</span>
-            <span class="floor-stat" class:foul-trouble={(line?.fouls || 0) >= 4}>{line?.fouls || 0} pf</span>
-            <span class="floor-badges">
-              {#each p.traits as id}
-                {@const badge = badgeById(id)}
-                {#if badge}
-                  <span class="mini-badge {badge.group}" title={badge.effect}>{badge.name}</span>
-                {/if}
-              {/each}
-            </span>
+    <div class="floor-wrap">
+      <div class="floor">
+        <svg class="wood" viewBox="0 0 940 500" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="maple" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#e7b56a"/>
+              <stop offset="0.45" stop-color="#d09245"/>
+              <stop offset="1" stop-color="#b8742e"/>
+            </linearGradient>
+            <pattern id="grain" width="22" height="500" patternUnits="userSpaceOnUse">
+              <rect width="11" height="500" fill="rgba(255,255,255,0.035)"/>
+            </pattern>
+          </defs>
+          <rect width="940" height="500" fill="url(#maple)"/>
+          <rect width="940" height="500" fill="url(#grain)"/>
+          <rect x="10" y="10" width="920" height="480" fill="none" stroke="rgba(255,248,240,0.9)" stroke-width="3"/>
+          <line x1="470" y1="10" x2="470" y2="490" stroke="rgba(255,248,240,0.9)" stroke-width="3"/>
+          <circle cx="470" cy="250" r="60" fill="none" stroke="rgba(255,248,240,0.9)" stroke-width="3"/>
+          <rect x="10" y="170" width="180" height="160" fill="rgba(140,62,24,0.28)" stroke="rgba(255,248,240,0.92)" stroke-width="3"/>
+          <rect x="750" y="170" width="180" height="160" fill="rgba(140,62,24,0.28)" stroke="rgba(255,248,240,0.92)" stroke-width="3"/>
+          <path d="M190 190 A60 60 0 0 1 190 310" fill="none" stroke="rgba(255,248,240,0.92)" stroke-width="3"/>
+          <path d="M190 190 A60 60 0 0 0 190 310" fill="none" stroke="rgba(255,248,240,0.55)" stroke-width="3" stroke-dasharray="8 7"/>
+          <path d="M750 190 A60 60 0 0 0 750 310" fill="none" stroke="rgba(255,248,240,0.92)" stroke-width="3"/>
+          <path d="M750 190 A60 60 0 0 1 750 310" fill="none" stroke="rgba(255,248,240,0.55)" stroke-width="3" stroke-dasharray="8 7"/>
+          <path d="M10 32 H142 A237 237 0 0 0 142 468 H10" fill="none" stroke="rgba(255,248,240,0.92)" stroke-width="3"/>
+          <path d="M930 32 H798 A237 237 0 0 1 798 468 H930" fill="none" stroke="rgba(255,248,240,0.92)" stroke-width="3"/>
+          <line x1="36" y1="214" x2="36" y2="286" stroke="#f8fafc" stroke-width="5"/>
+          <line x1="36" y1="250" x2="52" y2="250" stroke="#f8fafc" stroke-width="3"/>
+          <circle cx="58" cy="250" r="9" fill="none" stroke="#ea580c" stroke-width="4"/>
+          <line x1="904" y1="214" x2="904" y2="286" stroke="#f8fafc" stroke-width="5"/>
+          <line x1="904" y1="250" x2="888" y2="250" stroke="#f8fafc" stroke-width="3"/>
+          <circle cx="882" cy="250" r="9" fill="none" stroke="#ea580c" stroke-width="4"/>
+        </svg>
+
+        <div class="bball" style="left: {liveBallLocation.x}%; top: {liveBallLocation.y}%;"></div>
+
+        {#each Object.entries(playerCoordinates) as [playerId, c] (playerId)}
+          {@const kit = c.side === 'home' ? teamHome : teamAway}
+          <div
+            class="actor"
+            class:defense={!c.isOffense}
+            class:hot={playerId === activeShooter}
+            style="left: {c.x}%; top: {c.y}%; z-index: {Math.round(c.y)};"
+          >
+            <svg class="kit" viewBox="0 0 36 30" aria-hidden="true">
+              <path d="M8 7 L12 4 H24 L28 7 L33 9 L29 13 V27 H7 V13 L3 9 Z" fill={kit.color} stroke="rgba(0,0,0,0.45)" stroke-width="1"/>
+              <path d="M12 4 L18 8 L24 4" fill={kit.trim ?? '#E8E4D9'}/>
+              <text x="18" y="21" text-anchor="middle" fill={inkFor(kit.color)} font-size="10" font-weight="800">{SHIRT[c.pos]}</text>
+            </svg>
+            <span class="plate">{lastName(c.name)}</span>
           </div>
         {/each}
       </div>
+      <div class="ticker" class:commentary-score={logsList[0]?.type === 'score'} class:commentary-foul={logsList[0]?.type === 'foul'} class:commentary-turnover={logsList[0]?.type === 'turnover'}>
+        {logsList[0]?.text ?? 'Tip-off is next.'}
+      </div>
+    </div>
+
+    <aside class="unit">
+      <div class="unit-head">
+        <span class="pip" style="background: {teamAway.color};"></span>
+        <span>{teamAway.city}</span>
+      </div>
+      {#each onCourtAway as p}
+        {@const line = statsAway[p.id]}
+        <div class="unit-row away">
+          <span class="jersey-no" style="background: {teamAway.color}; color: {inkFor(teamAway.color)};">{SHIRT[p.position]}</span>
+          <span class="unit-name">{lastName(p.name)}</span>
+          <span class="ovr">{p.overallRating}</span>
+          <span class="pts">{line?.points || 0}</span>
+          <span class="pf" class:foul-trouble={(line?.fouls || 0) >= 4}>{line?.fouls || 0}</span>
+        </div>
+      {/each}
+      <div class="events">
+        {#each recent as log}
+          <p class:commentary-score={log.type === 'score'} class:commentary-foul={log.type === 'foul'} class:commentary-turnover={log.type === 'turnover'}>{log.text}</p>
+        {/each}
+      </div>
+    </aside>
+  </div>
+
+  <div class="stat-row">
+    <div class="stat">
+      <span>{homeLine.fgm}-{homeLine.fga}</span>
+      <div class="bar"><span style="width: {share(homeLine.fgm, awayLine.fgm)}%; background: {teamHome.color};"></span></div>
+      <span>FG</span>
+      <div class="bar away"><span style="width: {share(awayLine.fgm, homeLine.fgm)}%; background: {teamAway.color};"></span></div>
+      <span>{awayLine.fgm}-{awayLine.fga}</span>
+    </div>
+    <div class="stat">
+      <span>{homeLine.reb}</span>
+      <div class="bar"><span style="width: {share(homeLine.reb, awayLine.reb)}%; background: {teamHome.color};"></span></div>
+      <span>REB</span>
+      <div class="bar away"><span style="width: {share(awayLine.reb, homeLine.reb)}%; background: {teamAway.color};"></span></div>
+      <span>{awayLine.reb}</span>
+    </div>
+    <div class="stat">
+      <span>{homeLine.ast}</span>
+      <div class="bar"><span style="width: {share(homeLine.ast, awayLine.ast)}%; background: {teamHome.color};"></span></div>
+      <span>AST</span>
+      <div class="bar away"><span style="width: {share(awayLine.ast, homeLine.ast)}%; background: {teamAway.color};"></span></div>
+      <span>{awayLine.ast}</span>
+    </div>
+    <div class="stat">
+      <span>{homeLine.tov}</span>
+      <div class="bar"><span style="width: {share(homeLine.tov, awayLine.tov)}%; background: {teamHome.color};"></span></div>
+      <span>TO</span>
+      <div class="bar away"><span style="width: {share(awayLine.tov, homeLine.tov)}%; background: {teamAway.color};"></span></div>
+      <span>{awayLine.tov}</span>
     </div>
   </div>
 
-  <div class="card">
+  {#if selectedOnCourtId}
+    <div class="bench-row">
+      <span class="bench-label">Bring in for {selectedHome?.name}</span>
+      {#each teamHome.roster.filter(p => !onCourtHome.some(on => on.id === p.id) && (statsHome[p.id]?.fouls ?? 0) < 6) as p}
+        <button class="bench-chip" onclick={() => makeManualSub(p)}>
+          {p.position} {p.name}
+          <span>Legs {Math.round(p.fatigue)}</span>
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  <div class="card box-card">
     <h3 class="card-title">Box score</h3>
     <div class="table-container">
       <table class="sim-table box-score">
@@ -589,38 +624,414 @@
 </div>
 
 <style>
-
-  .last-play {
-    margin-bottom: 16px;
-    padding: 10px 14px;
-    font-weight: 650;
+  .game-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
-  .dot-name {
-    position: absolute;
-    top: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.62rem;
-    font-weight: 700;
-    color: var(--text-primary);
+  .match-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 8px 10px;
+    background: #12151c;
+    border: 1px solid #2a3142;
+    border-radius: 2px;
+  }
+
+  .club {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .crest {
+    width: 8px;
+    align-self: stretch;
+    min-height: 32px;
+    border-bottom: 3px solid;
+    flex: none;
+  }
+
+  .crest.mini {
+    width: 8px;
+    min-height: 18px;
+    align-self: center;
+    border: none;
+  }
+
+  .club-city {
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .club-name {
+    font-family: var(--font-display);
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .club-meta {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+  }
+
+  .score-pill {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #0c0e14;
+    border: 1px solid #2a3142;
+    border-radius: 2px;
+    padding: 6px 16px;
+  }
+
+  .score-num {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.7rem;
+    line-height: 1;
+    min-width: 1.6ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-num.has-ball {
+    color: #f6c445;
+  }
+
+  .score-mid {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 92px;
+  }
+
+  .clock {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.03em;
+  }
+
+  .ball-note {
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
-    text-shadow: 0 1px 2px #000;
+  }
+
+  .match-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .speeds {
+    display: flex;
+    background: #0c0e14;
+    border-radius: 2px;
+    padding: 3px;
+    border: 1px solid #2a3142;
+  }
+
+  .speed, .sim, .play {
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+  }
+
+  .speed {
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 2px;
+    padding: 6px 8px;
+    font-size: 0.75rem;
+  }
+
+  .speed.on {
+    background: #2a3142;
+    color: white;
+  }
+
+  .speed:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .sim {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid #2a3142;
+    border-radius: 2px;
+    padding: 7px 12px;
+  }
+
+  .play {
+    background: #e7e5e4;
+    color: #1c1917;
+    border-radius: 2px;
+    padding: 8px 16px;
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 210px minmax(0, 1fr) 210px;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .unit, .floor-wrap, .stat-row, .box-card {
+    background: #12151c;
+    border: 1px solid #2a3142;
+    border-radius: 2px;
+  }
+
+  .unit {
+    padding: 8px;
+  }
+
+  .unit-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+
+  .pip {
+    width: 8px;
+    height: 8px;
+    border-radius: 99px;
+  }
+
+  .coverage {
+    margin-left: auto;
+    background: #0c0e14;
+    color: var(--text-primary);
+    border: 1px solid #2a3142;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    padding: 3px 4px;
+    max-width: 78px;
+  }
+
+  .unit-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) 28px 22px 16px;
+    gap: 6px;
+    align-items: center;
+    text-align: left;
+    background: transparent;
+    color: var(--text-primary);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 4px;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .unit-row.away {
+    cursor: default;
+  }
+
+  .unit-row.active {
+    border-color: #d6d3d1;
+    background: rgba(124, 58, 237, 0.12);
+  }
+
+  .jersey-no {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    display: grid;
+    place-items: center;
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  .unit-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
+    font-size: 0.86rem;
+  }
+
+  .ovr, .pts, .pf {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.75rem;
+    text-align: right;
+    color: var(--text-secondary);
+  }
+
+  .ovr {
+    color: #86efac;
+    font-weight: 800;
+  }
+
+  .floor-wrap {
+    padding: 8px;
+    min-width: 0;
+  }
+
+  .floor {
+    position: relative;
+    aspect-ratio: 94 / 50;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.28);
+  }
+
+  .wood {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .actor {
+    position: absolute;
+    transform: translate(-50%, -78%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: left 0.55s ease, top 0.55s ease;
     pointer-events: none;
   }
 
-  .court-dot.hot {
-    outline: 2px solid #f97316;
-    outline-offset: 2px;
+  .kit {
+    width: 28px;
+    height: 24px;
+    filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.45));
+  }
+
+  .actor.defense {
+    transform: translate(-50%, -18%);
+    flex-direction: column-reverse;
+  }
+
+  .actor.hot .kit {
+    filter: drop-shadow(0 0 4px #f6c445);
+  }
+
+  .plate {
+    margin-top: -2px;
+    background: rgba(8, 10, 16, 0.88);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 1px 4px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .bball {
+    position: absolute;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 30;
+    background:
+      radial-gradient(circle at 35% 30%, #ffc56a, #ea580c 55%, #9a3412);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+    transition: left 0.4s ease, top 0.4s ease;
+  }
+
+  .bball::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: 50%;
+    background:
+      linear-gradient(#3a1d0b, #3a1d0b) center / 100% 1px no-repeat,
+      linear-gradient(#3a1d0b, #3a1d0b) center / 1px 100% no-repeat;
+    opacity: 0.7;
+  }
+
+  .ticker {
+    margin-top: 8px;
+    background: #0c0e14;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.86rem;
+    font-weight: 650;
+  }
+
+  .events {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 180px;
+    overflow: auto;
+  }
+
+  .events p {
+    margin: 0;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    line-height: 1.3;
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .stat {
+    display: grid;
+    grid-template-columns: auto 1fr auto 1fr auto;
+    gap: 6px;
+    align-items: center;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat > span:nth-child(3) {
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+  }
+
+  .bar {
+    height: 6px;
+    background: #0c0e14;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+
+  .bar span {
+    display: block;
+    height: 100%;
+  }
+
+  .bar.away span {
+    margin-left: auto;
   }
 
   .badge-card {
-    margin-top: 10px;
-    padding: 8px 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background: var(--bg-dark);
-    font-size: 0.8rem;
+    margin-top: 8px;
+    padding: 8px;
+    border-radius: 8px;
+    background: #0c0e14;
+    font-size: 0.75rem;
     color: var(--text-secondary);
   }
 
@@ -631,241 +1042,14 @@
   .badge-card-head {
     display: flex;
     justify-content: space-between;
+    gap: 8px;
     color: var(--text-primary);
-  }
-
-  .scorebug {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    gap: 16px;
-    align-items: center;
-    margin-bottom: 16px;
-    padding: 14px 18px;
-  }
-
-  .scorebug-side {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-  }
-
-  .scorebug-side.away {
-    justify-content: flex-end;
-  }
-
-  .swatch {
-    width: 8px;
-    align-self: stretch;
-    border-radius: 4px;
-    min-height: 42px;
-  }
-
-  .scorebug-city {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .scorebug-name {
-    font-family: var(--font-display);
-    font-weight: 800;
-    font-size: 1.15rem;
-  }
-
-  .scorebug-meta {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-  }
-
-  .scorebug-points {
-    font-family: var(--font-display);
-    font-weight: 900;
-    font-size: 2.6rem;
-    line-height: 1;
-    margin-left: auto;
-  }
-
-  .scorebug-side.away .scorebug-points {
-    margin-left: 0;
-    margin-right: auto;
-  }
-
-  .scorebug-points.has-ball {
-    color: var(--primary);
-  }
-
-  .scorebug-mid {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    align-items: center;
-  }
-
-  .scorebug-clock {
-    font-weight: 800;
-    letter-spacing: 0.04em;
-  }
-
-  .scorebug-ball {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-  }
-
-  .scorebug-controls {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .scorebug-controls label {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    display: inline-flex;
-    gap: 3px;
-    align-items: center;
-  }
-
-  .court-card {
-    display: flex;
-    justify-content: center;
-    padding: 12px;
-  }
-
-  .court-card .court-container {
-    width: 100%;
-    max-width: 460px;
-    aspect-ratio: 1 / 1;
-  }
-
-  .pbp-card {
-    display: flex;
-    flex-direction: column;
-    min-height: 420px;
-    max-height: 520px;
-  }
-
-  .pbp-feed {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .pbp-line {
-    font-size: 0.85rem;
-    padding: 6px 10px;
-    border-radius: 4px;
-    border-left: 3px solid transparent;
-  }
-
-  .pbp-empty {
-    color: var(--text-muted);
-    text-align: center;
-    margin-top: 40px;
-    font-size: 0.85rem;
-  }
-
-  .floor-card {
-    margin: 16px 0;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-
-  .floor-head {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-
-  .floor-head h3,
-  .floor-col > h3 {
-    margin: 0 0 8px;
-    font-size: 0.95rem;
-  }
-
-  .coverage-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-  }
-
-  .coverage-label .tactics-select {
-    width: auto;
-    padding: 6px 8px;
-  }
-
-  .floor-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .floor-player {
-    display: grid;
-    grid-template-columns: 28px minmax(0, 1.4fr) repeat(4, auto) minmax(0, 1fr);
-    gap: 8px;
-    align-items: center;
-    text-align: left;
-    background: var(--bg-dark);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    border-radius: 6px;
-    padding: 6px 8px;
-    cursor: pointer;
-    font: inherit;
-  }
-
-  .floor-player.away {
-    cursor: default;
-    grid-template-columns: 28px minmax(0, 1.4fr) repeat(2, auto) minmax(0, 1fr);
-  }
-
-  .floor-player.active {
-    border-color: var(--primary);
-  }
-
-  .floor-pos {
-    font-size: 0.72rem;
-    font-weight: 800;
-    color: var(--text-muted);
-  }
-
-  .floor-name {
-    font-weight: 700;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .floor-stat {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .floor-badges {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
   }
 
   .mini-badge {
     font-size: 0.65rem;
     padding: 1px 5px;
-    border-radius: 999px;
+    border-radius: 2px;
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
   }
@@ -885,20 +1069,18 @@
     flex-wrap: wrap;
     gap: 6px;
     align-items: center;
-    margin-top: 8px;
   }
 
   .bench-label {
     font-size: 0.75rem;
     color: var(--text-muted);
-    text-transform: uppercase;
   }
 
   .bench-chip {
     background: transparent;
-    border: 1px solid var(--primary);
+    border: 1px solid #3a4458;
     color: var(--text-primary);
-    border-radius: 999px;
+    border-radius: 2px;
     padding: 4px 10px;
     font-size: 0.75rem;
     cursor: pointer;
@@ -914,18 +1096,15 @@
     font-weight: 800;
   }
 
+  .box-card {
+    padding: 12px;
+  }
+
   .box-team td {
-    background: var(--bg-dark);
+    background: #0c0e14;
     font-weight: 800;
     font-size: 0.75rem;
     text-align: left !important;
-  }
-
-  @media (max-width: 1100px) {
-    .scorebug,
-    .floor-card {
-      grid-template-columns: 1fr;
-    }
   }
 
   .box-score th,
@@ -939,76 +1118,28 @@
   .box-score .box-name {
     text-align: left;
     font-weight: 600;
-    max-width: 120px;
+    max-width: 140px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .box-score .on-floor {
     font-weight: 800;
-    color: var(--primary);
+    color: #f6c445;
   }
 
-  /* Commentary logs formatting */
-  .commentary-score {
-    border-left-color: var(--primary) !important;
-    background-color: rgba(16, 185, 129, 0.05);
-    color: var(--primary);
-    font-weight: 700;
-  }
-  .commentary-foul {
-    border-left-color: var(--danger) !important;
-    background-color: rgba(239, 68, 68, 0.05);
-    color: var(--danger);
-  }
-  .commentary-turnover {
-    border-left-color: var(--accent) !important;
-    background-color: rgba(245, 158, 11, 0.05);
-    color: var(--accent);
-  }
-  .commentary-system {
-    border-left-color: var(--secondary) !important;
-    background-color: rgba(59, 130, 246, 0.05);
-    color: var(--text-primary);
-    font-weight: 700;
-    text-transform: uppercase;
-    font-size: 0.8rem;
-  }
+  .commentary-score { color: #86efac; }
+  .commentary-foul { color: #fca5a5; }
+  .commentary-turnover { color: #fcd34d; }
 
-  .sub-item-btn {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: var(--bg-dark);
-    border: 1px solid var(--border-color);
-    padding: 8px 12px;
-    border-radius: 6px;
-    color: var(--text-primary);
-    cursor: pointer;
-    font-family: var(--font-body);
-    font-size: 0.8rem;
-    text-align: left;
-    transition: all 0.2s;
-  }
-
-  .sub-item-btn:hover {
-    background-color: var(--bg-card-hover);
-  }
-
-  .sub-item-btn.active {
-    background-color: var(--secondary-glow);
-    border-color: var(--secondary);
-  }
-
-  .tactics-select {
-    background-color: var(--bg-dark);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 0.85rem;
-    width: 100%;
-    cursor: pointer;
-    outline: none;
+  @media (max-width: 1100px) {
+    .match-bar,
+    .stage,
+    .stat-row {
+      grid-template-columns: 1fr;
+    }
+    .match-actions {
+      justify-content: flex-start;
+    }
   }
 </style>

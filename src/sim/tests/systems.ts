@@ -203,5 +203,29 @@ assert(tvCheck(market.userTeam()) === Math.round(NBA_RULES.TV_SHARE * NBA_RULES.
 assert(market.setTvDeal('partner').allowed, 'dropping a tier is free')
 assert(market.userTeam().finances.cash === cash, 'a downgrade does not refund the buyout')
 
+const club = new LeagueManager()
+club.initializeLeague('team_1')
+assert(club.wire.some(post => post.body.includes('Alex Ward') || post.body.includes(club.userTeam().coach.name)), 'a new career opens the wire')
+const homeCash = club.userTeam().finances.cash
+const blockedJersey = club.setJersey(club.userTeam().color, club.userTeam().trim ?? '#E8E4D9')
+assert(!blockedJersey.allowed, blockedJersey.reason)
+assert(club.setJersey('#552583', '#F5F5F0').allowed, 'uniform order goes through')
+assert(club.userTeam().color === '#552583' && club.userTeam().trim === '#F5F5F0', 'home colors change')
+assert(club.userTeam().finances.cash === homeCash - NBA_RULES.JERSEY_ORDER, 'uniforms come out of cash')
+const broke = new LeagueManager()
+broke.initializeLeague('team_1')
+broke.userTeam().finances.cash = 0
+assert(!broke.setHomeCity('Montreal').allowed, 'a move needs the fee')
+assert(club.setHomeCity('Boston').allowed === false, 'the current city is not a move')
+assert(club.setHomeCity('Montreal').allowed, 'an open city is available')
+assert(club.userTeam().city === 'Montreal' && club.userTeam().id === 'team_1' && club.userTeam().division === 'Atlantic', 'the club moves and stays in the division')
+assert(club.teams.filter(team => team.city === 'Boston').length === 0, 'the old city is empty')
+const beforeWire = club.wire.length
+let spins = 0
+while (club.wire.length === beforeWire && spins++ < 8) club.simulateRound('team_1')
+assert(club.wire.length > beforeWire, 'a user game hits the wire')
+assert(club.wire.some(post => post.role === 'journalist'), 'a beat writer posts')
+assert(club.wire.some(post => post.role === 'player'), 'a player posts')
+
 console.log('systems ok')
 console.log(`user payroll $${(CBASimulator.capHit(user) / 1_000_000).toFixed(1)}M, roster ${user.roster.length}, season ${league.season}`)

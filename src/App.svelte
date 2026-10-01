@@ -14,6 +14,7 @@
   import Honors from './pages/Honors.svelte';
   import Playoffs from './pages/Playoffs.svelte';
   import TeamSelect from './pages/TeamSelect.svelte';
+  import Wire from './pages/Wire.svelte';
   import type { CoachStyle, DefensiveCoverage, MarketDeal, OffensiveStyle, TeamTactics } from './sim/types';
 
   // Instantiate League Manager
@@ -28,6 +29,7 @@
   let seasonComplete = $state(league.seasonComplete);
   let season = $state(league.season);
   let news = $state(league.news);
+  let wire = $state(league.wire);
   let userTeamId = $state(league.userTeamId);
   let draftProspects = $state(league.draftProspects);
   let freeAgents = $state(league.freeAgents);
@@ -48,7 +50,7 @@
   });
 
   // Routing State
-  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'playoffs' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'honors' | 'calendar'>('dashboard');
+  let activeTab = $state<'dashboard' | 'roster' | 'tactics' | 'standings' | 'playoffs' | 'league_stats' | 'scouting' | 'free_agents' | 'directory' | 'office' | 'honors' | 'calendar' | 'wire'>('dashboard');
   let awards = $state(league.awards);
   let allStar = $state(league.allStar);
   let cupChampionId = $state(league.cupChampionId);
@@ -69,6 +71,7 @@
     seasonComplete = league.seasonComplete;
     season = league.season;
     news = [...league.news];
+    wire = [...league.wire];
     userTeamId = league.userTeamId;
     draftProspects = [...league.draftProspects];
     freeAgents = [...league.freeAgents];
@@ -205,6 +208,18 @@
     return result;
   };
 
+  const handleJersey = (color: string, trim: string) => {
+    const result = league.setJersey(color, trim);
+    refreshLeagueState();
+    return result;
+  };
+
+  const handleMove = (city: string) => {
+    const result = league.setHomeCity(city);
+    refreshLeagueState();
+    return result;
+  };
+
   const handleEnterOffseason = () => {
     const result = league.enterOffseason();
     refreshLeagueState();
@@ -258,10 +273,8 @@
   <!-- Sidebar Navigation -->
   <aside class="sidebar">
     <div class="sidebar-logo">
-      <span class="logo-icon">🏀</span>
       <div class="logo-text">
-        <h1>Hoops Manager</h1>
-        <span>PRO SIMULATOR</span>
+        <h1>Hoops</h1>
       </div>
     </div>
 
@@ -273,7 +286,7 @@
           class:active={activeTab === 'dashboard' && !activeMatchId}
           onclick={() => { activeTab = 'dashboard'; activeMatchId = null; }}
         >
-          📰 Home
+          Home
         </button>
       </li>
       <li class="menu-item">
@@ -282,7 +295,7 @@
           class:active={activeTab === 'roster' && !activeMatchId}
           onclick={() => { activeTab = 'roster'; activeMatchId = null; }}
         >
-          📊 Roster & Cap
+          Roster
         </button>
       </li>
       <li class="menu-item">
@@ -291,7 +304,7 @@
           class:active={activeTab === 'tactics' && !activeMatchId}
           onclick={() => { activeTab = 'tactics'; activeMatchId = null; }}
         >
-          📋 Lineups
+          Lineups
         </button>
       </li>
       <li class="nav-label">League</li>
@@ -301,7 +314,7 @@
           class:active={activeTab === 'standings' && !activeMatchId}
           onclick={() => { activeTab = 'standings'; activeMatchId = null; }}
         >
-          🏆 Standings
+          Standings
         </button>
       </li>
       <li class="menu-item">
@@ -310,7 +323,7 @@
           class:active={activeTab === 'playoffs' && !activeMatchId}
           onclick={() => { activeTab = 'playoffs'; activeMatchId = null; }}
         >
-          🎟️ Playoffs
+          Playoffs
         </button>
       </li>
       <li class="menu-item">
@@ -319,7 +332,7 @@
           class:active={activeTab === 'league_stats' && !activeMatchId}
           onclick={() => { activeTab = 'league_stats'; activeMatchId = null; }}
         >
-          📈 League Leaders
+          Leaders
         </button>
       </li>
       <li class="menu-item">
@@ -328,7 +341,7 @@
           class:active={activeTab === 'honors' && !activeMatchId}
           onclick={() => { activeTab = 'honors'; activeMatchId = null; }}
         >
-          🥇 Honors
+          Honors
         </button>
       </li>
       <li class="menu-item">
@@ -337,7 +350,7 @@
           class:active={activeTab === 'scouting' && !activeMatchId}
           onclick={() => { activeTab = 'scouting'; activeMatchId = null; }}
         >
-          🧭 Draft Board
+          Draft
         </button>
       </li>
       <li class="menu-item">
@@ -346,7 +359,7 @@
           class:active={activeTab === 'free_agents' && !activeMatchId}
           onclick={() => { activeTab = 'free_agents'; activeMatchId = null; }}
         >
-          🤝 Free Agency
+          Free agency
         </button>
       </li>
       <li class="menu-item">
@@ -355,7 +368,7 @@
           class:active={activeTab === 'directory' && !activeMatchId}
           onclick={() => { activeTab = 'directory'; activeMatchId = null; }}
         >
-          🏢 Teams
+          Teams
         </button>
       </li>
       <li class="nav-label">Desk</li>
@@ -365,7 +378,16 @@
           class:active={activeTab === 'office' && !activeMatchId}
           onclick={() => { activeTab = 'office'; activeMatchId = null; }}
         >
-          💼 Office
+          Office
+        </button>
+      </li>
+      <li class="menu-item">
+        <button
+          class="menu-link"
+          class:active={activeTab === 'wire' && !activeMatchId}
+          onclick={() => { activeTab = 'wire'; activeMatchId = null; }}
+        >
+          Wire
         </button>
       </li>
       <li class="menu-item">
@@ -374,15 +396,15 @@
           class:active={activeTab === 'calendar' && !activeMatchId}
           onclick={() => { activeTab = 'calendar'; activeMatchId = null; }}
         >
-          📅 Calendar
+          Calendar
         </button>
       </li>
     </ul>
 
     <div class="sidebar-footer">
-      <div class="user-team-badge" style="border-left-color: {userTeam.color}">
+      <div class="user-team-badge" style="border-left-color: {userTeam.color}; box-shadow: inset 0 -3px 0 {userTeam.trim ?? '#E8E4D9'};">
         <div style="font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;">Your team</div>
-        <div style="color: var(--primary); font-weight: 800;">{userTeam.city} {userTeam.name}</div>
+        <div style="font-weight: 650;">{userTeam.city} {userTeam.name}</div>
         <div style="font-size: 0.8rem; font-weight: 700; margin-top: 2px;">{userTeam.wins} - {userTeam.losses}</div>
       </div>
 
@@ -390,7 +412,7 @@
         class="btn-reset"
         onclick={() => showResetConfirm = true}
       >
-        🔄 Reset League
+        Reset
       </button>
     </div>
   </aside>
@@ -491,7 +513,11 @@
         team={userTeam}
         onSave={handleSaveCoach}
         onTvDeal={handleTvDeal}
+        onJersey={handleJersey}
+        onMove={handleMove}
       />
+    {:else if activeTab === 'wire'}
+      <Wire posts={wire} />
     {:else if activeTab === 'honors'}
       <Honors
         allTeams={teams}
@@ -516,7 +542,7 @@
 {#if showResetConfirm}
   <div class="confirm-overlay">
     <div class="confirm-modal">
-      <h3>⚠️ Reset League</h3>
+      <h3>Reset the league</h3>
       <p>This wipes the schedule, the records, and the stats. You pick a franchise again.</p>
       <div class="confirm-actions">
         <button class="btn btn-secondary" onclick={() => showResetConfirm = false}>Cancel</button>
@@ -538,20 +564,24 @@
     color: var(--text-secondary);
   }
 
+  .menu-link.active {
+    color: #f4f4f5;
+    box-shadow: inset 2px 0 0 #f4f4f5;
+  }
+
   .btn-reset {
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    color: var(--danger);
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 0.8rem;
-    font-weight: 700;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: 2px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
     cursor: pointer;
-    transition: all 0.2s;
   }
 
   .btn-reset:hover {
-    background: rgba(239, 68, 68, 0.25);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
   }
 
   .confirm-overlay {
@@ -560,8 +590,7 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(15, 23, 42, 0.75);
-    backdrop-filter: blur(8px);
+    background: rgba(0, 0, 0, 0.55);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -572,11 +601,10 @@
     background: var(--bg-card);
     border: 1px solid var(--border-color);
     padding: 24px;
-    border-radius: 12px;
+    border-radius: 2px;
     max-width: 400px;
     width: 90%;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
-    text-align: center;
+    text-align: left;
   }
 
   .confirm-modal h3 {

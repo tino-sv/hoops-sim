@@ -154,9 +154,14 @@ export class PossessionEngine {
       const result = emptyResult(Math.min(seconds, 8), logs)
       result.turnoverPlayerId = handler.id
       result.wasFastBreak = fastBreak
-      const stealChance = clamp(0.55 + (attr(primaryDef, 'technical', 'steal') - 55) * 0.003 + stealBoost(primaryDef), 0.40, 0.82)
+      const stealAvg = onCourtDef.reduce((sum, player) => sum + attr(player, 'technical', 'steal'), 0) / onCourtDef.length
+      const stealChance = clamp(
+        0.55 + (stealAvg - 56) * 0.006 + (onCourtDef.some(player => stealBoost(player) > 0) ? 0.04 : 0),
+        0.38,
+        0.68
+      )
       if (Math.random() < stealChance) {
-        const thief = Math.random() < 0.65 ? primaryDef : pickWeighted(onCourtDef.map(p => ({ item: p, w: attr(p, 'technical', 'steal') + (stealBoost(p) > 0 ? 30 : 0) })))
+        const thief = pickWeighted(onCourtDef.map(p => ({ item: p, w: this.stealWeight(p, primaryDef.id) })))
         result.stealedById = thief.id
         result.liveBall = true
         const pocket = stealBoost(thief) > 0 ? ' Pick pocket.' : ''
@@ -227,12 +232,12 @@ export class PossessionEngine {
     make += coachMakeBoost(offense.coach?.style, 'offense')
     make = clamp(make, shot.kind === 'close' ? 0.42 : 0.22, shot.kind === 'close' ? 0.78 : shot.kind === 'three' ? 0.46 : 0.52)
 
-    const blockChance = shot.kind === 'close' ? 0.125 : shot.kind === 'mid' ? 0.032 : 0.006
-    const blockMod = (attr(rimProtector, 'technical', 'block') / 70) * blockMultiplier(rimProtector)
-    if (Math.random() < blockChance * blockMod * (advantage ? 0.65 : 1)) {
-      const rimTag = blockMultiplier(rimProtector) > 1 ? ' Rim protector.' : ''
-      const missed = this.missedShot(shooter, shot.kind, seconds, fastBreak, logs, say, `${rimProtector.name} BLOCKED ${shooter.name}.${rimTag}`)
-      missed.blockedById = rimProtector.id
+    const blockChance = this.blockChanceFor(shot.kind, onCourtDef, advantage)
+    if (Math.random() < blockChance) {
+      const swatter = pickWeighted(onCourtDef.map(p => ({ item: p, w: this.blockWeight(p) })))
+      const rimTag = blockMultiplier(swatter) > 1 ? ' Rim protector.' : ''
+      const missed = this.missedShot(shooter, shot.kind, seconds, fastBreak, logs, say, `${swatter.name} BLOCKED ${shooter.name}.${rimTag}`)
+      missed.blockedById = swatter.id
       this.resolveRebound(missed, offense, defense, onCourtOff, onCourtDef, shot.kind === 'three', say)
       return [missed]
     }
@@ -296,6 +301,29 @@ export class PossessionEngine {
       return [missed, putback]
     }
     return [missed]
+  }
+
+  private stealWeight(player: Player, primaryId: string): number {
+    const steal = attr(player, 'technical', 'steal')
+    const extra = steal > 72 ? (steal - 72) * 1.8 : 0
+    const badge = stealBoost(player) > 0 ? 28 : 0
+    const matchup = player.id === primaryId ? 1.15 : 1
+    return (steal + extra + badge) * matchup
+  }
+
+  private blockWeight(player: Player): number {
+    const skill = Math.max(0.4, attr(player, 'technical', 'block') - 38)
+    const spot = player.position === 'C' ? 1.2 : player.position === 'PF' ? 1 : player.position === 'SF' ? 0.5 : 0.15
+    return Math.pow(skill, 1.7) * spot * blockMultiplier(player)
+  }
+
+  private blockChanceFor(kind: ShotKind, defense: Player[], advantage: boolean): number {
+    const best = Math.max(...defense.map(player => attr(player, 'technical', 'block')))
+    const gap = Math.max(0, best - 60)
+    let chance = kind === 'close' ? 0.055 + gap * 0.0052 : kind === 'mid' ? 0.007 + gap * 0.00028 : 0.0014
+    if (defense.some(player => blockMultiplier(player) > 1) && kind === 'close') chance *= 1.1
+    if (advantage) chance *= 0.68
+    return clamp(chance, 0, kind === 'close' ? 0.2 : 0.035)
   }
 
   private possessionLength(tempo: TeamTactics['tempo'], ctx: PossessionContext): number {

@@ -158,7 +158,7 @@
     gap: 12px;
     text-align: left;
     padding: 12px;
-    border-radius: 10px;
+    border-radius: 2px;
     border: 1px solid var(--border-color);
     background: var(--bg-card);
     color: inherit;
@@ -167,7 +167,7 @@
   .team-card.selected { border-color: var(--team); box-shadow: inset 3px 0 0 var(--team); }
   .swatch {
     width: 10px;
-    border-radius: 99px;
+    border-radius: 0;
     background: var(--team);
     flex: none;
   }

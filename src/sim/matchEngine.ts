@@ -125,7 +125,8 @@ export function rotateLineup(
   onCourt: Player[],
   stats: Record<string, BoxScoreStats>,
   quarter: number,
-  secondsRemaining: number
+  secondsRemaining: number,
+  locks?: ReadonlySet<string>
 ): Player[] {
   const court = [...onCourt]
   const elapsed = Math.min(48, (Math.min(quarter, 4) - 1) * 12 + (720 - Math.min(secondsRemaining, 720)) / 60)
@@ -138,6 +139,7 @@ export function rotateLineup(
   const shouldSit = (player: Player) => {
     const line = lineOf(player)
     if (line.fouls >= 6 || line.fouls >= limit) return true
+    if (locks?.has(player.id)) return false
     if (player.fatigue > 76) return true
     return line.minutes > targetMinutes(team, player.id) * fraction + 2
   }
@@ -171,7 +173,7 @@ export function rotateLineup(
       if (!starter || court.includes(starter) || !healthy(starter)) continue
       const starterLine = lineOf(starter)
       if (starterLine.fouls >= 5 || starter.fatigue > 58 || starterLine.minutes > 33) continue
-      const replaceAt = court.findIndex(player => targetMinutes(team, player.id) < 20)
+      const replaceAt = court.findIndex(player => !locks?.has(player.id) && targetMinutes(team, player.id) < 20)
       if (replaceAt >= 0) court[replaceAt] = starter
     }
   }
@@ -182,6 +184,42 @@ function fatigueDelta(player: Player, seconds: number): number {
   const stamina = player.attributes.physical.stamina || 50
   const delta = seconds * (0.05 - stamina * 0.00032) * fatigueMultiplier(player)
   return Math.max(0.05, delta)
+}
+
+interface ScriptTrip {
+  homeIds: string[]
+  awayIds: string[]
+  events: PossessionResult[]
+}
+
+interface SessionSnapshot {
+  scoreHome: number
+  scoreAway: number
+  quarter: number
+  secondsRemaining: number
+  possession: 'home' | 'away'
+  isTransition: boolean
+  secondChance: boolean
+  finished: boolean
+  foulsHome: number
+  foulsAway: number
+  statsHome: Record<string, BoxScoreStats>
+  statsAway: Record<string, BoxScoreStats>
+  onCourtHome: string[]
+  onCourtAway: string[]
+  fatigue: Record<string, number>
+  lastEvent: PossessionResult | null
+}
+
+function tacticsKey(tactics: TeamTactics): string {
+  return JSON.stringify([
+    tactics.tempo,
+    tactics.offensiveStyle,
+    tactics.defensiveCoverage,
+    tactics.doubleTeamTrigger,
+    tactics.offensiveRoles,
+    tactics.targetOverplay
+  ])
 }
 
 export class GameSession {
@@ -205,6 +243,9 @@ export class GameSession {
   playByPlay: PlayByPlayEvent[] = []
   private narrate: boolean
   private engine = new PossessionEngine()
+  private script: ScriptTrip[] = []
+  private tacticsKey = ''
+  private homeLocks = new Set<string>()
   homeTactics: TeamTactics | null = null
 
   constructor(home: Team, away: Team, options?: { narrate?: boolean }) {
@@ -224,8 +265,16 @@ export class GameSession {
     this.onCourtAway = startingFive(away, this.statsAway)
   }
 
+  scriptedPossessions(): number {
+    return this.script.length
+  }
+
   setHomeTactics(tactics: TeamTactics) {
+    const key = tacticsKey(tactics)
     this.homeTactics = tactics
+    if (key === this.tacticsKey) return
+    this.tacticsKey = key
+    this.script = []
   }
 
   manualSub(outId: string, inPlayer: Player): boolean {
@@ -234,36 +283,83 @@ export class GameSession {
     if (this.onCourtHome.some(player => player.id === inPlayer.id)) return false
     if ((this.statsHome[inPlayer.id]?.fouls ?? 0) >= 6) return false
     this.onCourtHome[index] = inPlayer
+    this.homeLocks.delete(outId)
+    this.homeLocks.add(inPlayer.id)
+    this.script = []
     return true
   }
 
+  /** Play the next trip from the charted script. The first call charts the rest of the game. */
   step(): { logs: StepLog[]; finished: boolean } {
     if (this.finished) return { logs: [], finished: true }
-    const logs: StepLog[] = []
+    if (this.script.length === 0) this.compile()
+    const trip = this.script.shift()
+    if (!trip) return { logs: [], finished: this.finished }
+    this.onCourtHome = this.playersFrom(this.home, trip.homeIds)
+    this.onCourtAway = this.playersFrom(this.away, trip.awayIds)
+    const logs = this.applyEvents(trip.events)
+    return { logs, finished: this.finished }
+  }
 
-    this.onCourtHome = rotateLineup(this.home, this.onCourtHome, this.statsHome, this.quarter, this.secondsRemaining)
+  /** Roll the rest of the game without keeping a script. Season sim uses this. */
+  runLive() {
+    let guard = 0
+    while (!this.finished && guard < 800) {
+      this.rollTrip()
+      guard += 1
+    }
+  }
+
+  private compile() {
+    if (this.finished) return
+    const snap = this.capture()
+    const trips: ScriptTrip[] = []
+    let guard = 0
+    while (!this.finished && guard < 800) {
+      trips.push(this.rollTrip())
+      guard += 1
+    }
+    this.restore(snap)
+    this.script = trips
+  }
+
+  private rollTrip(): ScriptTrip {
+    this.onCourtHome = rotateLineup(this.home, this.onCourtHome, this.statsHome, this.quarter, this.secondsRemaining, this.homeLocks)
     this.onCourtAway = rotateLineup(this.away, this.onCourtAway, this.statsAway, this.quarter, this.secondsRemaining)
-
     const offenseIsHome = this.possession === 'home'
     const offense = offenseIsHome ? this.home : this.away
     const defense = offenseIsHome ? this.away : this.home
-    const offCourt = offenseIsHome ? this.onCourtHome : this.onCourtAway
-    const defCourt = offenseIsHome ? this.onCourtAway : this.onCourtHome
+    const events = this.engine.simulatePossession(
+      offense,
+      defense,
+      offenseIsHome ? this.onCourtHome : this.onCourtAway,
+      offenseIsHome ? this.onCourtAway : this.onCourtHome,
+      {
+        isTransition: this.isTransition,
+        secondChance: this.secondChance,
+        defenseTeamFouls: offenseIsHome ? this.foulsAway : this.foulsHome,
+        secondsRemaining: this.secondsRemaining,
+        quarter: this.quarter,
+        isHomeOffense: offenseIsHome,
+        offenseTactics: offenseIsHome ? this.homeTactics ?? undefined : undefined,
+        defenseTactics: offenseIsHome ? undefined : this.homeTactics ?? undefined,
+        narrate: this.narrate
+      }
+    )
+    const trip = {
+      homeIds: this.onCourtHome.map(player => player.id),
+      awayIds: this.onCourtAway.map(player => player.id),
+      events
+    }
+    this.applyEvents(events)
+    return trip
+  }
+
+  private applyEvents(events: PossessionResult[]): StepLog[] {
+    const logs: StepLog[] = []
+    const offenseIsHome = this.possession === 'home'
     const offStats = offenseIsHome ? this.statsHome : this.statsAway
     const defStats = offenseIsHome ? this.statsAway : this.statsHome
-
-    const events = this.engine.simulatePossession(offense, defense, offCourt, defCourt, {
-      isTransition: this.isTransition,
-      secondChance: this.secondChance,
-      defenseTeamFouls: offenseIsHome ? this.foulsAway : this.foulsHome,
-      secondsRemaining: this.secondsRemaining,
-      quarter: this.quarter,
-      isHomeOffense: offenseIsHome,
-      offenseTactics: offenseIsHome ? this.homeTactics ?? undefined : undefined,
-      defenseTactics: offenseIsHome ? undefined : this.homeTactics ?? undefined,
-      narrate: this.narrate
-    })
-
     let elapsed = 0
     for (const event of events) {
       elapsed += event.secondsElapsed
@@ -314,7 +410,57 @@ export class GameSession {
       this.secondsRemaining = 0
       logs.push(...this.endPeriod())
     }
-    return { logs, finished: this.finished }
+    return logs
+  }
+
+  private playersFrom(team: Team, ids: string[]): Player[] {
+    return ids
+      .map(id => team.roster.find(player => player.id === id))
+      .filter((player): player is Player => !!player)
+  }
+
+  private capture(): SessionSnapshot {
+    const fatigue: Record<string, number> = {}
+    for (const player of [...this.home.roster, ...this.away.roster]) fatigue[player.id] = player.fatigue
+    return {
+      scoreHome: this.scoreHome,
+      scoreAway: this.scoreAway,
+      quarter: this.quarter,
+      secondsRemaining: this.secondsRemaining,
+      possession: this.possession,
+      isTransition: this.isTransition,
+      secondChance: this.secondChance,
+      finished: this.finished,
+      foulsHome: this.foulsHome,
+      foulsAway: this.foulsAway,
+      statsHome: structuredClone(this.statsHome),
+      statsAway: structuredClone(this.statsAway),
+      onCourtHome: this.onCourtHome.map(player => player.id),
+      onCourtAway: this.onCourtAway.map(player => player.id),
+      fatigue,
+      lastEvent: this.lastEvent ? structuredClone(this.lastEvent) : null
+    }
+  }
+
+  private restore(snap: SessionSnapshot) {
+    this.scoreHome = snap.scoreHome
+    this.scoreAway = snap.scoreAway
+    this.quarter = snap.quarter
+    this.secondsRemaining = snap.secondsRemaining
+    this.possession = snap.possession
+    this.isTransition = snap.isTransition
+    this.secondChance = snap.secondChance
+    this.finished = snap.finished
+    this.foulsHome = snap.foulsHome
+    this.foulsAway = snap.foulsAway
+    this.statsHome = snap.statsHome
+    this.statsAway = snap.statsAway
+    this.onCourtHome = this.playersFrom(this.home, snap.onCourtHome)
+    this.onCourtAway = this.playersFrom(this.away, snap.onCourtAway)
+    this.lastEvent = snap.lastEvent
+    for (const player of [...this.home.roster, ...this.away.roster]) {
+      player.fatigue = snap.fatigue[player.id] ?? 0
+    }
   }
 
   private endPeriod(): StepLog[] {
@@ -358,11 +504,7 @@ export class GameSession {
 export class MatchEngine {
   simulateMatch(home: Team, away: Team): MatchResult {
     const game = new GameSession(home, away, { narrate: false })
-    let guard = 0
-    while (!game.finished && guard < 800) {
-      game.step()
-      guard += 1
-    }
+    game.runLive()
     const result = game.result()
     const winner = result.winnerId === home.id ? home.name : away.name
     result.playByPlay = [{
