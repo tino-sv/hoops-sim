@@ -33,18 +33,27 @@
   let apron2Margin = $derived(CBA_CONSTANTS.SECOND_APRON - totalSalaries);
   let rosterQuery = $state('');
   let rosterPos = $state('ALL');
-  type RosterKey = 'name' | 'pos' | 'age' | 'ovr' | 'salary' | 'morale';
+  type RosterKey = 'name' | 'pos' | 'age' | 'ovr' | 'role' | 'salary' | 'years' | 'morale';
   let rosterSort = $state<RosterKey>('ovr');
   let rosterAsc = $state(false);
 
   const posOrder: Record<string, number> = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
+
+  const roleOf = (player: Player) => {
+    const index = (team.depthChart[player.position] || []).indexOf(player.id);
+    if (index === 0) return { label: 'Starter', rank: 0 };
+    if (index === 1) return { label: 'Rotation', rank: 1 };
+    return { label: 'Bench', rank: 2 };
+  };
 
   let shownRoster = $derived.by(() => {
     const value = (player: Player): string | number => {
       if (rosterSort === 'name') return player.name;
       if (rosterSort === 'pos') return posOrder[player.position] ?? 9;
       if (rosterSort === 'age') return player.age;
+      if (rosterSort === 'role') return roleOf(player).rank;
       if (rosterSort === 'salary') return player.contract.salaries[0] ?? 0;
+      if (rosterSort === 'years') return player.contract.salaries.length;
       if (rosterSort === 'morale') return player.morale;
       return player.overallRating;
     };
@@ -67,7 +76,7 @@
     if (rosterSort === key) rosterAsc = !rosterAsc;
     else {
       rosterSort = key;
-      rosterAsc = key === 'name' || key === 'pos';
+      rosterAsc = key === 'name' || key === 'pos' || key === 'role';
     }
   };
 
@@ -75,12 +84,6 @@
 
   const formatNumber = (num: number) => {
     return '$' + Math.round(num).toLocaleString();
-  };
-
-  const getMoraleClass = (morale: number) => {
-    if (morale >= 75) return 'badge-primary';
-    if (morale >= 40) return 'badge-warning';
-    return 'badge-danger';
   };
 
   const selectPlayer = (player: Player) => {
@@ -307,7 +310,7 @@
   <div class="dashboard-grid">
     <!-- Main Roster Spreadsheet -->
     <div class="card" style="grid-column: span {selectedPlayer ? '7' : '12'};">
-      <h3 class="card-title">Roster Sheet <span class="badge badge-secondary">{shownRoster.length} Players</span></h3>
+      <h3 class="card-title">Roster <span>{shownRoster.length}</span></h3>
       <div class="list-tools">
         <input class="form-input" type="text" placeholder="Search name" bind:value={rosterQuery} />
         <select class="tactics-select" bind:value={rosterPos}>
@@ -328,9 +331,9 @@
               <th class="sortable" onclick={() => toggleRoster('pos')}>Pos {rosterMark('pos')}</th>
               <th class="sortable" onclick={() => toggleRoster('age')}>Age {rosterMark('age')}</th>
               <th class="sortable" onclick={() => toggleRoster('ovr')}>OVR {rosterMark('ovr')}</th>
-              <th class="sortable" onclick={() => toggleRoster('salary')}>Y1 Salary {rosterMark('salary')}</th>
-              <th>Y2 Salary</th>
-              <th>Bird Tier</th>
+              <th class="sortable" onclick={() => toggleRoster('role')}>Role {rosterMark('role')}</th>
+              <th class="sortable" onclick={() => toggleRoster('salary')}>Salary {rosterMark('salary')}</th>
+              <th class="sortable" onclick={() => toggleRoster('years')}>Years {rosterMark('years')}</th>
               <th class="sortable" onclick={() => toggleRoster('morale')}>Morale {rosterMark('morale')}</th>
             </tr>
           </thead>
@@ -339,24 +342,20 @@
               <tr class="roster-row" class:active={selectedPlayer?.id === player.id} onclick={() => selectPlayer(player)}>
                 <td>
                   <div style="font-weight: 700;">{player.name}</div>
-                  <div style="font-size: 0.75rem; color: var(--text-muted);">
-                    {#if player.injury}
-                      Out: {player.injury.description} ({player.injury.daysRemaining}d)
-                    {:else}
-                      Healthy
-                    {/if}
-                    {#if player.tradeDemand}
-                      <div>Wants out</div>
-                    {/if}
-                  </div>
+                  {#if player.injury || player.tradeDemand}
+                    <div class="flag">
+                      {#if player.injury}Out {player.injury.daysRemaining}d{/if}
+                      {#if player.tradeDemand}Wants out{/if}
+                    </div>
+                  {/if}
                 </td>
-                <td><span class="badge badge-secondary">{player.position}</span></td>
+                <td>{player.position}</td>
                 <td>{player.age}</td>
-                <td><span style="font-weight: 800; color: var(--primary);">{player.overallRating}</span></td>
+                <td>{player.overallRating}</td>
+                <td>{roleOf(player).label}</td>
                 <td>{formatNumber(player.contract.salaries[0] || 0)}</td>
-                <td>{player.contract.salaries[1] ? formatNumber(player.contract.salaries[1]) : '—'}</td>
-                <td><span class="badge badge-primary">{player.contract.birdRights.toUpperCase()}</span></td>
-                <td><span class="badge {getMoraleClass(player.morale)}">{player.morale}%</span></td>
+                <td>{player.contract.salaries.length}</td>
+                <td>{player.morale}</td>
               </tr>
             {/each}
           </tbody>
@@ -661,9 +660,12 @@
 </div>
 
 <style>
+  .flag {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
   .roster-row {
     cursor: pointer;
-    transition: background-color 0.2s;
   }
 
   .roster-row:hover {
