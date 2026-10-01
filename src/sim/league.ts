@@ -1,4 +1,4 @@
-import { settleTeamMorale } from './badges'
+import { isGlue, settleTeamMorale } from './badges'
 import { birdFromYears, CBASimulator, type OfferVerdict } from './cba'
 import { MatchEngine } from './matchEngine'
 import { bookGameMoney, clampSignatures, ensureCoach, ensureCommercials, findPlayer, gamePosts, levyFine, monthKey, PEDIGREE_PRESETS, pedigreeForStyle, pickAllStars, pickAwards, postCash, rollCoach, SIGNATURE_PRESETS, luxuryTaxBill, tvCheck, tvUpgradeCost } from './office'
@@ -848,6 +848,20 @@ export class LeagueManager {
     }
   }
 
+  private glueJoined(team: Team, player: Player) {
+    if (!isGlue(player)) return
+    for (const mate of team.roster) mate.morale = Math.min(100, mate.morale + 1)
+    if (team.id !== this.userTeamId) return
+    this.note('Locker room', `${player.name} fits`, `${player.name} is the kind of teammate who holds a room together.`)
+  }
+
+  private glueLeft(team: Team, player: Player) {
+    if (!isGlue(player)) return
+    for (const mate of team.roster) mate.morale = Math.max(0, mate.morale - 2)
+    if (team.id !== this.userTeamId) return
+    this.note('Locker room', `${player.name} is gone`, `${player.name} held the room together. Morale slipped.`)
+  }
+
   private leakDemands(team: Team, date: string) {
     if (team.id !== this.userTeamId) return
     const leaks = team.roster.filter(player => player.tradeLeak)
@@ -1595,6 +1609,7 @@ export class LeagueManager {
         const result = waivePlayer(team, worst.id)
         if (!result.allowed) break
         this.toFreeAgent(worst)
+        this.glueLeft(team, worst)
       }
       while (team.roster.length < NBA_RULES.ROSTER_MIN) this.signCampBody(team)
       CBASimulator.updateTeamFinances(team)
@@ -1615,6 +1630,7 @@ export class LeagueManager {
     player.contract.birdRights = 'none'
     team.roster.push(player)
     addToDepthChart(team, player)
+    this.glueJoined(team, player)
   }
 
   signFreeAgent(playerId: string, salary: number, years: number): OfferVerdict {
@@ -1633,6 +1649,7 @@ export class LeagueManager {
     player.contract.birdRights = 'none'
     team.roster.push(player)
     addToDepthChart(team, player)
+    this.glueJoined(team, player)
     this.freeAgents = this.freeAgents.filter(item => item.id !== playerId)
     CBASimulator.commitSigning(team, verdict)
     this.note('Cap Desk', `${player.name} signed`, `${verdict.exceptionUsed}: ${verdict.reason}`)
@@ -1646,6 +1663,7 @@ export class LeagueManager {
     const verdict = waivePlayer(team, playerId)
     if (verdict.allowed && player) {
       this.toFreeAgent(player)
+      this.glueLeft(team, player)
       this.saveToLocalStorage()
     }
     return verdict
@@ -1655,8 +1673,10 @@ export class LeagueManager {
     const team = this.userTeam()
     const player = team.roster.find(item => item.id === playerId)
     if (!player) return deny('Player not found.')
+    const walking = player.contract.salaries.length === 1
     const verdict = CBASimulator.applyExtension(team, player, salary, years)
     if (verdict.allowed) {
+      if (walking) player.morale = Math.min(100, player.morale + 2)
       this.note('Cap Desk', `${player.name} extended`, verdict.reason)
       this.saveToLocalStorage()
     }
