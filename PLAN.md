@@ -30,10 +30,11 @@ Status: `not started` | `in progress` | `done`
 - A starter who plays well under the minutes his spot promises loses morale and can ask out. The wire says so. A scorer next to two other high-usage players makes a slightly worse shot. A contract year and a traded glue guy are still open. `in progress`
 - A ribbon across the desk shows the record, the next game, the cap tier, the date, and unread mail. The button says go to the match, simulate the day, or blocked. `done`
 - The roster lists role, salary, years left, and who wants out. The draft board is a table. An overall stays a range until you scout him. `done`
+- A heavy night can knock a player out for a few days. Home lists who cannot play. `done`
 
 ## Next
 
-The office and the books screen are still unfinished (8). Home still does not show who cannot play (11). A contract year and a traded glue guy stay open on 15.
+The office and the books screen are still unfinished (8). A contract year and a traded glue guy stay open on 15.
 
 ## Backlog
 
@@ -47,7 +48,7 @@ The office and the books screen are still unfinished (8). Home still does not sh
 8. Shell. A top ribbon with record, next game, cap tier, date, and unread mail. The sim control says simulate the day, go to the match, or blocked. The left nav stays words. The office and the books screen are still unfinished. `in progress`
 9. Sim the rest of the regular season from the home screen, for testing. `done`
 10. Honors on its own page, plus sort and filter controls on the main lists. `done`
-11. Redesign the look. Chrome is flat type and team color. The roster shows role, years left, and who wants out. The draft board is a table, and overalls stay hidden until a prospect is scouted. Home still does not show who cannot play in one view. `in progress`
+11. Redesign the look. Chrome is flat type and team color. The roster shows role, years left, and who wants out. The draft board is a table, and overalls stay hidden until a prospect is scouted. Home lists who cannot play, and the days left. `done`
 12. Choose your team when a game starts. `done`
 13. Precompute the game, then show that script on the court. A sub or a coverage change recalculates from that moment. Steals and blocks sit near the 2024-25 line. A 96-plus player scores like a modern first option, about 26 to 34 a game, and the team stays near 113. `done`
 14. Coach pedigree. Former star, video-room, college mentor, or European tactician sets respect and the ratings the sim already uses. Two signature traits, each with a bonus and a cost. Player biographies are still a name, an age, and badges. `in progress`

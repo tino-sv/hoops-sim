@@ -2,7 +2,7 @@ import { settleTeamMorale } from './badges'
 import { birdFromYears, CBASimulator, type OfferVerdict } from './cba'
 import { MatchEngine } from './matchEngine'
 import { bookGameMoney, clampSignatures, ensureCoach, ensureCommercials, findPlayer, gamePosts, levyFine, monthKey, PEDIGREE_PRESETS, pedigreeForStyle, pickAllStars, pickAwards, postCash, rollCoach, SIGNATURE_PRESETS, luxuryTaxBill, tvCheck, tvUpgradeCost } from './office'
-import { createPlayer, createProspect, playerFromProspect } from './players'
+import { createPlayer, createProspect, healPlayer, hurtPlayer, playerFromProspect } from './players'
 import { deriveTraits, developPlayer } from './ratings'
 import { NBA_RULES } from './rules'
 import { addToDepthChart, rebuildDepthChart, waivePlayer } from './roster'
@@ -188,6 +188,8 @@ export class LeagueManager {
   awards: SeasonAwards | null = null
   playoffSeries: PlayoffSeries[] = []
   championId: string | null = null
+  /** Last night injuries were counted down. */
+  injuryDate = ''
 
   constructor() {
     if (this.loadFromLocalStorage()) return
@@ -269,7 +271,8 @@ export class LeagueManager {
       cupChampionId: this.cupChampionId,
       awards: this.awards,
       playoffSeries: this.playoffSeries,
-      championId: this.championId
+      championId: this.championId,
+      injuryDate: this.injuryDate
     }))
   }
 
@@ -306,6 +309,7 @@ export class LeagueManager {
       this.awards = data.awards ?? null
       this.playoffSeries = data.playoffSeries ?? []
       this.championId = data.championId ?? null
+      this.injuryDate = data.injuryDate ?? ''
       const refreshBadges = (player: Player) => {
         if (!player.attributes || !player.personality) return
         player.traits = deriveTraits(player.attributes, player.position, player.personality)
@@ -756,6 +760,7 @@ export class LeagueManager {
     if (userTeamId && this.userCupGame()) return
 
     const roundMatches = this.schedule.filter(match => match.round === this.currentRound && !match.simulated)
+    this.healTo(roundMatches[0]?.date ?? '')
     roundMatches.forEach(match => {
       const home = this.teams.find(team => team.id === match.homeTeamId)!
       const away = this.teams.find(team => team.id === match.awayTeamId)!
@@ -784,16 +789,50 @@ export class LeagueManager {
     if (save) this.saveToLocalStorage()
   }
 
-  bookWatchedGame(matchId: string, homeWon: boolean) {
+  bookWatchedGame(matchId: string, homeWon: boolean, minutes?: { home: Record<string, number>; away: Record<string, number> }) {
     const match = this.schedule.find(item => item.id === matchId)
     if (!match) return
     const home = this.teams.find(team => team.id === match.homeTeamId)
     const away = this.teams.find(team => team.id === match.awayTeamId)
     if (!home || !away) return
+    this.healTo(match.date)
+    if (minutes) {
+      this.recordInjuries(home, player => minutes.home[player.id] ?? 0, match.date)
+      this.recordInjuries(away, player => minutes.away[player.id] ?? 0, match.date)
+    }
     this.bookGate(home, away, homeWon, match.cup, match.date, match.scoreHome ?? 0, match.scoreAway ?? 0)
     this.reactToGame(home, away, match.scoreHome ?? 0, match.scoreAway ?? 0, match.date)
     this.leakDemands(home, match.date)
     this.leakDemands(away, match.date)
+  }
+
+  private healTo(date: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return
+    if (!this.injuryDate) {
+      this.injuryDate = date
+      return
+    }
+    const days = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${this.injuryDate}T00:00:00Z`)) / 86_400_000)
+    if (days <= 0) return
+    for (const team of this.teams) {
+      for (const player of team.roster) healPlayer(player, days)
+    }
+    this.injuryDate = date
+  }
+
+  private recordInjuries(team: Team, minutesOf: (player: Player) => number, date: string) {
+    for (const player of team.roster) {
+      const hurt = hurtPlayer(player, minutesOf(player))
+      if (!hurt || team.id !== this.userTeamId) continue
+      const days = hurt.daysRemaining === 1 ? '1 day' : `${hurt.daysRemaining} days`
+      this.publish({
+        handle: 'laneandcourt',
+        name: 'Lane & Court',
+        role: 'show',
+        body: `${player.name} is out with a ${hurt.description.toLowerCase()}. ${days}.`,
+        date
+      })
+    }
   }
 
   private leakDemands(team: Team, date: string) {
@@ -945,9 +984,13 @@ export class LeagueManager {
     match.scoreAway = result.teamBScore
     match.winnerId = result.winnerId
     match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
+    this.healTo(match.date)
+    const minutes = (side: 'A' | 'B') => (player: Player) => (side === 'A' ? result.playerStatsA : result.playerStatsB)[player.id]?.minutes ?? 0
+    this.recordInjuries(home, minutes('A'), match.date)
+    this.recordInjuries(away, minutes('B'), match.date)
     if (match.exhibition) {
-      this.settlePlayed(home, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, match.date)
-      this.settlePlayed(away, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, match.date)
+      this.settlePlayed(home, minutes('A'), result.winnerId === home.id, match.date)
+      this.settlePlayed(away, minutes('B'), result.winnerId === away.id, match.date)
       return
     }
     this.bookGate(home, away, result.winnerId === home.id, true, match.date, result.teamAScore, result.teamBScore)
@@ -1169,10 +1212,13 @@ export class LeagueManager {
     match.scoreAway = result.teamBScore
     match.winnerId = result.winnerId
     match.playByPlaySummary = result.playByPlay[result.playByPlay.length - 1]?.log
+    this.healTo(match.date)
     this.bookGate(home, away, result.winnerId === home.id, false, match.date, result.teamAScore, result.teamBScore)
     this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
     this.settlePlayed(home, player => result.playerStatsA[player.id]?.minutes ?? 0, result.winnerId === home.id, match.date)
     this.settlePlayed(away, player => result.playerStatsB[player.id]?.minutes ?? 0, result.winnerId === away.id, match.date)
+    this.recordInjuries(home, player => result.playerStatsA[player.id]?.minutes ?? 0, match.date)
+    this.recordInjuries(away, player => result.playerStatsB[player.id]?.minutes ?? 0, match.date)
     this.recordSeriesGame(match)
   }
 
@@ -1271,6 +1317,8 @@ export class LeagueManager {
     const night = date || `Season ${this.season}`
     this.settlePlayed(home, player => res.playerStatsA[player.id]?.minutes ?? 0, res.winnerId === home.id, night)
     this.settlePlayed(away, player => res.playerStatsB[player.id]?.minutes ?? 0, res.winnerId === away.id, night)
+    this.recordInjuries(home, player => res.playerStatsA[player.id]?.minutes ?? 0, night)
+    this.recordInjuries(away, player => res.playerStatsB[player.id]?.minutes ?? 0, night)
   }
 
   enterOffseason(): OfferVerdict {
@@ -1634,9 +1682,11 @@ export class LeagueManager {
           delete player.careerStats['season']
         }
         player.fatigue = 0
+        player.injury = null
       }
       CBASimulator.updateTeamFinances(team)
     }
+    this.injuryDate = ''
 
     this.season++
     this.currentRound = 1

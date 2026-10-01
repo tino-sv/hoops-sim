@@ -182,11 +182,11 @@
     activeMatchId = matchId;
   };
 
-  const handleFinishedMatch = (_scoreHome: number, _scoreAway: number, winnerId: string) => {
+  const handleFinishedMatch = (_scoreHome: number, _scoreAway: number, winnerId: string, minutes: { home: Record<string, number>; away: Record<string, number> }) => {
     const matchId = activeMatchId;
     if (matchId) {
       const match = league.schedule.find(item => item.id === matchId);
-      if (match) league.bookWatchedGame(matchId, winnerId === match.homeTeamId);
+      if (match) league.bookWatchedGame(matchId, winnerId === match.homeTeamId, minutes);
     }
     activeMatchId = null;
     const match = matchId ? league.schedule.find(item => item.id === matchId) : undefined;

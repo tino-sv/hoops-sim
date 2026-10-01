@@ -2,7 +2,7 @@ import { crowdedShotPenalty, moraleAfterGame, roleMoraleDelta, settleTeamMorale 
 import { capTierLabel, CBASimulator, rosterBlockReason } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
 import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
-import { createPlayer } from '../players'
+import { createPlayer, healPlayer, hurtPlayer } from '../players'
 import { NBA_RULES } from '../rules'
 
 function assert(condition: unknown, message: string) {
@@ -294,6 +294,17 @@ while (club.wire.length === beforeWire && spins++ < 8) club.simulateRound('team_
 assert(club.wire.length > beforeWire, 'a user game hits the wire')
 assert(club.wire.some(post => post.role === 'journalist'), 'a beat writer posts')
 assert(club.wire.some(post => post.role === 'player'), 'a player posts')
+
+const ankle = createPlayer({ position: 'PG', targetOverall: 80, age: 26 })
+assert(hurtPlayer(ankle, 12, 0, 0) === null, 'a short night does not hurt him')
+const rolled = hurtPlayer(ankle, 28, 0, 0)
+assert(rolled?.description === 'Rolled ankle' && rolled.daysRemaining === 3, 'a heavy night can roll an ankle')
+assert(hurtPlayer(ankle, 30, 0, 0) === null, 'he does not pick up a second injury')
+healPlayer(ankle, 1)
+assert(ankle.injury?.daysRemaining === 2, 'one day comes off')
+healPlayer(ankle, 2)
+assert(ankle.injury === null, 'he is available again')
+assert(hurtPlayer(ankle, 28, 0.5, 0) === null, 'most nights he stays healthy')
 
 console.log('systems ok')
 console.log(`user payroll $${(CBASimulator.capHit(user) / 1_000_000).toFixed(1)}M, roster ${user.roster.length}, season ${league.season}`)

@@ -14,7 +14,7 @@
     matchId: string, 
     allTeams: Team[], 
     schedule: ScheduledMatch[], 
-    onFinishedMatch: (scoreHome: number, scoreAway: number, winnerId: string) => void 
+    onFinishedMatch: (scoreHome: number, scoreAway: number, winnerId: string, minutes: { home: Record<string, number>; away: Record<string, number> }) => void 
   } = $props();
 
   const matchData = schedule.find(m => m.id === matchId)!;
@@ -271,7 +271,12 @@
     settleTeamMorale(teamAway.roster, player => statsAway[player.id]?.minutes ?? 0, winnerId === teamAway.id, teamAway.coach, teamAway);
 
     alert(`Game Completed! Final Score: ${teamHome.name} ${scoreHome} - ${scoreAway} ${teamAway.name}`);
-    onFinishedMatch(scoreHome, scoreAway, winnerId);
+    const minutesOf = (lines: Record<string, BoxScoreStats>, roster: Player[]) =>
+      Object.fromEntries(roster.map(player => [player.id, lines[player.id]?.minutes ?? 0]));
+    onFinishedMatch(scoreHome, scoreAway, winnerId, {
+      home: minutesOf(statsHome, teamHome.roster),
+      away: minutesOf(statsAway, teamAway.roster)
+    });
   };
 
   const startGame = () => {
