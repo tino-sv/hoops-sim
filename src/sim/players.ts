@@ -133,12 +133,207 @@ export function playerFromProspect(prospect: DraftProspect, overallPick: number 
   }
 }
 
-const HOMETOWNS = ['Chicago', 'Lagos', 'Manila', 'Belgrade', 'Oakland', 'San Juan', 'Melbourne', 'Athens', 'Dakar', 'Halifax', 'Seoul', 'Lyon', 'Accra', 'Split', 'Detroit']
+type CityWeight = { city: string; weight: number }
 
-export function playerOrigin(name: string): string {
+// Birth cities, not prep factories. California, New York, Illinois, Pennsylvania, and Texas
+// lead all-time NBA births. Canada is the largest group outside the US.
+const US: CityWeight[] = [
+  { city: 'Los Angeles', weight: 8 },
+  { city: 'Chicago', weight: 7 },
+  { city: 'New York', weight: 5 },
+  { city: 'Philadelphia', weight: 5 },
+  { city: 'Brooklyn', weight: 4 },
+  { city: 'Houston', weight: 4 },
+  { city: 'Dallas', weight: 3 },
+  { city: 'Atlanta', weight: 3 },
+  { city: 'Detroit', weight: 3 },
+  { city: 'Miami', weight: 2 },
+  { city: 'Oakland', weight: 2 },
+  { city: 'Baltimore', weight: 2 },
+  { city: 'Charlotte', weight: 2 },
+  { city: 'Indianapolis', weight: 2 },
+  { city: 'Memphis', weight: 2 },
+  { city: 'New Orleans', weight: 2 },
+  { city: 'Washington', weight: 2 },
+  { city: 'Cleveland', weight: 2 },
+  { city: 'San Antonio', weight: 2 },
+  { city: 'Bronx', weight: 2 },
+  { city: 'Phoenix', weight: 1 },
+  { city: 'Seattle', weight: 1 },
+  { city: 'Milwaukee', weight: 1 },
+  { city: 'Boston', weight: 1 },
+  { city: 'Minneapolis', weight: 1 }
+]
+
+const CANADA: CityWeight[] = [
+  { city: 'Toronto', weight: 6 },
+  { city: 'Hamilton', weight: 2 },
+  { city: 'Montreal', weight: 2 },
+  { city: 'Mississauga', weight: 1 },
+  { city: 'Vancouver', weight: 1 }
+]
+
+const LATINO_US: CityWeight[] = [
+  { city: 'Los Angeles', weight: 6 },
+  { city: 'Miami', weight: 4 },
+  { city: 'Houston', weight: 4 },
+  { city: 'New York', weight: 3 },
+  { city: 'San Antonio', weight: 3 },
+  { city: 'Dallas', weight: 2 },
+  { city: 'Phoenix', weight: 2 },
+  { city: 'Chicago', weight: 2 },
+  { city: 'Bronx', weight: 2 }
+]
+
+const CARIBBEAN: CityWeight[] = [
+  { city: 'Santo Domingo', weight: 2 },
+  { city: 'San Juan', weight: 1 }
+]
+
+const BRAZIL: CityWeight[] = [
+  { city: 'Sao Paulo', weight: 3 },
+  { city: 'Rio de Janeiro', weight: 1 }
+]
+
+const SENEGAL: CityWeight[] = [
+  { city: 'Dakar', weight: 4 },
+  { city: 'Bamako', weight: 2 },
+  { city: 'Conakry', weight: 1 }
+]
+
+const NIGERIA: CityWeight[] = [
+  { city: 'Lagos', weight: 4 },
+  { city: 'Abuja', weight: 1 },
+  { city: 'Kaduna', weight: 1 }
+]
+
+const GHANA: CityWeight[] = [{ city: 'Accra', weight: 1 }]
+const ETHIOPIA: CityWeight[] = [{ city: 'Addis Ababa', weight: 1 }]
+const HAITI: CityWeight[] = [{ city: 'Port-au-Prince', weight: 1 }]
+const HAITI_HOME: CityWeight[] = [
+  { city: 'Miami', weight: 3 },
+  { city: 'Montreal', weight: 2 }
+]
+
+const VIET_US: CityWeight[] = [
+  { city: 'Los Angeles', weight: 3 },
+  { city: 'San Jose', weight: 2 },
+  { city: 'Houston', weight: 2 },
+  { city: 'Westminster', weight: 1 }
+]
+
+const KOREA: CityWeight[] = [
+  { city: 'Seoul', weight: 3 },
+  { city: 'Busan', weight: 1 }
+]
+
+const JAPAN: CityWeight[] = [
+  { city: 'Tokyo', weight: 2 },
+  { city: 'Toyama', weight: 1 }
+]
+
+const LOS_ANGELES: CityWeight[] = [{ city: 'Los Angeles', weight: 1 }]
+
+const AUSTRALIA: CityWeight[] = [
+  { city: 'Melbourne', weight: 5 },
+  { city: 'Sydney', weight: 3 },
+  { city: 'Perth', weight: 1 },
+  { city: 'Adelaide', weight: 1 }
+]
+
+const FRANCE: CityWeight[] = [
+  { city: 'Paris', weight: 5 },
+  { city: 'Lyon', weight: 2 },
+  { city: 'Strasbourg', weight: 1 },
+  { city: 'Le Mans', weight: 1 }
+]
+
+const GERMANY: CityWeight[] = [
+  { city: 'Berlin', weight: 3 },
+  { city: 'Munich', weight: 2 },
+  { city: 'Bamberg', weight: 1 }
+]
+
+const BALKANS: CityWeight[] = [
+  { city: 'Belgrade', weight: 4 },
+  { city: 'Novi Sad', weight: 1 },
+  { city: 'Ljubljana', weight: 1 },
+  { city: 'Split', weight: 1 }
+]
+
+const ITALY: CityWeight[] = [
+  { city: 'Bologna', weight: 2 },
+  { city: 'Rome', weight: 1 },
+  { city: 'Pesaro', weight: 1 }
+]
+
+const NORDIC: CityWeight[] = [
+  { city: 'Stockholm', weight: 2 },
+  { city: 'Berlin', weight: 2 },
+  { city: 'Munich', weight: 1 }
+]
+
+const ARAB_US: CityWeight[] = [
+  { city: 'Detroit', weight: 2 },
+  { city: 'Dearborn', weight: 1 }
+]
+
+const LAST_KIND: Record<string, string> = {
+  morales: 'latino', hernandez: 'latino', ibarra: 'latino', ortiz: 'latino', costa: 'latino',
+  ortega: 'latino', reyes: 'latino', romero: 'latino', alvarez: 'latino', cruz: 'latino',
+  santos: 'brazil', silva: 'brazil', almeida: 'brazil',
+  diallo: 'senegal', okoye: 'nigeria', adeyemi: 'nigeria', mensah: 'ghana', abebe: 'ethiopia',
+  baptiste: 'haiti', nguyen: 'vietnam', park: 'korea', cho: 'korea',
+  nakamura: 'japan', okada: 'japan',
+  moreau: 'france', duval: 'france', fontaine: 'france',
+  kruger: 'germany', bauer: 'germany', berg: 'nordic',
+  petrov: 'balkans', petrova: 'balkans', novak: 'balkans', rossi: 'italy', haddad: 'arab'
+}
+
+function hashName(name: string): number {
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = (hash * 33 + name.charCodeAt(i)) >>> 0
-  return HOMETOWNS[hash % HOMETOWNS.length]
+  return hash
+}
+
+function pickCity(places: CityWeight[], hash: number): string {
+  const total = places.reduce((sum, place) => sum + place.weight, 0)
+  let cursor = hash % total
+  for (const place of places) {
+    if (cursor < place.weight) return place.city
+    cursor -= place.weight
+  }
+  return places[0].city
+}
+
+function mix(hash: number, every: number, abroad: CityWeight[], home: CityWeight[]): string {
+  return hash % every === 0 ? pickCity(abroad, hash) : pickCity(home, hash)
+}
+
+export function playerOrigin(name: string): string {
+  const last = (name.trim().split(/\s+/).pop() ?? '').toLowerCase()
+  const hash = hashName(name)
+  const kind = LAST_KIND[last] ?? 'anglo'
+  if (kind === 'latino') return mix(hash, 8, CARIBBEAN, LATINO_US)
+  if (kind === 'brazil') return mix(hash, 8, BRAZIL, LATINO_US)
+  if (kind === 'senegal') return mix(hash, 3, SENEGAL, US)
+  if (kind === 'nigeria') return mix(hash, 3, NIGERIA, US)
+  if (kind === 'ghana') return mix(hash, 3, GHANA, US)
+  if (kind === 'ethiopia') return mix(hash, 3, ETHIOPIA, US)
+  if (kind === 'haiti') return mix(hash, 3, HAITI, HAITI_HOME)
+  if (kind === 'vietnam') return pickCity(VIET_US, hash)
+  if (kind === 'korea') return mix(hash, 3, KOREA, LOS_ANGELES)
+  if (kind === 'japan') return mix(hash, 2, JAPAN, LOS_ANGELES)
+  if (kind === 'france') return pickCity(FRANCE, hash)
+  if (kind === 'germany') return pickCity(GERMANY, hash)
+  if (kind === 'balkans') return pickCity(BALKANS, hash)
+  if (kind === 'italy') return pickCity(ITALY, hash)
+  if (kind === 'nordic') return pickCity(NORDIC, hash)
+  if (kind === 'arab') return pickCity(ARAB_US, hash)
+  const roll = hash % 100
+  if (roll < 7) return pickCity(CANADA, hash)
+  if (roll < 11) return pickCity(AUSTRALIA, hash)
+  return pickCity(US, hash)
 }
 
 const STORY: { id: string; line: string }[] = [

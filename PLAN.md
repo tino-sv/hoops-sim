@@ -26,7 +26,7 @@ Status: `not started` | `in progress` | `done`
 - A 97 overall takes a first-option share and scores about 32 a game. The team stays near 113. A new career is required to see the new usage. `done`
 - Books is its own screen. Each month lists gate, TV, merch, salaries, staff, the building, and fines. An arena and a staff market are still open. `in progress`
 - A coach has an age, an origin, a former-player flag, and ratings for offense, defense, teaching, and the locker room. Those ratings change makes and morale. `done`
-- A player panel says where he is from, what year he is in, and one line from his badges. Shot profile and the glass plan change the possession. `done`
+- A player panel says where he is from, what year he is in, and one line from his badges. The city follows the surname, weighted like a real roster. Shot profile and the glass plan change the possession. `done`
 - A new coach picks a pedigree and up to two signatures. A former star steadies veterans and weighs on young players. Seven seconds scores more in transition and turns the ball over in the half court. The ratings stay with the pedigree. `done`
 - A starter who plays well under the minutes his spot promises loses morale and can ask out. The wire says so. A scorer next to two other high-usage players makes a slightly worse shot. A contract year and a traded glue guy are still open. `in progress`
 - A ribbon across the desk shows the record, the next game, the cap tier, the date, and unread mail. The button says go to the match, simulate the day, or blocked. `done`
@@ -36,7 +36,7 @@ Status: `not started` | `in progress` | `done`
 
 ## Next
 
-The player sentence, shot profile, and glass plan are on `feat/player-page` (14, 16). Next in the playbook: hedge, a hunted matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer (16, 19). Then scouting fog, a medical flag, a two-way, and a mentor (3). Then a postgame answer and an owner who is impatient, cheap, or hands-off (5, 17). A contract year is on `feat/contract-year` and not on main yet (15).
+The player sentence, shot profile, and glass plan are on `feat/player-page`. Hometowns follow the surname on `fix/hometowns` (14, 16). Next in the playbook: hedge, a hunted matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer (16, 19). Then scouting fog, a medical flag, a two-way, and a mentor (3). Then a postgame answer and an owner who is impatient, cheap, or hands-off (5, 17). A contract year is on `feat/contract-year` and not on main yet (15).
 
 ## Backlog
 
@@ -53,7 +53,7 @@ The player sentence, shot profile, and glass plan are on `feat/player-page` (14,
 11. Redesign the look. Chrome is flat type and team color. The roster shows role, years left, and who wants out. The draft board is a table, and overalls stay hidden until a prospect is scouted. Home lists who cannot play, and the days left. `done`
 12. Choose your team when a game starts. `done`
 13. Precompute the game, then show that script on the court. A sub or a coverage change recalculates from that moment. Steals and blocks sit near the 2024-25 line. A 96-plus player scores like a modern first option, about 26 to 34 a game, and the team stays near 113. `done`
-14. Coach pedigree is in. A player panel says where he is from, what year he is in, and one line from his badges. `done`
+14. Coach pedigree is in. A player panel says where he is from, what year he is in, and one line from his badges. Hometowns follow the surname. `done`
 15. Role and usage resentment. A promised role against real minutes, and a scorer stuck next to two ball-dominant teammates, changes efficiency, morale, and a trade demand. A contract year and a traded glue guy are still open. `in progress`
 16. Playbook. Tempo, pick-and-roll coverage, shot profile, and the glass plan are in. Still open: hedge, help rules, hunting a matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer. `in progress`
 17. Owner archetype. An impatient owner wants wins now. A cheap owner blocks the tax and a buyout. A hands-off owner wants a three-year climb and stays out of the deals. `not started`

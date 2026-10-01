@@ -313,6 +313,11 @@ assert(hurtPlayer(ankle, 28, 0.5, 0) === null, 'most nights he stays healthy')
 
 const bio = createPlayer({ position: 'SF', targetOverall: 80, age: 24, name: 'Callum Diallo' })
 assert(playerOrigin(bio.name) === playerOrigin('Callum Diallo'), 'a name keeps its hometown')
+assert(!['Athens', 'Manila', 'Halifax', 'Seoul', 'Lyon'].includes(playerOrigin('Callum Diallo')), 'Diallo is not assigned a random city')
+assert(['Paris', 'Lyon', 'Strasbourg', 'Le Mans'].includes(playerOrigin('Emile Moreau')), 'a French surname stays in France')
+assert(['Belgrade', 'Novi Sad', 'Ljubljana', 'Split'].includes(playerOrigin('Pavel Petrov')), 'a Balkan surname stays in the Balkans')
+assert(['Tokyo', 'Toyama', 'Los Angeles'].includes(playerOrigin('Yuki Nakamura')), 'a Japanese surname is Japan or Los Angeles')
+assert(!['Lagos', 'Athens', 'Dakar', 'Manila', 'Belgrade'].includes(playerOrigin('Marcus Walker')), 'an American surname stays in North America')
 bio.experience = 0
 bio.traits = []
 assert(playerStory(bio).includes('rookie') && playerStory(bio).includes(playerOrigin(bio.name)), 'a rookie sentence names his home')
