@@ -115,6 +115,10 @@ export interface Player {
   traits: string[];
   /** Seasons already played in the league. Zero is a rookie. */
   experience: number;
+  /** Set when his minutes fall well short of the role on the depth chart. */
+  tradeDemand?: boolean;
+  /** The night he first asks out. Cleared once the wire runs. */
+  tradeLeak?: boolean;
 }
 
 export interface CapExceptions {

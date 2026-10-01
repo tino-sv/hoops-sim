@@ -1,4 +1,4 @@
-import { assistBoost, blockMultiplier, contestBoost, foulBoost, hasBadge, leaderMakeBoost, reboundMultiplier, shootingBoost, shotCallout, stealBoost, turnoverBoost, usageMultiplier } from './badges'
+import { assistBoost, blockMultiplier, contestBoost, crowdedShotPenalty, foulBoost, hasBadge, leaderMakeBoost, reboundMultiplier, shootingBoost, shotCallout, stealBoost, turnoverBoost, usageMultiplier } from './badges'
 import { coachFoulMultiplier, coachMakeBoost, coachShotAdjust, coachTurnoverBump } from './office'
 import type { Player, Position, Team, TeamTactics } from './types'
 
@@ -239,6 +239,7 @@ export class PossessionEngine {
       shooterIsDiva: hasBadge(shooter, 'diva'),
       roomMorale
     })
+    make -= crowdedShotPenalty(shooter, onCourtOff)
     make = clamp(make, shot.kind === 'close' ? 0.42 : 0.22, shot.kind === 'close' ? 0.78 : shot.kind === 'three' ? 0.46 : 0.52)
 
     const blockChance = this.blockChanceFor(shot.kind, onCourtDef, advantage)

@@ -1,4 +1,4 @@
-import { moraleAfterGame } from '../badges'
+import { crowdedShotPenalty, moraleAfterGame, roleMoraleDelta, settleTeamMorale } from '../badges'
 import { CBASimulator } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
 import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
@@ -195,6 +195,27 @@ const soft = moraleAfterGame(guy, 32, false, false, { ...ivo, pedigree: 'video-r
 const young = moraleAfterGame(guy, 32, false, false, { ...ivo, pedigree: 'former-star', signatures: [], formerPlayer: false, manManagement: 60 })
 assert(soft > plain, 'a player\'s best friend halves a loss')
 assert(young < plain, 'a former star weighs on a young player after a loss')
+const buried = structuredClone(guy)
+buried.personality = { ...buried.personality, usageExpectation: 32 }
+buried.id = 'buried'
+assert(roleMoraleDelta(buried, 12, 0) === -3, 'a starter buried by his minutes feels it')
+assert(roleMoraleDelta(buried, 30, 0) === 0, 'a starter near his minutes is fine')
+const mates = [
+  buried,
+  { ...buried, id: 'a', personality: { ...buried.personality, usageExpectation: 26 } },
+  { ...buried, id: 'b', personality: { ...buried.personality, usageExpectation: 26 } }
+]
+assert(crowdedShotPenalty(buried, mates) === 0.012, 'three ball-dominant players make the shot worse')
+assert(crowdedShotPenalty(buried, [buried, mates[1]]) === 0, 'one partner is not a crowd')
+const room = marked.userTeam()
+const starter = room.roster[0]
+starter.personality.usageExpectation = 32
+starter.tradeDemand = false
+starter.tradeLeak = false
+room.depthChart[starter.position] = [starter.id, ...(room.depthChart[starter.position] || []).filter(id => id !== starter.id)]
+settleTeamMorale(room.roster, player => player.id === starter.id ? 10 : 32, true, room.coach, room)
+const askedOut = Boolean(starter.tradeDemand && starter.tradeLeak)
+assert(askedOut, 'a buried starter wants out')
 const beforeCash = hired.userTeam().finances.cash
 bookGameMoney(hired.userTeam(), true, true, '2026-10-22')
 const october = hired.userTeam().finances.books?.find(row => row.month === '2026-10')
