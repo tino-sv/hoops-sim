@@ -106,6 +106,38 @@ export function leaderMakeBoost(lineup: Player[], shooterId: string): number {
   return lineup.some(player => player.id !== shooterId && hasBadge(player, 'leader')) ? 0.005 : 0
 }
 
+export function inContractYear(player: Player): boolean {
+  return player.contract.salaries.length === 1
+}
+
+/** A walk year finishes a few more shots and gives a few more away. */
+export function contractYearMake(player: Player): number {
+  return inContractYear(player) ? 0.006 : 0
+}
+
+export function contractYearTurnover(player: Player): number {
+  return inContractYear(player) ? 0.004 : 0
+}
+
+/** A low-usage teammate the room actually likes. Stars and divas are not glue. */
+export function isGlue(player: Player): boolean {
+  return player.personality.chemistry >= 84 && player.personality.usageExpectation <= 16 && !hasBadge(player, 'diva')
+}
+
+export function glueMakeBoost(lineup: Player[], shooterId: string): number {
+  return lineup.some(player => player.id !== shooterId && isGlue(player)) ? 0.004 : 0
+}
+
+/** Teammates feel it when every glue guy sits, and a little less when one of them plays through a loss. */
+export function glueMoraleDelta(player: Player, roster: Player[], minutesOf: (player: Player) => number, won: boolean): number {
+  if (isGlue(player)) return 0
+  const glues = roster.filter(isGlue)
+  if (glues.length === 0) return 0
+  if (glues.some(guy => minutesOf(guy) >= 12)) return won ? 0 : 1
+  if (glues.every(guy => minutesOf(guy) < 8)) return -1
+  return 0
+}
+
 export function turnoverBoost(player: Player): number {
   let extra = 0
   if (hasBadge(player, 'hothead') && player.morale < 60) extra += 0.01
@@ -217,6 +249,7 @@ export function moraleAfterGame(player: Player, minutes: number, won: boolean, l
   if (hasBadge(player, 'competitor') && minutes > 0 && minutes < 15 && player.personality.usageExpectation > 18) delta -= 2
   if (!won && leaderPlayed && !hasBadge(player, 'hothead')) delta += 1
   if (roleDelta) delta += roleDelta
+  if (inContractYear(player) && minutes >= 18) delta += won ? 1 : -1
 
   delta = clamp(delta, -8, 6)
   return clamp(player.morale + delta, 0, 100)
@@ -228,7 +261,8 @@ export function settleTeamMorale(roster: Player[], minutesOf: (player: Player) =
     const minutes = minutesOf(player)
     const chartIndex = team ? (team.depthChart[player.position] || []).indexOf(player.id) : -1
     const role = roleMoraleDelta(player, minutes, chartIndex)
-    player.morale = moraleAfterGame(player, minutes, won, leaderPlayed, coach, role)
+    const glue = glueMoraleDelta(player, roster, minutesOf, won)
+    player.morale = moraleAfterGame(player, minutes, won, leaderPlayed, coach, role + glue)
     const hungry = player.personality.usageExpectation >= 22
     if (role <= -3 && hungry) {
       if (!player.tradeDemand) player.tradeLeak = true

@@ -1,4 +1,4 @@
-import { crowdedShotPenalty, moraleAfterGame, roleMoraleDelta, settleTeamMorale } from '../badges'
+import { contractYearMake, contractYearTurnover, crowdedShotPenalty, glueMakeBoost, glueMoraleDelta, inContractYear, isGlue, moraleAfterGame, roleMoraleDelta, settleTeamMorale } from '../badges'
 import { capTierLabel, CBASimulator, rosterBlockReason } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
 import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
@@ -224,6 +224,33 @@ room.depthChart[starter.position] = [starter.id, ...(room.depthChart[starter.pos
 settleTeamMorale(room.roster, player => player.id === starter.id ? 10 : 32, true, room.coach, room)
 const askedOut = Boolean(starter.tradeDemand && starter.tradeLeak)
 assert(askedOut, 'a buried starter wants out')
+const walk = structuredClone(guy)
+walk.contract = { ...walk.contract, salaries: [1_000_000] }
+walk.morale = 70
+const lockedUp = structuredClone(walk)
+lockedUp.contract = { ...walk.contract, salaries: [1_000_000, 1_000_000] }
+assert(inContractYear(walk) && contractYearMake(walk) === 0.006 && contractYearTurnover(walk) === 0.004, 'a walk year finishes more and gives the ball away')
+assert(contractYearMake(lockedUp) === 0, 'a multi-year deal is not a walk year')
+assert(moraleAfterGame(walk, 24, false, false) === moraleAfterGame(lockedUp, 24, false, false) - 1, 'a contract year stings more on a loss')
+const connector = structuredClone(guy)
+connector.id = 'glue'
+connector.traits = connector.traits.filter(trait => trait !== 'diva')
+connector.personality = { ...connector.personality, chemistry: 90, usageExpectation: 12 }
+connector.morale = 70
+assert(isGlue(connector), 'a low-usage teammate with chemistry is glue')
+assert(!isGlue({ ...connector, personality: { ...connector.personality, usageExpectation: 28 } }), 'a star is not glue')
+assert(glueMakeBoost([connector, walk], walk.id) === 0.004, 'a glue teammate helps the shot')
+assert(glueMakeBoost([connector], connector.id) === 0, 'glue does not boost his own shot')
+const alone = structuredClone(lockedUp)
+alone.id = 'alone'
+alone.morale = 70
+alone.personality = { ...alone.personality, chemistry: 50, usageExpectation: 20 }
+alone.traits = alone.traits.filter(trait => trait !== 'diva')
+const beside = structuredClone(alone)
+settleTeamMorale([alone], () => 20, false)
+settleTeamMorale([connector, beside], player => player.id === connector.id ? 0 : 20, false)
+assert(beside.morale === alone.morale - 1, 'the room sags when the glue guy sits')
+assert(glueMoraleDelta(connector, [connector, beside], () => 0, false) === 0, 'the glue guy does not sag from his own absence')
 const beforeCash = hired.userTeam().finances.cash
 bookGameMoney(hired.userTeam(), true, true, '2026-10-22')
 const october = hired.userTeam().finances.books?.find(row => row.month === '2026-10')
