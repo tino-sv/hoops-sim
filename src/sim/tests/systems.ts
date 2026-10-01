@@ -1,6 +1,7 @@
+import { moraleAfterGame } from '../badges'
 import { CBASimulator } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
-import { bookGameMoney, tvCheck } from '../office'
+import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
 import { createPlayer } from '../players'
 import { NBA_RULES } from '../rules'
 
@@ -162,6 +163,38 @@ hired.initializeLeague('team_14', {
 })
 assert(hired.userTeam().coach.name === 'Amina Cole' && hired.userTeam().coach.style === 'tactician', 'the new coach is hired')
 assert(hired.userTeam().coach.offense === 76 && hired.userTeam().coach.age > 30, 'the hired coach has a profile')
+assert(hired.userTeam().coach.pedigree === 'video-room' && hired.userTeam().coach.signatures.length === 0, 'a tactician starts in the video room')
+const marked = new LeagueManager()
+marked.initializeLeague('team_1', {
+  name: 'Ivo Petrov',
+  style: 'tactician',
+  tempo: 'fast',
+  offense: 'motion',
+  coverage: 'switch-everything',
+  pedigree: 'european-tactician',
+  signatures: ['seven-seconds', 'lockdown', 'players-friend'],
+  offenseSkill: 84,
+  defenseSkill: 70,
+  teaching: 66,
+  manManagement: 52
+})
+const ivo = marked.userTeam().coach
+assert(ivo.pedigree === 'european-tactician' && ivo.signatures.length === 2 && ivo.signatures[0] === 'seven-seconds' && ivo.respect === 58, 'two signatures stick and respect follows the pedigree')
+assert(ivo.offense === 88 && ivo.defense === 76 && ivo.style === 'tactician' && ivo.formerPlayer === false, 'the pedigree locks the ratings')
+const near = (value: number, target: number) => Math.abs(value - target) < 0.0001
+assert(coachTurnoverBump(ivo, false) === 0.008 && coachTurnoverBump(ivo, true) === 0, 'seven seconds costs the ball in the half court')
+assert(near(coachShotAdjust(ivo, { fastBreak: true, quarter: 1, secondsRemaining: 400, shooterIsDiva: false, roomMorale: 80 }), 0.033), 'transition and the tactician finish more often')
+assert(near(coachShotAdjust(ivo, { fastBreak: false, quarter: 1, secondsRemaining: 400, shooterIsDiva: true, roomMorale: 60 }), -0.007), 'a diva has not bought in')
+assert(near(coachFoulMultiplier({ ...ivo, pedigree: 'college-mentor', signatures: ['lockdown'] }), 0.92 * 1.1), 'a mentor fouls less and lockdown fouls more')
+const guy = structuredClone(marked.userTeam().roster[0])
+guy.morale = 60
+guy.traits = []
+guy.age = 21
+const plain = moraleAfterGame(guy, 32, false, false, { ...ivo, pedigree: 'video-room', signatures: [], formerPlayer: false, manManagement: 60 })
+const soft = moraleAfterGame(guy, 32, false, false, { ...ivo, pedigree: 'video-room', signatures: ['players-friend'], formerPlayer: false, manManagement: 60 })
+const young = moraleAfterGame(guy, 32, false, false, { ...ivo, pedigree: 'former-star', signatures: [], formerPlayer: false, manManagement: 60 })
+assert(soft > plain, 'a player\'s best friend halves a loss')
+assert(young < plain, 'a former star weighs on a young player after a loss')
 const beforeCash = hired.userTeam().finances.cash
 bookGameMoney(hired.userTeam(), true, true, '2026-10-22')
 const october = hired.userTeam().finances.books?.find(row => row.month === '2026-10')

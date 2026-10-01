@@ -1,3 +1,4 @@
+import { hasSignature } from './office'
 import type { Coach, Player, PlayerAttributes, PlayerPersonality, Position } from './types'
 
 type ShotKind = 'close' | 'mid' | 'three'
@@ -177,9 +178,15 @@ export function moraleAfterGame(player: Player, minutes: number, won: boolean, l
   if (coachStyle === 'disciplinarian' && hasBadge(player, 'hothead')) delta += 1
   if (coachStyle === 'disciplinarian' && hasBadge(player, 'fragile')) delta -= 1
   if (coach?.formerPlayer && !won) delta += 1
+  if (coach?.pedigree === 'former-star' && !won && player.age >= 30) delta += 1
+  if (coach?.pedigree === 'former-star' && !won && player.age <= 23) delta -= 1
+  if (coach?.pedigree === 'video-room' && !won && hasBadge(player, 'leader')) delta -= 1
+  if (coach?.pedigree === 'college-mentor' && won && player.age <= 23) delta += 1
+  if (coach?.pedigree === 'european-tactician' && !won && hasBadge(player, 'diva')) delta -= 1
   if ((coach?.teaching ?? 0) >= 75 && player.age <= 23 && won) delta += 1
   if ((coach?.manManagement ?? 60) >= 75 && (hasBadge(player, 'diva') || hasBadge(player, 'fragile'))) delta += 1
   if ((coach?.manManagement ?? 60) <= 42 && !won) delta -= 1
+  if (hasSignature(coach, 'players-friend') && !won && delta < 0) delta = Math.trunc(delta / 2)
 
   const wantsBall = player.personality.usageExpectation > 20
   if (hasBadge(player, 'diva') && minutes > 0 && minutes < 28) delta -= 3

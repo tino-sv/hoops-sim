@@ -26,10 +26,11 @@ Status: `not started` | `in progress` | `done`
 - A 97 overall takes a first-option share and scores about 32 a game. The team stays near 113. A new career is required to see the new usage. `done`
 - Books is its own screen. Each month lists gate, TV, merch, salaries, staff, the building, and fines. An arena and a staff market are still open. `in progress`
 - A coach has an age, an origin, a former-player flag, and ratings for offense, defense, teaching, and the locker room. Those ratings change makes and morale. Player biographies are still thin. `in progress`
+- A new coach picks a pedigree and up to two signatures. A former star steadies veterans and weighs on young players. Seven seconds scores more in transition and turns the ball over in the half court. `in progress`
 
 ## Next
 
-Commit the open scoring, books, and coach profile on `feat/star-scoring`. Then coach pedigree and two traits (14). Then a promised role against real minutes (15). The status ribbon (8) comes before any tactics lab, rotation board, or play drawer (16, 18, 19).
+A promised role against real minutes (15). The status ribbon (8) comes before any tactics lab, rotation board, or play drawer (16, 18, 19).
 
 ## Backlog
 
@@ -46,7 +47,7 @@ Commit the open scoring, books, and coach profile on `feat/star-scoring`. Then c
 11. Redesign the look. Chrome is flat type and team color, without emoji, pills, or fake crests. Home should show the next game, who cannot play, and the owner in one view. Roster and draft tables are still plain lists. `in progress`
 12. Choose your team when a game starts. `done`
 13. Precompute the game, then show that script on the court. A sub or a coverage change recalculates from that moment. Steals and blocks sit near the 2024-25 line. A 96-plus player scores like a modern first option, about 26 to 34 a game, and the team stays near 113. `done`
-14. Coach pedigree. Former star, video-room, college mentor, or European tactician sets respect, tactics, and growth. Two signature traits, each with a bonus and a cost. Ratings stay on the scale the players already use. `in progress`
+14. Coach pedigree. Former star, video-room, college mentor, or European tactician sets respect and the ratings the sim already uses. Two signature traits, each with a bonus and a cost. Player biographies are still a name, an age, and badges. `in progress`
 15. Role and usage resentment. A promised role, a starved scorer, a traded glue guy, or a contract year changes efficiency, morale, and trade demands. `not started`
 16. Playbook. Tempo, spacing, shot profile, matchup hunting, and a foul plan on top of the coverages we have. A timeout and foul-trouble subs come before a play drawer. `not started`
 17. Owner archetype. Impatient, cheap, or hands-off, on top of the win goal and patience we already store. `not started`
