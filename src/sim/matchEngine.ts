@@ -215,6 +215,8 @@ function tacticsKey(tactics: TeamTactics): string {
   return JSON.stringify([
     tactics.tempo,
     tactics.offensiveStyle,
+    tactics.shotProfile ?? 'balanced',
+    tactics.glass ?? 'balanced',
     tactics.defensiveCoverage,
     tactics.doubleTeamTrigger,
     tactics.offensiveRoles,

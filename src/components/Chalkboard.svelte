@@ -1,6 +1,6 @@
 <script lang="ts">
   import { seasonLine } from '../sim/seasonStats';
-  import { POSITIONS, type Team, type OffensiveRole, type Position } from '../sim/types';
+  import { POSITIONS, type Team, type TeamTactics, type OffensiveRole, type Position } from '../sim/types';
 
   // Svelte 5 Props syntax
   let { team = $bindable(), onTacticsChanged }: { team: Team, onTacticsChanged?: () => void } = $props();
@@ -201,6 +201,25 @@
           <option value="slow">Slow it down</option>
           <option value="balanced">Balanced</option>
           <option value="fast">Push in transition</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label for="shot-profile">Shot profile</label>
+        <select id="shot-profile" class="tactics-select" value={tactics.shotProfile ?? 'balanced'} onchange={(event) => { tactics.shotProfile = event.currentTarget.value as TeamTactics['shotProfile']; onTacticsChanged?.(); }}>
+          <option value="balanced">Balanced</option>
+          <option value="rim-and-three">Rim and three</option>
+          <option value="mid-range">Mid-range</option>
+          <option value="post">Post</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label for="glass">Glass</label>
+        <select id="glass" class="tactics-select" value={tactics.glass ?? 'balanced'} onchange={(event) => { tactics.glass = event.currentTarget.value as TeamTactics['glass']; onTacticsChanged?.(); }}>
+          <option value="crash">Crash the glass</option>
+          <option value="balanced">Balanced</option>
+          <option value="get-back">Get back</option>
         </select>
       </div>
 

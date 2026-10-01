@@ -133,6 +133,33 @@ export function playerFromProspect(prospect: DraftProspect, overallPick: number 
   }
 }
 
+const HOMETOWNS = ['Chicago', 'Lagos', 'Manila', 'Belgrade', 'Oakland', 'San Juan', 'Melbourne', 'Athens', 'Dakar', 'Halifax', 'Seoul', 'Lyon', 'Accra', 'Split', 'Detroit']
+
+export function playerOrigin(name: string): string {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = (hash * 33 + name.charCodeAt(i)) >>> 0
+  return HOMETOWNS[hash % HOMETOWNS.length]
+}
+
+const STORY: { id: string; line: string }[] = [
+  { id: 'diva', line: 'he wants the ball' },
+  { id: 'leader', line: 'he holds the room' },
+  { id: 'sharpshooter', line: 'he lives on the three' },
+  { id: 'pick_pocket', line: 'he gambles for steals' },
+  { id: 'post_beast', line: 'he lives in the post' },
+  { id: 'rim_protector', line: 'he protects the rim' }
+]
+
+/** One line for the roster panel. The same name always comes from the same place. */
+export function playerStory(player: Player): string {
+  const place = playerOrigin(player.name)
+  const year = player.experience <= 0 ? 'a rookie' : `in year ${player.experience + 1}`
+  const note = STORY.find(item => player.traits.includes(item.id))?.line
+  return note
+    ? `${player.name} is from ${place}, ${year}, and ${note}.`
+    : `${player.name} is from ${place}, ${year} in the league.`
+}
+
 const COLLEGES = [
   'Duke', 'Kentucky', 'Kansas', 'North Carolina', 'UCLA', 'Gonzaga', 'Arizona',
   'Michigan State', 'Connecticut', 'Indiana', 'Villanova', 'Texas', 'Houston',

@@ -2,7 +2,8 @@ import { crowdedShotPenalty, moraleAfterGame, roleMoraleDelta, settleTeamMorale 
 import { capTierLabel, CBASimulator, rosterBlockReason } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
 import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
-import { createPlayer, healPlayer, hurtPlayer } from '../players'
+import { createPlayer, healPlayer, hurtPlayer, playerOrigin, playerStory } from '../players'
+import { glassOrbBump, shotProfileFactor } from '../possessionEngine'
 import { NBA_RULES } from '../rules'
 
 function assert(condition: unknown, message: string) {
@@ -309,6 +310,33 @@ assert(ankle.injury?.daysRemaining === 2, 'one day comes off')
 healPlayer(ankle, 2)
 assert(ankle.injury === null, 'he is available again')
 assert(hurtPlayer(ankle, 28, 0.5, 0) === null, 'most nights he stays healthy')
+
+const bio = createPlayer({ position: 'SF', targetOverall: 80, age: 24, name: 'Callum Diallo' })
+assert(playerOrigin(bio.name) === playerOrigin('Callum Diallo'), 'a name keeps its hometown')
+bio.experience = 0
+bio.traits = []
+assert(playerStory(bio).includes('rookie') && playerStory(bio).includes(playerOrigin(bio.name)), 'a rookie sentence names his home')
+bio.experience = 5
+bio.traits = ['diva']
+assert(playerStory(bio).includes('year 6') && playerStory(bio).includes('wants the ball'), 'a veteran sentence uses the badge')
+assert(shotProfileFactor('balanced', 'mid') === 1 && shotProfileFactor(undefined, 'three') === 1, 'a missing shot profile stays balanced')
+assert(shotProfileFactor('rim-and-three', 'mid') === 0.45 && shotProfileFactor('rim-and-three', 'three') === 1.45, 'rim and three dumps the mid-range')
+assert(glassOrbBump('crash') === 0.04 && glassOrbBump('get-back') === -0.04 && glassOrbBump('balanced') === 0, 'crashing the glass is the other side of getting back')
+const scheme = new LeagueManager()
+scheme.initializeLeague('team_1')
+const schemeCoach = scheme.userTeam().coach
+scheme.setCoach({
+  name: schemeCoach.name,
+  style: schemeCoach.style,
+  tempo: 'fast',
+  offense: 'motion',
+  coverage: 'switch-everything',
+  shotProfile: 'post',
+  glass: 'crash',
+  pedigree: schemeCoach.pedigree
+})
+assert(scheme.userTeam().tactics.shotProfile === 'post' && scheme.userTeam().tactics.glass === 'crash', 'the office saves the shot profile and the glass plan')
+assert(scheme.userTeam().tactics.tempo === 'fast' && scheme.userTeam().tactics.offensiveStyle === 'motion', 'the office saves the scheme')
 
 console.log('systems ok')
 console.log(`user payroll $${(CBASimulator.capHit(user) / 1_000_000).toFixed(1)}M, roster ${user.roster.length}, season ${league.season}`)

@@ -129,6 +129,8 @@ export interface CapExceptions {
 export type OffensiveStyle = 'pace-and-space' | 'pick-and-roll' | 'motion' | 'post-up' | 'isolation';
 export type OffensiveRole = 'initiator' | 'secondary-initiator' | 'screen-setter' | 'spot-up' | 'rim-runner';
 export type DefensiveCoverage = 'drop' | 'blitz' | 'switch-everything' | 'zone-23' | 'zone-32';
+export type ShotProfile = 'balanced' | 'rim-and-three' | 'mid-range' | 'post';
+export type GlassPlan = 'crash' | 'balanced' | 'get-back';
 export type DoubleTeamTrigger = 'always' | 'late-clock' | 'never';
 export type OverplayType = 'force-left' | 'force-right' | 'none';
 
@@ -137,6 +139,10 @@ export interface TeamTactics {
   offensiveStyle: OffensiveStyle;
   offensiveRoles: Record<string, OffensiveRole>; // Player ID -> Role
   defensiveCoverage: DefensiveCoverage;
+  /** Where the shots should come from. Missing means balanced, so old saves stay put. */
+  shotProfile?: ShotProfile;
+  /** Crash the glass or get back. Missing means balanced. */
+  glass?: GlassPlan;
   doubleTeamTrigger: DoubleTeamTrigger;
   targetOverplay: Record<string, OverplayType>;  // Opponent Player ID -> Overplay Type
 }
