@@ -28,7 +28,8 @@ Status: `not started` | `in progress` | `done`
 - A coach has an age, an origin, a former-player flag, and ratings for offense, defense, teaching, and the locker room. Those ratings change makes and morale. `done`
 - A player panel says where he is from, what year he is in, and one line from his badges. The city follows the surname, weighted like a real roster. Shot profile and the glass plan change the possession. `done`
 - A new coach picks a pedigree and up to two signatures. A former star steadies veterans and weighs on young players. Seven seconds scores more in transition and turns the ball over in the half court. The ratings stay with the pedigree. `done`
-- A starter who plays well under the minutes his spot promises loses morale and can ask out. The wire says so. A scorer next to two other high-usage players makes a slightly worse shot. A contract year and a traded glue guy are still open. `in progress`
+- A starter who plays well under the minutes his spot promises loses morale and can ask out. The wire says so. A scorer next to two other high-usage players makes a slightly worse shot. `done`
+- A player in the last year of his deal makes a few more shots, turns it over a little more, and feels a loss harder. A glue guy helps a teammate's shot. If he sits, or you waive him, the room sags. A new career is required to roll who the glue guys are. `done`
 - A ribbon across the desk shows the record, the next game, the cap tier, the date, and unread mail. The button says go to the match, simulate the day, or blocked. `done`
 - The roster lists role, salary, years left, and who wants out. The draft board is a table. An overall stays a range until you scout him. `done`
 - A heavy night can knock a player out for a few days. Home lists who cannot play. `done`
@@ -36,7 +37,7 @@ Status: `not started` | `in progress` | `done`
 
 ## Next
 
-The player sentence, shot profile, and glass plan are on `feat/player-page`. Hometowns follow the surname on `fix/hometowns` (14, 16). Next in the playbook: hedge, a hunted matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer (16, 19). Then scouting fog, a medical flag, a two-way, and a mentor (3). Then a postgame answer and an owner who is impatient, cheap, or hands-off (5, 17). A contract year is on `feat/contract-year` and not on main yet (15).
+The player sentence, shot profile, and glass plan are on `feat/player-page`. Hometowns follow the surname on `fix/hometowns` (14, 16). Contract year and glue are in (15). Next in the playbook: hedge, a hunted matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer (16, 19). Then scouting fog, a medical flag, a two-way, and a mentor (3). Then a postgame answer and an owner who is impatient, cheap, or hands-off (5, 17). One offer on the trade desk is still open (20).
 
 ## Backlog
 
@@ -54,8 +55,9 @@ The player sentence, shot profile, and glass plan are on `feat/player-page`. Hom
 12. Choose your team when a game starts. `done`
 13. Precompute the game, then show that script on the court. A sub or a coverage change recalculates from that moment. Steals and blocks sit near the 2024-25 line. A 96-plus player scores like a modern first option, about 26 to 34 a game, and the team stays near 113. `done`
 14. Coach pedigree is in. A player panel says where he is from, what year he is in, and one line from his badges. Hometowns follow the surname. `done`
-15. Role and usage resentment. A promised role against real minutes, and a scorer stuck next to two ball-dominant teammates, changes efficiency, morale, and a trade demand. A contract year and a traded glue guy are still open. `in progress`
+15. Role and usage resentment. A promised role against real minutes, and a scorer stuck next to two ball-dominant teammates, changes efficiency, morale, and a trade demand. A contract year plays a little better and feels a loss more. A glue guy steadies a teammate's shot, and the room sags when he sits or is waived. `done`
 16. Playbook. Tempo, pick-and-roll coverage, shot profile, and the glass plan are in. Still open: hedge, help rules, hunting a matchup, hack-a-player, a timeout, and foul-trouble subs. No play drawer. `in progress`
 17. Owner archetype. An impatient owner wants wins now. A cheap owner blocks the tax and a buyout. A hands-off owner wants a three-year climb and stays out of the deals. `not started`
 18. Rotation board. Minute targets that add to 240, a closing five, and stagger so two handlers are not both sitting. Lineup ratings wait until those minutes are real. `not started`
 19. Match command. Foul trouble on the floor, a live run, and changes that wait for the next whistle. The court we have stays the view. `not started`
+20. A trade desk. Shop one player, get one offer, accept or refuse. No full trade machine. `not started`
