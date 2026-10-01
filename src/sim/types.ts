@@ -283,6 +283,14 @@ export interface OfficeNote {
   read: boolean;
 }
 
+/** One question after a game you played or simmed yourself. Missing on older saves. */
+export interface PressAsk {
+  matchId: string;
+  won: boolean;
+  opponent: string;
+  playerId: string;
+}
+
 export type WireRole = 'journalist' | 'team' | 'fan' | 'player' | 'show';
 
 export interface WirePost {

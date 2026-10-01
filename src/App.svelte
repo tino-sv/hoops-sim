@@ -1,6 +1,7 @@
 <script lang="ts">
   import { unansweredDemand } from './sim/badges';
   import { LeagueManager, type HiredCoach, type PlayoffSeries } from './sim/league';
+  import type { PressAsk } from './sim/types';
   import Dashboard from './pages/Dashboard.svelte';
   import RosterCBA from './pages/RosterCBA.svelte';
   import Chalkboard from './components/Chalkboard.svelte';
@@ -32,6 +33,7 @@
   let seasonComplete = $state(league.seasonComplete);
   let season = $state(league.season);
   let news = $state(league.news);
+  let pressAsk = $state<PressAsk | null>(league.press);
   let wire = $state(league.wire);
   let userTeamId = $state(league.userTeamId);
   let draftProspects = $state(league.draftProspects);
@@ -74,6 +76,7 @@
     seasonComplete = league.seasonComplete;
     season = league.season;
     news = [...league.news];
+    pressAsk = league.press;
     wire = [...league.wire];
     userTeamId = league.userTeamId;
     draftProspects = [...league.draftProspects];
@@ -113,7 +116,7 @@
   };
 
   const holdForAnswer = () => {
-    if (!unansweredDemand(userTeam.roster)) return false;
+    if (!league.press && !unansweredDemand(userTeam.roster)) return false;
     activeTab = 'dashboard';
     activeMatchId = null;
     return true;
@@ -455,6 +458,7 @@
       {playoffSeries}
       {championId}
       {news}
+      {pressAsk}
       {season}
       inMatch={!!activeMatchId}
       onAdvance={handleAdvanceRound}
@@ -488,11 +492,13 @@
         playoffSeries={playoffSeries}
         {championId}
         news={news}
+        {pressAsk}
         onSimSeason={handleSimSeason}
         onSimPlayoffs={handleSimPlayoffs}
         onOpenTab={(tab) => { activeTab = tab; }}
         onNewsRead={handleNewsRead}
         onAnswer={(playerId, choice) => { league.hearDemand(playerId, choice); refreshLeagueState(); }}
+        onPress={(choice) => { league.answerPress(choice); refreshLeagueState(); }}
       />
     {:else if activeTab === 'roster'}
       <RosterCBA 

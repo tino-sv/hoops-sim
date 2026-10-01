@@ -1,6 +1,6 @@
 import { contractYearMake, contractYearTurnover, crowdedShotPenalty, glueMakeBoost, glueMoraleDelta, inContractYear, isGlue, moraleAfterGame, roleMoraleDelta, settleTeamMorale, unansweredDemand } from '../badges'
 import { capTierLabel, CBASimulator, rosterBlockReason } from '../cba'
-import { careerChoices, LeagueManager } from '../league'
+import { careerChoices, LeagueManager, pressCopy } from '../league'
 import { capLine, lastNightLine, moodWord, roleWord, scoutMiss, scoutRead, shapeWord } from '../roster'
 import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
 import { createPlayer, healPlayer, hurtPlayer, playerOrigin, playerStory } from '../players'
@@ -396,6 +396,57 @@ assert(inflated.label === 'Better', `an 80 can be read as better than the roster
 assert(deflated.label === 'Starter', `a 92 can be read as a starter, got ${deflated.label}`)
 assert(scoutRead({ id: highMiss, name: 'Nico Bauer', overallRating: 80 }, bar).line === inflated.line, 'the same player keeps the same read')
 assert(scheme.userTeam().tactics.tempo === 'fast' && scheme.userTeam().tactics.offensiveStyle === 'motion', 'the office saves the scheme')
+
+const desk = new LeagueManager()
+desk.initializeLeague('team_1')
+let briefSpins = 0
+while (
+  !desk.schedule.some(match => match.round === desk.currentRound && !match.simulated && (match.homeTeamId === 'team_1' || match.awayTeamId === 'team_1'))
+  && briefSpins++ < 12
+) desk.simulateRound('team_1', undefined, false)
+desk.morningNote()
+assert(desk.news.filter(note => note.sender === 'Assistant').length === 1, 'the morning of a game is one note')
+const brief = desk.news.find(note => note.sender === 'Assistant')!
+assert(brief.body.includes('at home') || brief.body.includes('on the road'), 'the note says where you play')
+assert(brief.body.includes('Everyone can play.') || brief.body.includes('Out:'), 'the note says who can play')
+desk.morningNote()
+assert(desk.news.filter(note => note.sender === 'Assistant').length === 1, 'the morning note is not written twice')
+
+const quiet = new LeagueManager()
+quiet.initializeLeague('team_1')
+quiet.simulateRound(null, undefined, false)
+assert(quiet.press === null, 'simming the league does not stop for the press')
+
+const live = new LeagueManager()
+live.initializeLeague('team_1')
+const played = live.schedule.find(match => !match.playoff && (match.homeTeamId === 'team_1' || match.awayTeamId === 'team_1'))!
+const userHome = played.homeTeamId === 'team_1'
+played.scoreHome = userHome ? 110 : 98
+played.scoreAway = userHome ? 98 : 110
+played.winnerId = userHome ? played.homeTeamId : played.awayTeamId
+const patience = live.userTeam().owner.patience
+const target = [...live.userTeam().roster].sort((a, b) => b.personality.usageExpectation - a.personality.usageExpectation)[0]
+const morale = target.morale
+live.bookWatchedGame(played.id, played.winnerId === played.homeTeamId)
+assert(live.press?.won === true && pressCopy(live.press).includes(`win over ${live.press.opponent}`), 'a win waits on one question')
+live.answerPress('standard')
+assert(live.press === null, 'an answer lets the day move')
+assert(live.userTeam().owner.patience === patience + 2, 'owning the result helps the owner')
+assert(target.morale === morale, 'the room is left alone')
+const lost = live.schedule.find(match => match.id !== played.id && (match.homeTeamId === 'team_1' || match.awayTeamId === 'team_1'))!
+const lostHome = lost.homeTeamId === 'team_1'
+lost.scoreHome = lostHome ? 90 : 104
+lost.scoreAway = lostHome ? 104 : 90
+lost.winnerId = lostHome ? lost.awayTeamId : lost.homeTeamId
+const patienceAfter = live.userTeam().owner.patience
+const blamed = [...live.userTeam().roster].sort((a, b) => b.personality.usageExpectation - a.personality.usageExpectation)[0]
+const blamedMorale = blamed.morale
+live.bookWatchedGame(lost.id, lost.winnerId === lost.homeTeamId)
+assert(live.press?.won === false, 'a loss asks about the loss')
+live.answerPress('room')
+assert(blamed.morale === blamedMorale - 3, 'blaming the room hits the player')
+assert(live.userTeam().owner.patience === patienceAfter - 1, 'the owner noticed')
+assert(live.press === null, 'the question is gone')
 
 console.log('systems ok')
 console.log(`user payroll $${(CBASimulator.capHit(user) / 1_000_000).toFixed(1)}M, roster ${user.roster.length}, season ${league.season}`)

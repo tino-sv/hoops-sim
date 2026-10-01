@@ -1,7 +1,7 @@
 <script lang="ts">
   import { unansweredDemand } from '../sim/badges';
-  import type { OfficeNote, OffseasonStep, SeasonPhase, Team } from '../sim/types';
-  import type { PlayoffSeries, ScheduledMatch } from '../sim/league';
+  import { pressCopy, type PlayoffSeries, type ScheduledMatch } from '../sim/league';
+  import type { OfficeNote, OffseasonStep, PressAsk, SeasonPhase, Team } from '../sim/types';
   import { formatSlateDate } from '../sim/schedule';
   let { 
     team, 
@@ -16,11 +16,13 @@
     playoffSeries,
     championId,
     news,
+    pressAsk,
     onSimSeason,
     onSimPlayoffs,
     onOpenTab,
     onNewsRead,
-    onAnswer
+    onAnswer,
+    onPress
   }: { 
     team: Team, 
     allTeams: Team[], 
@@ -34,11 +36,13 @@
     playoffSeries: PlayoffSeries[],
     championId: string | null,
     news: OfficeNote[],
+    pressAsk: PressAsk | null,
     onSimSeason: () => void,
     onSimPlayoffs: () => void,
     onOpenTab: (tab: 'scouting' | 'free_agents' | 'roster' | 'office' | 'calendar' | 'standings' | 'playoffs' | 'league_stats') => void,
     onNewsRead: () => void,
-    onAnswer: (playerId: string, choice: 'play' | 'look') => void
+    onAnswer: (playerId: string, choice: 'play' | 'look') => void,
+    onPress: (choice: 'standard' | 'room') => void
   } = $props();
 
   let selectedMessage = $state<OfficeNote | null>(null);
@@ -146,7 +150,16 @@
     </div>
   </section>
   <p class="out-line">{outLine}</p>
-  {#if waiting}
+  {#if pressAsk}
+    <section class="decision">
+      <h2>The beat writer</h2>
+      <p>{pressCopy(pressAsk)} The day waits on an answer.</p>
+      <div class="decision-actions">
+        <button class="btn btn-primary" onclick={() => onPress('standard')}>The standard is the standard.</button>
+        <button class="btn btn-secondary" onclick={() => onPress('room')}>They have to be better.</button>
+      </div>
+    </section>
+  {:else if waiting}
     <section class="decision">
       <h2>{waiting.name}</h2>
       <p>He is not getting the minutes he was promised. The day waits on an answer.</p>
@@ -246,6 +259,7 @@
 
   .decision-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 12px;
   }
