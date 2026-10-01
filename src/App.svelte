@@ -471,6 +471,7 @@
         matchId={activeMatchId} 
         allTeams={league.teams} 
         schedule={league.schedule}
+        {userTeamId}
         onFinishedMatch={handleFinishedMatch}
       />
     {:else if activeTab === 'dashboard'}
@@ -528,6 +529,7 @@
     {:else if activeTab === 'scouting'}
       <Scouting 
         {draftProspects}
+        roster={userTeam.roster}
         {scoutingTokens}
         {phase}
         {offseasonStep}

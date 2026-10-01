@@ -141,7 +141,6 @@
             <tr class="stats-row">
               <td>
                 <div style="font-weight: 700;">{p.player.name}</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">Overall: {p.player.overallRating}</div>
               </td>
               <td><span style="font-weight: 500;">{p.teamName}</span></td>
               <td style="text-align: center;"><span class="badge badge-secondary">{p.player.position}</span></td>

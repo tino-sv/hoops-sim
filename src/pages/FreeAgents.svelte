@@ -1,5 +1,6 @@
 <script lang="ts">
   import { badgeById } from '../sim/badges';
+  import { scoutRead } from '../sim/roster';
   import type { OffseasonStep, Player, Position, SeasonPhase, Team } from '../sim/types';
   import { CBASimulator, CBA_CONSTANTS, type OfferVerdict } from '../sim/cba';
 
@@ -20,7 +21,7 @@
   // Search & Filter state
   let searchQuery = $state('');
   let filterPosition = $state('ALL');
-  let sortKey = $state<'overall' | 'age' | 'salary'>('overall');
+  let sortKey = $state<'read' | 'age' | 'salary'>('read');
 
   // Selected Player Profile Modal
   let selectedPlayer = $state<Player | null>(null);
@@ -67,7 +68,7 @@
     }).sort((a, b) => {
       if (sortKey === 'age') return a.age - b.age;
       if (sortKey === 'salary') return (b.contract.salaries[0] ?? 0) - (a.contract.salaries[0] ?? 0);
-      return b.overallRating - a.overallRating;
+      return scoutRead(a, team.roster).rank - scoutRead(b, team.roster).rank;
     });
   });
 
@@ -282,7 +283,7 @@
             <option value="C">Center (C)</option>
           </select>
           <select class="tactics-select" bind:value={sortKey} style="padding: 6px 12px; font-size: 0.85rem;">
-            <option value="overall">Sort: overall</option>
+            <option value="read">Sort: staff read</option>
             <option value="age">Sort: age</option>
             <option value="salary">Sort: salary</option>
           </select>
@@ -296,7 +297,7 @@
               <th>Player Name</th>
               <th style="text-align: center;">Pos</th>
               <th style="text-align: center;">Age</th>
-              <th style="text-align: center;">Overall</th>
+              <th style="text-align: center;">Read</th>
               <th>Demanded Salary</th>
               <th>Agent Demeanor</th>
               <th style="text-align: right;">Action</th>
@@ -316,7 +317,7 @@
                 </td>
                 <td style="text-align: center;"><span class="badge badge-secondary">{agent.position}</span></td>
                 <td style="text-align: center;">{agent.age}</td>
-                <td style="text-align: center; font-weight: 800; color: var(--primary);">{agent.overallRating}</td>
+                <td style="text-align: center; font-weight: 700;">{scoutRead(agent, team.roster).label}</td>
                 <td style="font-weight: 600;">{formatNumber(CBASimulator.getPlayerSalaryDemand(agent, { isContender: team.wins > team.losses }))} / yr</td>
                 <td style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase;">
                   <span class="badge" class:badge-primary={agent.contract?.agentType === 'team-first'} class:badge-warning={agent.contract?.agentType === 'reasonable'} class:badge-danger={agent.contract?.agentType === 'hardball'}>
@@ -358,10 +359,7 @@
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 2px; border: 1px solid var(--border-color); margin-bottom: 20px;">
-          <div style="display: flex; justify-content: space-between;">
-            <span style="color: var(--text-muted); font-size: 0.8rem;">Overall Rating:</span>
-            <span style="font-weight: 800; color: var(--primary); font-size: 0.9rem;">{selectedPlayer.overallRating} OVR</span>
-          </div>
+          <div style="font-size: 0.9rem; line-height: 1.4;">{scoutRead(selectedPlayer, team.roster).line}</div>
           <div style="display: flex; justify-content: space-between;">
             <span style="color: var(--text-muted); font-size: 0.8rem;">Contract Demand:</span>
             <span style="font-weight: 700; color: var(--text-primary); font-size: 0.85rem;">
@@ -371,22 +369,6 @@
           <div style="display: flex; justify-content: space-between;">
             <span style="color: var(--text-muted); font-size: 0.8rem;">Agent Demeanor:</span>
             <span style="font-weight: 600; font-size: 0.85rem; text-transform: capitalize;">{selectedPlayer.contract?.agentType || 'reasonable'}</span>
-          </div>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
-          <div style="font-weight: 700; font-size: 0.85rem; color: var(--text-secondary); text-transform: uppercase;">Technical Attributes</div>
-          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 0.75rem;">
-            <div>Close Shot: <b>{selectedPlayer.attributes.technical.closeShot}</b></div>
-            <div>Mid-Range: <b>{selectedPlayer.attributes.technical.midRange}</b></div>
-            <div>3-Point Shot: <b>{selectedPlayer.attributes.technical.threePoint}</b></div>
-            <div>Finishing: <b>{selectedPlayer.attributes.technical.finishing}</b></div>
-            <div>Handling: <b>{selectedPlayer.attributes.technical.ballHandling}</b></div>
-            <div>Passing Accuracy: <b>{selectedPlayer.attributes.technical.passingAccuracy}</b></div>
-            <div>Def. Contest: <b>{selectedPlayer.attributes.technical.perimeterDefense}</b></div>
-            <div>Interior Def.: <b>{selectedPlayer.attributes.technical.interiorDefense}</b></div>
-            <div>Rebounding: <b>{selectedPlayer.attributes.technical.defRebound}</b></div>
-            <div>Blocking: <b>{selectedPlayer.attributes.technical.block}</b></div>
           </div>
         </div>
 
@@ -424,7 +406,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
           <div>
             <h3 style="font-size: 1.05rem; margin: 0;">Negotiate</h3>
-            <span style="font-size: 0.8rem; color: var(--text-muted);">Client: {negotiatingPlayer.name} ({negotiatingPlayer.position} | {negotiatingPlayer.overallRating} OVR)</span>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Client: {negotiatingPlayer.name} ({negotiatingPlayer.position}). {scoutRead(negotiatingPlayer, team.roster).line}</span>
           </div>
           {#if negotiationStage !== 'accepted' && negotiationStage !== 'walked_away'}
             <button class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem;" onclick={() => negotiatingPlayer = null}>Cancel Talks</button>

@@ -32,6 +32,54 @@ export function lastNightLine(player: Player): string {
   return wanted ? `${name} had ${night.points} and wanted the ball.` : `${name} had ${night.points}.`
 }
 
+function hashText(text: string): number {
+  let hash = 0
+  for (let i = 0; i < text.length; i++) hash = (hash * 33 + text.charCodeAt(i)) >>> 0
+  return hash
+}
+
+/** How far the staff misses. About one read in five is off by 8 to 11. */
+export function scoutMiss(id: string): number {
+  const hash = hashText(id)
+  if (hash % 5 === 0) return (hash & 1 ? -1 : 1) * (8 + (hash % 4))
+  return (hash % 7) - 3
+}
+
+/** The staff's opinion of someone who is not yours, measured against your roster. */
+export function scoutRead(
+  player: { id: string; name: string; overallRating: number },
+  yours: { overallRating: number }[]
+): { label: string; rank: number; line: string } {
+  const seen = Math.max(40, Math.min(99, player.overallRating + scoutMiss(player.id)))
+  const marks = yours.map(item => item.overallRating).sort((a, b) => b - a)
+  const best = marks[0] ?? 70
+  const startAt = marks[4] ?? marks[marks.length - 1] ?? 70
+  const rotateAt = marks[9] ?? marks[marks.length - 1] ?? 62
+  const fringeAt = marks[marks.length - 1] ?? 58
+  const first = player.name.split(' ')[0]
+  if (marks.length && seen >= best) {
+    return { label: 'Better', rank: 0, line: `${first} looks better than anyone you have.` }
+  }
+  if (seen >= startAt) {
+    return { label: 'Starter', rank: 1, line: `The staff thinks ${first} would start for you.` }
+  }
+  if (seen >= rotateAt) {
+    return { label: 'Rotation', rank: 2, line: `The staff sees ${first} as a rotation piece.` }
+  }
+  if (seen + 2 >= fringeAt) {
+    return { label: 'Fringe', rank: 3, line: `${first} looks like the end of the bench.` }
+  }
+  return { label: 'Below', rank: 4, line: `${first} does not look like he belongs on this roster.` }
+}
+
+export function scoutCeiling(id: string, potential: number): { label: string; line: string } {
+  const seen = Math.max(40, Math.min(99, potential + scoutMiss(`${id}:pot`)))
+  if (seen >= 90) return { label: 'Star', line: 'a star ceiling' }
+  if (seen >= 82) return { label: 'Starter', line: 'a starter ceiling' }
+  if (seen >= 74) return { label: 'Rotation', line: 'a rotation ceiling' }
+  return { label: 'Limited', line: 'a limited ceiling' }
+}
+
 export function capLine(salaries: number[]): string {
   if (!salaries.length) return 'No deal'
   const years = salaries.length === 1 ? '1 year' : `${salaries.length} years`

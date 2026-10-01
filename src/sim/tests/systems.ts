@@ -1,7 +1,7 @@
 import { contractYearMake, contractYearTurnover, crowdedShotPenalty, glueMakeBoost, glueMoraleDelta, inContractYear, isGlue, moraleAfterGame, roleMoraleDelta, settleTeamMorale, unansweredDemand } from '../badges'
 import { capTierLabel, CBASimulator, rosterBlockReason } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
-import { capLine, lastNightLine, moodWord, roleWord, shapeWord } from '../roster'
+import { capLine, lastNightLine, moodWord, roleWord, scoutMiss, scoutRead, shapeWord } from '../roster'
 import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
 import { createPlayer, healPlayer, hurtPlayer, playerOrigin, playerStory } from '../players'
 import { glassOrbBump, shotProfileFactor } from '../possessionEngine'
@@ -380,6 +380,21 @@ scheme.setCoach({
   pedigree: schemeCoach.pedigree
 })
 assert(scheme.userTeam().tactics.shotProfile === 'post' && scheme.userTeam().tactics.glass === 'crash', 'the office saves the shot profile and the glass plan')
+const bar = [90, 86, 82, 78, 74, 72, 70, 68, 66, 64, 60].map(overallRating => ({ overallRating }))
+let highMiss = ''
+let lowMiss = ''
+for (let i = 0; i < 800 && (!highMiss || !lowMiss); i++) {
+  const id = `scout_${i}`
+  const miss = scoutMiss(id)
+  if (!highMiss && miss >= 10) highMiss = id
+  if (!lowMiss && miss <= -8) lowMiss = id
+}
+assert(highMiss && lowMiss, 'the staff misses in both directions')
+const inflated = scoutRead({ id: highMiss, name: 'Nico Bauer', overallRating: 80 }, bar)
+const deflated = scoutRead({ id: lowMiss, name: 'Wes Kruger', overallRating: 92 }, bar)
+assert(inflated.label === 'Better', `an 80 can be read as better than the roster, got ${inflated.label}`)
+assert(deflated.label === 'Starter', `a 92 can be read as a starter, got ${deflated.label}`)
+assert(scoutRead({ id: highMiss, name: 'Nico Bauer', overallRating: 80 }, bar).line === inflated.line, 'the same player keeps the same read')
 assert(scheme.userTeam().tactics.tempo === 'fast' && scheme.userTeam().tactics.offensiveStyle === 'motion', 'the office saves the scheme')
 
 console.log('systems ok')
