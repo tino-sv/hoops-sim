@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { unansweredDemand } from './sim/badges';
   import { LeagueManager, type HiredCoach, type PlayoffSeries } from './sim/league';
   import Dashboard from './pages/Dashboard.svelte';
   import RosterCBA from './pages/RosterCBA.svelte';
@@ -111,6 +112,13 @@
     pickingTeam = true;
   };
 
+  const holdForAnswer = () => {
+    if (!unansweredDemand(userTeam.roster)) return false;
+    activeTab = 'dashboard';
+    activeMatchId = null;
+    return true;
+  };
+
   const skipByes = () => {
     let guard = 0;
     while (guard++ < 12 && !league.seasonComplete && !league.userCupGame()) {
@@ -123,11 +131,13 @@
   };
 
   const handleAdvanceRound = () => {
+    if (holdForAnswer()) return;
     skipByes();
     refreshLeagueState();
   };
 
   const handleSimSeason = () => {
+    if (holdForAnswer()) return;
     if (!confirm('Sim every remaining regular-season game, including yours? Awards and the Cup resolve at the end, then the playoff bracket is set. This is for testing.')) return;
     const summary = league.simulateRegularSeason();
     refreshLeagueState();
@@ -135,11 +145,13 @@
   };
 
   const handlePlayoffNight = () => {
+    if (holdForAnswer()) return;
     league.playoffNight(false);
     refreshLeagueState();
   };
 
   const handleSimPlayoffs = () => {
+    if (holdForAnswer()) return;
     if (!confirm('Sim every remaining playoff game, including yours? This is for testing.')) return;
     const winnerId = league.simulatePlayoffs();
     refreshLeagueState();
@@ -148,6 +160,7 @@
   };
 
   const handleInstantSim = () => {
+    if (holdForAnswer()) return;
     const playoff = league.userPlayoffGame();
     if (playoff) {
       const oppId = playoff.homeTeamId === userTeam.id ? playoff.awayTeamId : playoff.homeTeamId;
@@ -179,6 +192,7 @@
   };
 
   const handleGoToMatchCenter = (matchId: string) => {
+    if (holdForAnswer()) return;
     activeMatchId = matchId;
   };
 
@@ -473,17 +487,11 @@
         playoffSeries={playoffSeries}
         {championId}
         news={news}
-        clockLabel={clockLabel}
-        onAdvanceRound={handleAdvanceRound}
-        onInstantSim={handleInstantSim}
         onSimSeason={handleSimSeason}
-        onPlayoffNight={handlePlayoffNight}
         onSimPlayoffs={handleSimPlayoffs}
-        onGoToMatchCenter={handleGoToMatchCenter}
-        onEnterOffseason={handleEnterOffseason}
-        onStartSeason={handleStartSeason}
         onOpenTab={(tab) => { activeTab = tab; }}
         onNewsRead={handleNewsRead}
+        onAnswer={(playerId, choice) => { league.hearDemand(playerId, choice); refreshLeagueState(); }}
       />
     {:else if activeTab === 'roster'}
       <RosterCBA 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { badgeById, inContractYear, isGlue } from '../sim/badges';
   import { playerStory } from '../sim/players';
+  import { capLine, lastNightLine, moodWord, roleWord, shapeWord } from '../sim/roster';
   import type { Team, Player } from '../sim/types';
   import { CBASimulator, CBA_CONSTANTS, type OfferVerdict } from '../sim/cba';
 
@@ -34,18 +35,13 @@
   let apron2Margin = $derived(CBA_CONSTANTS.SECOND_APRON - totalSalaries);
   let rosterQuery = $state('');
   let rosterPos = $state('ALL');
-  type RosterKey = 'name' | 'pos' | 'age' | 'ovr' | 'role' | 'salary' | 'years' | 'morale';
-  let rosterSort = $state<RosterKey>('ovr');
-  let rosterAsc = $state(false);
+  type RosterKey = 'name' | 'pos' | 'age' | 'role' | 'shape' | 'mood';
+  let rosterSort = $state<RosterKey>('role');
+  let rosterAsc = $state(true);
 
   const posOrder: Record<string, number> = { PG: 0, SG: 1, SF: 2, PF: 3, C: 4 };
 
-  const roleOf = (player: Player) => {
-    const index = (team.depthChart[player.position] || []).indexOf(player.id);
-    if (index === 0) return { label: 'Starter', rank: 0 };
-    if (index === 1) return { label: 'Rotation', rank: 1 };
-    return { label: 'Bench', rank: 2 };
-  };
+  const roleOf = (player: Player) => roleWord((team.depthChart[player.position] || []).indexOf(player.id));
 
   let shownRoster = $derived.by(() => {
     const value = (player: Player): string | number => {
@@ -53,10 +49,9 @@
       if (rosterSort === 'pos') return posOrder[player.position] ?? 9;
       if (rosterSort === 'age') return player.age;
       if (rosterSort === 'role') return roleOf(player).rank;
-      if (rosterSort === 'salary') return player.contract.salaries[0] ?? 0;
-      if (rosterSort === 'years') return player.contract.salaries.length;
-      if (rosterSort === 'morale') return player.morale;
-      return player.overallRating;
+      if (rosterSort === 'shape') return shapeWord(player).rank;
+      if (rosterSort === 'mood') return moodWord(player).rank;
+      return player.name;
     };
     return team.roster
       .filter(player =>
@@ -77,7 +72,7 @@
     if (rosterSort === key) rosterAsc = !rosterAsc;
     else {
       rosterSort = key;
-      rosterAsc = key === 'name' || key === 'pos' || key === 'role';
+      rosterAsc = key === 'name' || key === 'pos' || key === 'role' || key === 'shape' || key === 'mood';
     }
   };
 
@@ -331,11 +326,9 @@
               <th class="sortable" onclick={() => toggleRoster('name')}>Player Name {rosterMark('name')}</th>
               <th class="sortable" onclick={() => toggleRoster('pos')}>Pos {rosterMark('pos')}</th>
               <th class="sortable" onclick={() => toggleRoster('age')}>Age {rosterMark('age')}</th>
-              <th class="sortable" onclick={() => toggleRoster('ovr')}>OVR {rosterMark('ovr')}</th>
               <th class="sortable" onclick={() => toggleRoster('role')}>Role {rosterMark('role')}</th>
-              <th class="sortable" onclick={() => toggleRoster('salary')}>Salary {rosterMark('salary')}</th>
-              <th class="sortable" onclick={() => toggleRoster('years')}>Years {rosterMark('years')}</th>
-              <th class="sortable" onclick={() => toggleRoster('morale')}>Morale {rosterMark('morale')}</th>
+              <th class="sortable" onclick={() => toggleRoster('shape')}>Shape {rosterMark('shape')}</th>
+              <th class="sortable" onclick={() => toggleRoster('mood')}>Mood {rosterMark('mood')}</th>
             </tr>
           </thead>
           <tbody>
@@ -343,10 +336,8 @@
               <tr class="roster-row" class:active={selectedPlayer?.id === player.id} onclick={() => selectPlayer(player)}>
                 <td>
                   <div style="font-weight: 700;">{player.name}</div>
-                  {#if player.injury || player.tradeDemand || inContractYear(player) || isGlue(player)}
+                  {#if inContractYear(player) || isGlue(player)}
                     <div class="flag">
-                      {#if player.injury}Out {player.injury.daysRemaining}d{/if}
-                      {#if player.tradeDemand}Wants out{/if}
                       {#if inContractYear(player)}Contract year{/if}
                       {#if isGlue(player)}Glue{/if}
                     </div>
@@ -354,11 +345,9 @@
                 </td>
                 <td>{player.position}</td>
                 <td>{player.age}</td>
-                <td>{player.overallRating}</td>
                 <td>{roleOf(player).label}</td>
-                <td>{formatNumber(player.contract.salaries[0] || 0)}</td>
-                <td>{player.contract.salaries.length}</td>
-                <td>{player.morale}</td>
+                <td>{shapeWord(player).label}</td>
+                <td>{moodWord(player).label}</td>
               </tr>
             {/each}
           </tbody>
@@ -373,6 +362,9 @@
           <div>
             <h3 style="font-size: 1.3rem; margin-bottom: 4px;">{selectedPlayer.name}</h3>
             <p class="story">{playerStory(selectedPlayer)}</p>
+            {#if lastNightLine(selectedPlayer)}
+              <p class="story">{lastNightLine(selectedPlayer)}</p>
+            {/if}
             <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
               <span class="badge badge-secondary">{selectedPlayer.position}</span>
               <span class="badge badge-primary">Age: {selectedPlayer.age}</span>
@@ -398,7 +390,7 @@
         <div class="profile-section">
           <h4 style="font-size: 0.9rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 10px;">Contract</h4>
           <div style="background-color: var(--bg-dark); padding: 12px; border-radius: 2px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem;">
-            <div><b>Cap hits:</b> {selectedPlayer.contract.salaries.map(s => formatNumber(s)).join(' → ')}</div>
+            <div><b>Deal:</b> {capLine(selectedPlayer.contract.salaries)}</div>
             <div><b>Option:</b> {selectedPlayer.contract.option.toUpperCase()}</div>
             <div><b>Years with Team:</b> {selectedPlayer.contract.yearsServed} yrs</div>
             <div><b>Bird Rights:</b> {selectedPlayer.contract.birdRights.toUpperCase()}</div>

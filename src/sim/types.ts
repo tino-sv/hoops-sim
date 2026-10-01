@@ -119,6 +119,10 @@ export interface Player {
   tradeDemand?: boolean;
   /** The night he first asks out. Cleared once the wire runs. */
   tradeLeak?: boolean;
+  /** He has been answered since he asked. A buried night clears it. */
+  demandHeard?: boolean;
+  /** The box from the last game he was on the sheet for. */
+  lastNight?: { points: number; minutes: number };
 }
 
 export interface CapExceptions {

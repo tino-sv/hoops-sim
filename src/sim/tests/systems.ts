@@ -1,6 +1,7 @@
-import { contractYearMake, contractYearTurnover, crowdedShotPenalty, glueMakeBoost, glueMoraleDelta, inContractYear, isGlue, moraleAfterGame, roleMoraleDelta, settleTeamMorale } from '../badges'
+import { contractYearMake, contractYearTurnover, crowdedShotPenalty, glueMakeBoost, glueMoraleDelta, inContractYear, isGlue, moraleAfterGame, roleMoraleDelta, settleTeamMorale, unansweredDemand } from '../badges'
 import { capTierLabel, CBASimulator, rosterBlockReason } from '../cba'
 import { careerChoices, LeagueManager } from '../league'
+import { capLine, lastNightLine, moodWord, roleWord, shapeWord } from '../roster'
 import { bookGameMoney, coachFoulMultiplier, coachShotAdjust, coachTurnoverBump, tvCheck } from '../office'
 import { createPlayer, healPlayer, hurtPlayer, playerOrigin, playerStory } from '../players'
 import { glassOrbBump, shotProfileFactor } from '../possessionEngine'
@@ -225,6 +226,17 @@ room.depthChart[starter.position] = [starter.id, ...(room.depthChart[starter.pos
 settleTeamMorale(room.roster, player => player.id === starter.id ? 10 : 32, true, room.coach, room)
 const askedOut = Boolean(starter.tradeDemand && starter.tradeLeak)
 assert(askedOut, 'a buried starter wants out')
+assert(unansweredDemand(room.roster)?.id === starter.id, 'the day waits until he is answered')
+marked.hearDemand(starter.id, 'play')
+assert(starter.demandHeard === true && room.depthChart[starter.position][0] === starter.id, 'promising minutes puts him first')
+assert(roleWord(0).label === 'Starter' && roleWord(3).label === 'Deep bench', 'the sheet uses roles')
+assert(moodWord(starter).label === 'Gone', 'a player who wants out is gone')
+starter.injury = { description: 'Hamstring', daysRemaining: 18 }
+assert(shapeWord(starter).label === 'Out 18d', 'an injury is a shape, not a number')
+starter.lastNight = { points: 31, minutes: 18 }
+assert(lastNightLine(starter) === `${starter.name.split(' ')[0]} had 31 and wanted the ball.`, 'last night is one line')
+assert(capLine([46_700_000, 49_000_000]) === '2 years, $46.7M, $49.0M', 'the cap person speaks in millions')
+assert(unansweredDemand(room.roster) === null, 'an answer lets the day move')
 const walk = structuredClone(guy)
 walk.contract = { ...walk.contract, salaries: [1_000_000] }
 walk.morale = 70
