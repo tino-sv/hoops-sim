@@ -36,19 +36,20 @@ Status: `not started` | `in progress` | `done`
 - Books names uniforms, a move, a TV buyout, the tax, and the cup on their own lines. The office money card is the checkbook. `done`
 - Home is the next game, who cannot play, and one note. Continue stops when a player wants an answer. `done`
 - The roster list is role, shape, and mood. Overall and the cap hit show up when you open him. `done`
-- A player who is not yours is a staff read. The read can miss. The draft board stays a range until you scout him, then a sentence. `in progress`
+- A player who is not yours is a staff read. The read can miss. The draft board stays a range until you scout him, then a sentence. `done`
+- The morning of a game, the assistant writes one note. After your game, the beat writer asks one question and the day waits. `in progress`
 
 ## Next
 
-Scout sentences are in progress on `feat/scout-sentences` (2). A morning note and one postgame question come after. Playbook, scouting fog, and the owner stay behind that.
+The morning note and the postgame question are in progress on `feat/press-question` (2, 5). Playbook, scouting fog, and the owner stay behind that.
 
 ## Backlog
 
 1. Deeper finances. Books shows the year and each month. Still open: incentives, dead money, options, trade kickers, a real repeater tax, apron trade locks, dynamic gate, naming rights, and playoff gate. `in progress`
-2. The desk should feel like Football Manager 24. Continue stops when a player wants an answer. Home is the next game, who cannot play, and that note. The roster list is role, shape, and mood. A player who is not yours is a staff read that can miss. A morning note and one postgame question come after. `in progress`
+2. The desk should feel like Football Manager 24. Continue stops when a player wants an answer. Home is the next game, who cannot play, and that note. The roster list is role, shape, and mood. A player who is not yours is a staff read that can miss. The morning of a game is one note. After your game, one question stops the day. `in progress`
 3. Scouting fog. A hidden ceiling, a medical flag, a two-way affiliate, and a veteran who passes a badge. A combine and a private workout come after the ceiling is real. `not started`
 4. Full staff, rival staff, and agents and agencies that change decisions. Scouting, sports science, and the practice building are budget lines with an effect, not sliders. `not started`
-5. The wire reacts to games. Still open: a postgame answer that helps the owner or hurts the player, a leak when you shop someone, and the rest of the press. `in progress`
+5. The wire reacts to games. One postgame answer helps the owner or hurts the player. Still open: a leak when you shop someone, and the rest of the press. `in progress`
 6. Coaching carousel. Move between high school, college, and the pro league. `not started`
 7. A full college game, with continuity when a coach has worked both levels. `not started`
 8. Shell. A top ribbon with record, next game, cap tier, date, and unread mail. The sim control says simulate the day, go to the match, or blocked. The left nav stays words. Books is a ledger. The office money card is cash, the TV deal, the sponsor, and the tax. `done`

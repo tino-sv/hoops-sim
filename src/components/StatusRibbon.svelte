@@ -2,7 +2,7 @@
   import { unansweredDemand } from '../sim/badges';
   import { capTierLabel, rosterBlockReason, type OfferVerdict } from '../sim/cba';
   import type { PlayoffSeries, ScheduledMatch } from '../sim/league';
-  import type { OfficeNote, SeasonPhase, Team } from '../sim/types';
+  import type { OfficeNote, PressAsk, SeasonPhase, Team } from '../sim/types';
 
   let {
     team,
@@ -15,6 +15,7 @@
     playoffSeries,
     championId,
     news,
+    pressAsk,
     season,
     inMatch,
     onAdvance,
@@ -35,6 +36,7 @@
     playoffSeries: PlayoffSeries[]
     championId: string | null
     news: OfficeNote[]
+    pressAsk: PressAsk | null
     season: number
     inMatch: boolean
     onAdvance: () => void
@@ -83,6 +85,7 @@
   const waiting = $derived(unansweredDemand(team.roster));
   const action = $derived.by(() => {
     if (inMatch) return { label: 'In the game', disabled: true, reason: '', run: 'none' as const };
+    if (pressAsk) return { label: 'Answer the press', disabled: false, reason: '', run: 'answer' as const };
     if (waiting) return { label: `Answer ${waiting.name.split(' ').slice(-1)[0]}`, disabled: false, reason: '', run: 'answer' as const };
     if (block) return { label: 'Blocked', disabled: true, reason: block, run: 'none' as const };
     if (playable && featured) return { label: 'Continue', disabled: false, reason: '', run: 'match' as const };

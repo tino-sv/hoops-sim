@@ -5,9 +5,9 @@ import { bookGameMoney, clampSignatures, ensureCoach, ensureCommercials, findPla
 import { createPlayer, createProspect, healPlayer, hurtPlayer, playerFromProspect } from './players'
 import { deriveTraits, developPlayer } from './ratings'
 import { NBA_RULES } from './rules'
-import { addToDepthChart, rebuildDepthChart, waivePlayer } from './roster'
+import { addToDepthChart, rebuildDepthChart, scoutRead, waivePlayer } from './roster'
 import { buildSeason, type ScheduleTeam } from './schedule'
-import type { AllStarWeekend, BoxScoreStats, CoachPedigree, CoachSignature, CoachStyle, Conference, Division, DraftPick, DraftProspect, MarketDeal, OfficeNote, OffseasonStep, Player, Position, SeasonAwards, SeasonPhase, Team, TeamTactics, WirePost } from './types'
+import type { AllStarWeekend, BoxScoreStats, CoachPedigree, CoachSignature, CoachStyle, Conference, Division, DraftPick, DraftProspect, MarketDeal, OfficeNote, OffseasonStep, Player, Position, PressAsk, SeasonAwards, SeasonPhase, Team, TeamTactics, WirePost } from './types'
 import { POSITIONS } from './types'
 
 const TEAM_TEMPLATES: { city: string; name: string; color: string; conference: Conference; division: Division; coach: string; owner: string }[] = [
@@ -163,6 +163,12 @@ function between(min: number, max: number): number {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
 
+export function pressCopy(ask: PressAsk): string {
+  return ask.won
+    ? `He wants a line on the win over ${ask.opponent}.`
+    : `He wants a line on the loss to ${ask.opponent}.`
+}
+
 export class LeagueManager {
   teams: Team[] = []
   schedule: ScheduledMatch[] = []
@@ -192,6 +198,10 @@ export class LeagueManager {
   championId: string | null = null
   /** Last night injuries were counted down. */
   injuryDate = ''
+  /** The beat writer's question. The day waits until it is answered. */
+  press: PressAsk | null = null
+  /** Match id of the morning note already written. */
+  briefedMatchId = ''
 
   constructor() {
     if (this.loadFromLocalStorage()) return
@@ -274,7 +284,9 @@ export class LeagueManager {
       awards: this.awards,
       playoffSeries: this.playoffSeries,
       championId: this.championId,
-      injuryDate: this.injuryDate
+      injuryDate: this.injuryDate,
+      press: this.press,
+      briefedMatchId: this.briefedMatchId
     }))
   }
 
@@ -312,6 +324,8 @@ export class LeagueManager {
       this.playoffSeries = data.playoffSeries ?? []
       this.championId = data.championId ?? null
       this.injuryDate = data.injuryDate ?? ''
+      this.press = data.press ?? null
+      this.briefedMatchId = data.briefedMatchId ?? ''
       const refreshBadges = (player: Player) => {
         if (!player.attributes || !player.personality) return
         player.traits = deriveTraits(player.attributes, player.position, player.personality)
@@ -324,6 +338,9 @@ export class LeagueManager {
       })
       for (const team of this.teams) for (const player of team.roster) refreshBadges(player)
       for (const player of this.freeAgents) refreshBadges(player)
+      const briefed = this.briefedMatchId
+      this.morningNote()
+      if (this.briefedMatchId !== briefed) this.saveToLocalStorage()
       return true
     } catch (error) {
       console.error('Error loading league data from localStorage:', error)
@@ -384,6 +401,8 @@ export class LeagueManager {
     this.draftIndex = 0
     this.news = []
     this.wire = []
+    this.press = null
+    this.briefedMatchId = ''
     const user = this.userTeam()
     this.note(
       'Owner',
@@ -405,6 +424,70 @@ export class LeagueManager {
       body: `New coach, same building. Let's see if ${user.coach.name} can get us to ${user.owner.goalWins}.`,
       date: opened
     })
+    this.morningNote()
+    this.saveToLocalStorage()
+  }
+
+  private dueUserGame(): ScheduledMatch | null {
+    const cup = this.userCupGame()
+    if (cup) return cup
+    const playoff = this.userPlayoffGame()
+    if (playoff) return playoff
+    if (this.phase !== 'regular' || this.seasonComplete) return null
+    return this.schedule.find(match =>
+      !match.playoff && !match.cupKnockout && !match.simulated && match.round === this.currentRound
+      && (match.homeTeamId === this.userTeamId || match.awayTeamId === this.userTeamId)
+    ) ?? null
+  }
+
+  /** One paragraph on the morning of your game. The same game is not briefed twice. */
+  morningNote(): void {
+    const game = this.dueUserGame()
+    if (!game || this.briefedMatchId === game.id) return
+    const team = this.userTeam()
+    const opponent = this.teams.find(club => club.id === (game.homeTeamId === team.id ? game.awayTeamId : game.homeTeamId))
+    if (!opponent) return
+    this.briefedMatchId = game.id
+    const best = [...opponent.roster].sort((a, b) => b.overallRating - a.overallRating)[0]
+    const read = best ? scoutRead(best, team.roster).line : ''
+    const outs = team.roster.filter(player => player.injury && player.injury.daysRemaining > 0)
+    const avail = outs.length === 0
+      ? 'Everyone can play.'
+      : `Out: ${outs.slice(0, 2).map(player => player.name.split(' ')[0]).join(', ')}${outs.length > 2 ? ` and ${outs.length - 2} more` : ''}.`
+    const where = game.homeTeamId === team.id ? 'at home' : 'on the road'
+    this.note('Assistant', opponent.city, `${opponent.city} is ${opponent.wins}-${opponent.losses}, ${where}. ${read} ${avail}`)
+  }
+
+  private askPress(matchId: string, homeId: string, awayId: string, homeWon: boolean) {
+    const userHome = homeId === this.userTeamId
+    const userAway = awayId === this.userTeamId
+    if ((!userHome && !userAway) || this.press) return
+    const opponent = this.teams.find(club => club.id === (userHome ? awayId : homeId))
+    const team = this.userTeam()
+    const target = [...team.roster].sort((a, b) => b.personality.usageExpectation - a.personality.usageExpectation)[0]
+    if (!opponent || !target) return
+    this.press = {
+      matchId,
+      won: userHome ? homeWon : !homeWon,
+      opponent: opponent.city,
+      playerId: target.id
+    }
+  }
+
+  answerPress(choice: 'standard' | 'room') {
+    const ask = this.press
+    if (!ask) return
+    const team = this.userTeam()
+    const player = team.roster.find(item => item.id === ask.playerId)
+    this.press = null
+    if (choice === 'standard') {
+      team.owner.patience = Math.min(100, team.owner.patience + 2)
+      this.note('Owner', 'The standard', `${team.owner.name} heard it. Patience is ${team.owner.patience}.`)
+    } else if (player) {
+      player.morale = Math.max(0, player.morale - 3)
+      team.owner.patience = Math.max(0, team.owner.patience - 1)
+      this.note(player.name, 'He heard that', `${player.name} took the blame for ${ask.opponent}. The room is colder.`)
+    }
     this.saveToLocalStorage()
   }
 
@@ -623,14 +706,16 @@ export class LeagueManager {
 
   continueCup(): void {
     this.maybeCup()
+    this.morningNote()
     this.saveToLocalStorage()
   }
 
   simUserCup(): void {
     const game = this.userCupGame()
     if (!game) return
-    this.simKnockout(game)
+    this.simKnockout(game, true)
     this.maybeCup()
+    this.morningNote()
     this.saveToLocalStorage()
   }
 
@@ -786,8 +871,9 @@ export class LeagueManager {
       this.applyMatchResults(home, away, result, match.cup, match.date)
       this.bookGate(home, away, result.winnerId === home.id, match.cup, match.date, result.teamAScore, result.teamBScore)
       this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
-      if (userTeamId && (home.id === userTeamId || away.id === userTeamId) && onUserGameDone) {
-        onUserGameDone(result)
+      if (userTeamId && (home.id === userTeamId || away.id === userTeamId)) {
+        this.askPress(match.id, home.id, away.id, result.winnerId === home.id)
+        if (onUserGameDone) onUserGameDone(result)
       }
     })
 
@@ -799,6 +885,7 @@ export class LeagueManager {
       this.openPlayoffs()
     } else this.currentRound++
     this.touchOwner()
+    this.morningNote()
     if (save) this.saveToLocalStorage()
   }
 
@@ -817,6 +904,7 @@ export class LeagueManager {
     this.reactToGame(home, away, match.scoreHome ?? 0, match.scoreAway ?? 0, match.date)
     this.leakDemands(home, match.date)
     this.leakDemands(away, match.date)
+    this.askPress(match.id, home.id, away.id, homeWon)
   }
 
   private healTo(date: string) {
@@ -1018,7 +1106,7 @@ export class LeagueManager {
     this.addCupGame('final', seeds[0], seeds[1])
   }
 
-  private simKnockout(match: ScheduledMatch) {
+  private simKnockout(match: ScheduledMatch, ask = false) {
     const home = this.teams.find(team => team.id === match.homeTeamId)
     const away = this.teams.find(team => team.id === match.awayTeamId)
     if (!home || !away) return
@@ -1039,6 +1127,7 @@ export class LeagueManager {
     }
     this.bookGate(home, away, result.winnerId === home.id, true, match.date, result.teamAScore, result.teamBScore)
     this.reactToGame(home, away, result.teamAScore, result.teamBScore, match.date)
+    if (ask) this.askPress(match.id, home.id, away.id, result.winnerId === home.id)
   }
 
   private maybeCup() {
@@ -1245,7 +1334,7 @@ export class LeagueManager {
     this.note('League office', won ? 'Series win' : 'Season over', won ? `You won the series ${userWins}-${oppWins}.` : `You lost the series ${userWins}-${oppWins}.`)
   }
 
-  private simPlayoffGame(match: ScheduledMatch) {
+  private simPlayoffGame(match: ScheduledMatch, ask = false) {
     if (match.simulated) return
     const home = this.teams.find(team => team.id === match.homeTeamId)
     const away = this.teams.find(team => team.id === match.awayTeamId)
@@ -1264,6 +1353,7 @@ export class LeagueManager {
     this.recordInjuries(home, player => result.playerStatsA[player.id]?.minutes ?? 0, match.date)
     this.recordInjuries(away, player => result.playerStatsB[player.id]?.minutes ?? 0, match.date)
     this.recordSeriesGame(match)
+    if (ask) this.askPress(match.id, home.id, away.id, result.winnerId === home.id)
   }
 
   openPlayoffs(): void {
@@ -1281,9 +1371,11 @@ export class LeagueManager {
     if (!this.seasonComplete || this.phase !== 'regular' || this.championId) return
     this.queuePlayoffGames()
     for (const game of this.playoffGamesOpen()) {
-      if (!simUser && (game.homeTeamId === this.userTeamId || game.awayTeamId === this.userTeamId)) continue
-      this.simPlayoffGame(game)
+      const yours = game.homeTeamId === this.userTeamId || game.awayTeamId === this.userTeamId
+      if (!simUser && yours) continue
+      this.simPlayoffGame(game, simUser && yours)
     }
+    this.morningNote()
     this.saveToLocalStorage()
   }
 
@@ -1294,6 +1386,7 @@ export class LeagueManager {
       if (game.homeTeamId === this.userTeamId || game.awayTeamId === this.userTeamId) continue
       this.simPlayoffGame(game)
     }
+    this.morningNote()
     this.saveToLocalStorage()
   }
 
